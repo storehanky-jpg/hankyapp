@@ -114,6 +114,9 @@ export default function AdminPage() {
   const getAuthHeaders = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
+    if (!token) {
+      throw new Error('Session expirée. Veuillez vous reconnecter.');
+    }
     return {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -133,8 +136,8 @@ export default function AdminPage() {
         fetch(`${EDGE_URL}?action=action_logs`, { headers }),
       ]);
 
-      const usersData = await usersRes.json();
-      if (!usersRes.ok) throw new Error(usersData.error || 'Erreur');
+      const usersData = await usersRes.json().catch(() => ({}));
+      if (!usersRes.ok) throw new Error(usersData.error || `Erreur ${usersRes.status}: ${usersRes.statusText}`);
       setUsers(usersData.users || []);
 
       if (histRes.ok) {
@@ -190,13 +193,14 @@ export default function AdminPage() {
           permissions: formPerms,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erreur');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Erreur ${res.status}: ${res.statusText}`);
       showSuccess(`Utilisateur ${formData.email} créé avec succès`);
       setShowCreate(false);
       setFormData({ email: '', password: '', confirmPassword: '', display_name: '', role: 'user' });
       setFormPerms({ ...EMPTY_PERMISSIONS });
-      fetchAll();
+      await new Promise(r => setTimeout(r, 500));
+      await fetchAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
     } finally {

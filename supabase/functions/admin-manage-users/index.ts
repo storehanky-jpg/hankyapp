@@ -89,7 +89,7 @@ Deno.serve(async (req: Request) => {
         });
       }
       const { error: logErr } = await adminClient.from("admin_login_history").insert({
-        user_id, email, device_info: device_info || navigator.userAgent || "Unknown",
+        user_id, email, device_info: device_info || "Unknown",
       });
       if (logErr) throw logErr;
       return new Response(JSON.stringify({ success: true }), {
@@ -189,11 +189,16 @@ Deno.serve(async (req: Request) => {
           email, password, email_confirm: true,
         });
         if (createErr) {
-          return new Response(JSON.stringify({ error: createErr.message }), {
+          return new Response(JSON.stringify({ error: "Création auth: " + createErr.message }), {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
-        const userId = newUser.user!.id;
+        if (!newUser.user) {
+          return new Response(JSON.stringify({ error: "Utilisateur non créé" }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const userId = newUser.user.id;
 
         // Ensure the profile exists even when the auth trigger is unavailable
         const { error: profErr } = await adminClient.from("profiles").upsert({
@@ -203,7 +208,11 @@ Deno.serve(async (req: Request) => {
           role: role || "user",
           is_active: true,
         }, { onConflict: "id" });
-        if (profErr) throw profErr;
+        if (profErr) {
+          return new Response(JSON.stringify({ error: "Profil: " + profErr.message }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
 
         // Insert permissions (upsert in case a row was backfilled)
         const permInsert: Record<string, unknown> = { user_id: userId };
@@ -215,16 +224,25 @@ Deno.serve(async (req: Request) => {
           PAGE_KEYS.forEach(k => { permInsert[k] = "none"; });
         }
         const { error: permErr } = await adminClient.from("user_permissions").upsert(permInsert);
-        if (permErr) throw permErr;
+        if (permErr) {
+          return new Response(JSON.stringify({ error: "Permissions: " + permErr.message }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
 
-        // Log the action
-        await adminClient.from("admin_action_logs").insert({
-          user_id: check.userId,
-          user_email: (await adminClient.from("profiles").select("email").eq("id", check.userId).maybeSingle()).data?.email || "admin",
-          action_type: "create",
-          action_detail: `Création de l'utilisateur ${email}`,
-          page: "admin",
-        });
+        // Log the action (non-blocking)
+        try {
+          const adminEmail = (await adminClient.from("profiles").select("email").eq("id", check.userId).maybeSingle()).data?.email || "admin";
+          await adminClient.from("admin_action_logs").insert({
+            user_id: check.userId,
+            user_email: adminEmail,
+            action_type: "create",
+            action_detail: `Création de l'utilisateur ${email}`,
+            page: "admin",
+          });
+        } catch {
+          // Logging failure should not block user creation
+        }
 
         return new Response(JSON.stringify({ success: true, user_id: userId }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -391,6 +409,7 @@ Deno.serve(async (req: Request) => {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erreur serveur";
+    console.error("Edge function error:", message, err);
     return new Response(JSON.stringify({ error: message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

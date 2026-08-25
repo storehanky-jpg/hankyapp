@@ -6,6 +6,7 @@ export type PermissionLevel = 'full' | 'read' | 'none';
 export interface UserPermissions {
   dashboard: PermissionLevel;
   recipe: PermissionLevel;
+  chocolat: PermissionLevel;
   materials: PermissionLevel;
   charges: PermissionLevel;
   production: PermissionLevel;
@@ -47,7 +48,7 @@ const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const LAST_ACTIVITY_KEY = 'admin_last_activity';
 
 const DEFAULT_PERMISSIONS: UserPermissions = {
-  dashboard: 'full', recipe: 'full', materials: 'full',
+  dashboard: 'full', recipe: 'full', chocolat: 'full', materials: 'full',
   charges: 'full', production: 'full', customers: 'full', bulksales: 'full',
   pricing: 'full', reports: 'full', history: 'full', settings: 'full', admin: 'none',
 };
@@ -97,7 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setPermissions(DEFAULT_PERMISSIONS);
       } else {
         // Default: dashboard only
-        setPermissions({ ...DEFAULT_PERMISSIONS, dashboard: 'full', recipe: 'none', materials: 'none', charges: 'none', production: 'none', customers: 'none', bulksales: 'none', pricing: 'none', reports: 'none', history: 'none', settings: 'none', admin: 'none' });
+        setPermissions({ ...DEFAULT_PERMISSIONS, dashboard: 'full', recipe: 'none', chocolat: 'none', materials: 'none', charges: 'none', production: 'none', customers: 'none', bulksales: 'none', pricing: 'none', reports: 'none', history: 'none', settings: 'none', admin: 'none' });
       }
     } catch {
       setProfile(null);
