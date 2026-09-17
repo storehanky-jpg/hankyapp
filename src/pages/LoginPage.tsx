@@ -24,7 +24,8 @@ export default function LoginPage() {
         const { data, error } = await supabase
           .from('public_user_list')
           .select('id, email, display_name, role')
-          .order('created_at', { ascending: true });
+          .order('created_at', { ascending: true })
+          .abortSignal(AbortSignal.timeout(10000));
         if (error) throw error;
         setUsers(data || []);
       } catch {

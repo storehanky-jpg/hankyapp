@@ -130,10 +130,11 @@ export default function AdminPage() {
     try {
       const headers = await getAuthHeaders();
 
+      const noCache = { headers: { ...headers, 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' } };
       const [usersRes, histRes, logsRes] = await Promise.all([
-        fetch(EDGE_URL, { headers }),
-        fetch(`${EDGE_URL}?action=login_history`, { headers }),
-        fetch(`${EDGE_URL}?action=action_logs`, { headers }),
+        fetch(EDGE_URL, noCache),
+        fetch(`${EDGE_URL}?action=login_history`, noCache),
+        fetch(`${EDGE_URL}?action=action_logs`, noCache),
       ]);
 
       const usersData = await usersRes.json().catch(() => ({}));
@@ -199,7 +200,7 @@ export default function AdminPage() {
       setShowCreate(false);
       setFormData({ email: '', password: '', confirmPassword: '', display_name: '', role: 'user' });
       setFormPerms({ ...EMPTY_PERMISSIONS });
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 1000));
       await fetchAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');

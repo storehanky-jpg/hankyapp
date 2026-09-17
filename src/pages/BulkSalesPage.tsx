@@ -136,7 +136,9 @@ export default function BulkSalesPage() {
   const [saleForm, setSaleForm] = useState({
     type: 'boite20' as SaleType,
     sale_date: format(new Date(), 'yyyy-MM-dd'),
-    quantity: 1, unit_price: DEFAULT_PRICES.boite20, amount_paid: 0, notes: '',
+    quantity: 1, unit_price: DEFAULT_PRICES.boite20,
+    payment_status: 'unpaid' as 'paid' | 'unpaid' | 'partial',
+    amount_paid: 0, notes: '',
   });
 
   function openAddSale() {
@@ -144,16 +146,21 @@ export default function BulkSalesPage() {
     const initialType: SaleType = 'boite20';
     setSaleForm({
       type: initialType, sale_date: format(new Date(), 'yyyy-MM-dd'),
-      quantity: 1, unit_price: getCustomerPrice(selectedCustomer, initialType), amount_paid: 0, notes: '',
+      quantity: 1, unit_price: getCustomerPrice(selectedCustomer, initialType),
+      payment_status: 'unpaid', amount_paid: 0, notes: '',
     });
     setShowSaleModal(true);
   }
 
   function openEditSale(s: UnifiedSale) {
+    const isPaid = s.amount_paid >= s.total_amount;
+    const isPartial = s.amount_paid > 0 && s.amount_paid < s.total_amount;
     setEditSale(s);
     setSaleForm({
       type: s.type, sale_date: s.sale_date, quantity: s.quantity,
-      unit_price: s.unit_price, amount_paid: s.amount_paid, notes: s.notes || '',
+      unit_price: s.unit_price,
+      payment_status: isPaid ? 'paid' : isPartial ? 'partial' : 'unpaid',
+      amount_paid: s.amount_paid, notes: s.notes || '',
     });
     setShowSaleModal(true);
   }
@@ -166,8 +173,11 @@ export default function BulkSalesPage() {
     e.preventDefault();
     if (!selectedCustomer) return;
     const total = saleForm.quantity * saleForm.unit_price;
+    const amount_paid = saleForm.payment_status === 'paid' ? total
+      : saleForm.payment_status === 'partial' ? saleForm.amount_paid
+      : 0;
     const meta = SALE_TYPES.find(t => t.id === saleForm.type)!;
-    const common = { sale_date: saleForm.sale_date, amount_paid: saleForm.amount_paid, notes: saleForm.notes || undefined };
+    const common = { sale_date: saleForm.sale_date, amount_paid, notes: saleForm.notes || undefined };
 
     try {
       if (editSale) {
@@ -180,13 +190,13 @@ export default function BulkSalesPage() {
           const boxSize = saleForm.type === 'boite20' ? 20 : saleForm.type === 'boite10' ? 10 : 6;
           const updated = await api.salesService.update(editSale.id, {
             ...common, box_size: boxSize, quantity: saleForm.quantity, unit_price: saleForm.unit_price,
-            total_amount: total, is_paid: saleForm.amount_paid >= total,
+            total_amount: total, is_paid: amount_paid >= total,
           });
           setSales(sales.map(s => s.id === editSale.id ? updated : s));
         } else {
           const updated = await api.shopSalesService.update(editSale.id, {
             ...common, quantity: saleForm.quantity, price_per_piece: saleForm.unit_price,
-            total_amount: total, is_paid: saleForm.amount_paid >= total,
+            total_amount: total, is_paid: amount_paid >= total,
           });
           setShopSales(shopSales.map(s => s.id === editSale.id ? updated : s));
         }
@@ -201,14 +211,14 @@ export default function BulkSalesPage() {
           const boxSize = saleForm.type === 'boite20' ? 20 : saleForm.type === 'boite10' ? 10 : 6;
           const created = await api.salesService.create({
             ...common, box_size: boxSize, quantity: saleForm.quantity, unit_price: saleForm.unit_price,
-            total_amount: total, is_paid: saleForm.amount_paid >= total,
+            total_amount: total, is_paid: amount_paid >= total,
             customer_id: selectedCustomer.id, customer_name: selectedCustomer.name,
           });
           setSales([created, ...sales]);
         } else {
           const created = await api.shopSalesService.create({
             ...common, quantity: saleForm.quantity, price_per_piece: saleForm.unit_price,
-            total_amount: total, is_paid: saleForm.amount_paid >= total,
+            total_amount: total, is_paid: amount_paid >= total,
             customer_id: selectedCustomer.id, customer_name: selectedCustomer.name,
           });
           setShopSales([created, ...shopSales]);
@@ -621,7 +631,7 @@ export default function BulkSalesPage() {
           </div>
         )}
 
-        {/* Sale Modal */}
+        {/* Sale Modal — compact product grid + payment status */}
         {showSaleModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
@@ -629,68 +639,99 @@ export default function BulkSalesPage() {
                 <h2 className="text-lg font-semibold">{editSale ? 'Modifier Vente' : 'Nouvelle Vente'}</h2>
                 <button onClick={() => setShowSaleModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
               </div>
-              <form onSubmit={handleSaleSubmit} className="p-4 space-y-4">
+              <form onSubmit={handleSaleSubmit} className="p-4 space-y-3">
+                {/* Compact product grid */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Type de produit</label>
-                  <div className="grid grid-cols-1 gap-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Produit</label>
+                  <div className="grid grid-cols-2 gap-2">
                     {SALE_TYPES.map(t => {
                       const c = colorMap[t.color];
+                      const isSel = saleForm.type === t.id;
                       return (
                         <button key={t.id} type="button" onClick={() => handleTypeChange(t.id)}
-                          className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all text-left ${saleForm.type === t.id ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}>
-                          <span className={`w-8 h-8 rounded-lg ${c.solid} flex items-center justify-center`}>{t.icon}</span>
-                          <span className="text-sm font-medium">{t.label}</span>
+                          className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 transition-all text-left ${isSel ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                          <span className={`w-7 h-7 rounded-lg ${c.solid} flex items-center justify-center flex-shrink-0`}>{t.icon}</span>
+                          <span className={`text-xs font-medium ${isSel ? 'text-emerald-700' : 'text-gray-600'}`}>{t.shortLabel}</span>
                         </button>
                       );
                     })}
                   </div>
                 </div>
+                {/* Date + qty + price */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                   <input type="date" required value={saleForm.sale_date} onChange={e => setSaleForm({ ...saleForm, sale_date: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500" />
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{saleForm.type === 'vrac' ? 'Quantité (kg)' : 'Quantité'}</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{saleForm.type === 'vrac' ? 'Qté (kg)' : 'Quantité'}</label>
                     <input type="number" step={saleForm.type === 'vrac' ? '0.1' : '1'} min="0" required value={saleForm.quantity}
                       onChange={e => setSaleForm({ ...saleForm, quantity: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500" />
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm" />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Prix unitaire (DA)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Prix unit. (DA)</label>
                     <input type="number" min="0" step="10" required value={saleForm.unit_price}
                       onChange={e => setSaleForm({ ...saleForm, unit_price: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 font-bold text-amber-700" />
-                    {(() => {
-                      const saved = getCustomerPrice(selectedCustomer, saleForm.type);
-                      const matches = saved === saleForm.unit_price;
-                      return matches ? (
-                        <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1"><Check size={12} /> Prix client enregistré</p>
-                      ) : (
-                        <p className="text-xs text-amber-600 mt-1">Prix personnalisé (client: {saved.toLocaleString()} DA)</p>
-                      );
-                    })()}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-amber-700" />
                   </div>
                 </div>
+                {/* Payment status buttons */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Versement initial (DA)</label>
-                  <input type="number" min="0" value={saleForm.amount_paid}
-                    onChange={e => setSaleForm({ ...saleForm, amount_paid: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500" />
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Statut de paiement</label>
+                  <div className="flex gap-2">
+                    {(['paid', 'unpaid', 'partial'] as const).map(s => (
+                      <button key={s} type="button"
+                        onClick={() => setSaleForm({
+                          ...saleForm,
+                          payment_status: s,
+                          amount_paid: s === 'paid' ? saleForm.quantity * saleForm.unit_price : s === 'unpaid' ? 0 : saleForm.amount_paid,
+                        })}
+                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                          saleForm.payment_status === s
+                            ? s === 'paid' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                              : s === 'unpaid' ? 'bg-red-100 text-red-700 border border-red-200'
+                              : 'bg-orange-100 text-orange-700 border border-orange-200'
+                            : 'bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100'
+                        }`}>
+                        <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${
+                          s === 'paid' ? 'bg-emerald-500' : s === 'unpaid' ? 'bg-red-500' : 'bg-orange-500'
+                        }`} />
+                        {s === 'paid' ? 'Payé' : s === 'unpaid' ? 'Non payé' : 'Versement'}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+                {/* Partial payment amount */}
+                {saleForm.payment_status === 'partial' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Montant versé (DA)</label>
+                    <input type="number" min="0" max={saleForm.quantity * saleForm.unit_price}
+                      value={saleForm.amount_paid}
+                      onChange={e => setSaleForm({ ...saleForm, amount_paid: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 text-sm" />
+                    <p className="text-sm text-orange-600 mt-1">
+                      Reste à payer: <strong>{((saleForm.quantity * saleForm.unit_price) - saleForm.amount_paid).toLocaleString()} DA</strong>
+                    </p>
+                  </div>
+                )}
+                {/* Notes */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optionnel)</label>
                   <textarea value={saleForm.notes} rows={2} onChange={e => setSaleForm({ ...saleForm, notes: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg" />
+                    className="w-full px-3 py-2 border rounded-lg text-sm" />
                 </div>
+                {/* Total */}
                 <div className="bg-emerald-50 p-3 rounded-xl flex justify-between items-center">
-                  <span className="text-sm text-emerald-800">Total: {(saleForm.quantity * saleForm.unit_price).toLocaleString()} DA</span>
-                  <span className="text-sm text-red-600">Reste: {((saleForm.quantity * saleForm.unit_price) - saleForm.amount_paid).toLocaleString()} DA</span>
+                  <span className="text-sm text-emerald-800">Total: <strong>{(saleForm.quantity * saleForm.unit_price).toLocaleString()} DA</strong></span>
+                  {saleForm.payment_status === 'partial' && (
+                    <span className="text-sm text-orange-600">Reste: {((saleForm.quantity * saleForm.unit_price) - saleForm.amount_paid).toLocaleString()} DA</span>
+                  )}
                 </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" onClick={() => setShowSaleModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Annuler</button>
-                  <button type="submit" className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600">{editSale ? 'Modifier' : 'Enregistrer'}</button>
+                <div className="flex justify-end gap-2 pt-1">
+                  <button type="button" onClick={() => setShowSaleModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm">Annuler</button>
+                  <button type="submit" className="px-5 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium">{editSale ? 'Modifier' : 'Enregistrer'}</button>
                 </div>
               </form>
             </div>
