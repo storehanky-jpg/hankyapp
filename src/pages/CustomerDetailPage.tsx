@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   ArrowLeft, Plus, Trash2, Edit2, X, Save, Phone, Mail, MapPin,
-  CheckCircle, XCircle, Scale, Package, Store, Tag, Search
+  CheckCircle, XCircle, Scale, Package, Store, Tag, Search, Building2, FileText
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
@@ -37,7 +37,6 @@ interface FormState {
   label: string;
   unit_label: string;
   unit_price: number;
-  is_paid: boolean;
   notes: string;
 }
 
@@ -47,7 +46,6 @@ function emptyForm(): FormState {
     label: DEFAULT_LABELS.boite,
     unit_label: 'pcs',
     unit_price: DEFAULT_PRICES.boite,
-    is_paid: false,
     notes: '',
   };
 }
@@ -103,7 +101,6 @@ export default function CustomerDetailPage({ customer, onBack }: Props) {
       label: p.label,
       unit_label: p.unit_label,
       unit_price: p.unit_price,
-      is_paid: p.is_paid,
       notes: p.notes || '',
     });
     setShowModal(true);
@@ -129,7 +126,7 @@ export default function CustomerDetailPage({ customer, onBack }: Props) {
         label: form.label,
         unit_label: form.unit_label,
         unit_price: form.unit_price,
-        is_paid: form.is_paid,
+        is_paid: false,
         notes: form.notes || undefined,
       };
       if (editProduct) {
@@ -207,6 +204,24 @@ export default function CustomerDetailPage({ customer, onBack }: Props) {
           </button>
         </div>
       </div>
+
+      {/* Fiscal coordinates */}
+      {(customer.legal_name || customer.rc || customer.nif || customer.nis || customer.ai || customer.fiscal_address || customer.fiscal_phone) && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <Building2 size={18} className="text-emerald-600" /> Coordonnées Fiscales
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+            {customer.legal_name && <div><p className="text-xs text-gray-500">Raison sociale</p><p className="font-medium text-gray-900">{customer.legal_name}</p></div>}
+            {customer.fiscal_address && <div><p className="text-xs text-gray-500">Adresse fiscale</p><p className="font-medium text-gray-900">{customer.fiscal_address}</p></div>}
+            {customer.fiscal_phone && <div><p className="text-xs text-gray-500">Téléphone fiscal</p><p className="font-medium text-gray-900">{customer.fiscal_phone}</p></div>}
+            {customer.rc && <div><p className="text-xs text-gray-500">RC</p><p className="font-medium text-gray-900">{customer.rc}</p></div>}
+            {customer.nif && <div><p className="text-xs text-gray-500">NIF</p><p className="font-medium text-gray-900">{customer.nif}</p></div>}
+            {customer.nis && <div><p className="text-xs text-gray-500">NIS</p><p className="font-medium text-gray-900">{customer.nis}</p></div>}
+            {customer.ai && <div><p className="text-xs text-gray-500">AI</p><p className="font-medium text-gray-900">{customer.ai}</p></div>}
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
@@ -380,25 +395,6 @@ export default function CustomerDetailPage({ customer, onBack }: Props) {
                     onChange={e => setForm({ ...form, unit_label: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm"
                     placeholder="pcs, kg..." />
-                </div>
-              </div>
-
-              {/* Paid status */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Statut paiement</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button type="button" onClick={() => setForm({ ...form, is_paid: true })}
-                    className={`flex items-center justify-center gap-2 py-3 rounded-xl font-medium transition-all border-2 ${
-                      form.is_paid ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                    }`}>
-                    <CheckCircle size={18} /> Payé
-                  </button>
-                  <button type="button" onClick={() => setForm({ ...form, is_paid: false })}
-                    className={`flex items-center justify-center gap-2 py-3 rounded-xl font-medium transition-all border-2 ${
-                      !form.is_paid ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                    }`}>
-                    <XCircle size={18} /> Non payé
-                  </button>
                 </div>
               </div>
 

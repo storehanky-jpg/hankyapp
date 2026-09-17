@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Trash2, ChefHat, AlertTriangle, Package, X, Calculator, Edit2, Save } from 'lucide-react';
+import { Plus, Trash2, ChefHat, AlertTriangle, Package, X, Calculator, Edit2, Search, TrendingUp, DollarSign } from 'lucide-react';
 import { format } from 'date-fns';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
+import type { ProductionMaterial } from '../types';
 
 // Default coque recipe (g per batch)
 const DEFAULT_COQUE: { name: string; qty: number }[] = [
@@ -21,6 +22,14 @@ interface CostLine {
   pricePerKg: number;
 }
 
+interface BatchMaterialLine {
+  material_id: string;
+  quantity: number;
+  unit_cost: number;
+  name: string;
+  unit: string;
+}
+
 export default function ProductionPage() {
   const {
     productionBatches, setProductionBatches,
@@ -32,14 +41,19 @@ export default function ProductionPage() {
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [showUnsoldModal, setShowUnsoldModal] = useState(false);
   const [editBatch, setEditBatch] = useState<string | null>(null);
+  const [materialSearch, setMaterialSearch] = useState('');
 
   const [batchForm, setBatchForm] = useState({
     batch_date: format(new Date(), 'yyyy-MM-dd'),
     planned_quantity: 0,
     produced_quantity: 0,
     lost_quantity: 0,
-    notes: ''
+    notes: '',
+    quantity_produced: 0 as number | undefined,
+    selling_price_per_unit: 0,
   });
+
+  const [batchMaterials, setBatchMaterials] = useState<BatchMaterialLine[]>([]);
 
   const [unsoldForm, setUnsoldForm] = useState({
     date: format(new Date(), 'yyyy-MM-dd'),
@@ -82,16 +96,13 @@ export default function ProductionPage() {
   const [ganachePricePerKg, setGanachePricePerKg] = useState(0);
   const [costInitialized, setCostInitialized] = useState(false);
 
-  // Lazy-initialize cost lines when entering cost tab
   function initCostTab() {
     if (!costInitialized) {
       setCostLines(initialCostLines.map(l => ({ ...l, qtyG: l.qtyG * costMultiplier })));
-      // Auto-set ganache defaults
       const ganacheTotal = ganacheRecipeItems.length > 0
         ? ganacheRecipeItems.reduce((s, i) => s + i.quantity_per_batch, 0)
         : DEFAULT_GANACHE_PER_KG;
       setGanacheKg((ganacheTotal * costMultiplier) / 1000);
-      // Auto-price from ganache recipe
       const ganacheCostPerKg = ganacheRecipeItems.length > 0
         ? ganacheRecipeItems.reduce((s, i) => {
             const mat = rawMaterials.find(m => m.id === i.material_id);
@@ -103,7 +114,6 @@ export default function ProductionPage() {
     }
   }
 
-  // When multiplier changes, scale quantities
   function handleMultiplierChange(val: number) {
     const prev = costMultiplier;
     setCostMultiplier(val);
@@ -115,7 +125,6 @@ export default function ProductionPage() {
     setCostLines(lines => lines.map((l, i) => i === index ? { ...l, [field]: value } : l));
   }
 
-  // Totals
   const coqueCost = costLines.reduce((s, l) => s + (l.qtyG / 1000) * l.pricePerKg, 0);
   const ganacheCost = ganacheKg * ganachePricePerKg;
   const totalCost = coqueCost + ganacheCost;
@@ -123,6 +132,37 @@ export default function ProductionPage() {
   const macaronsCount = Math.round((totalCoqueWeightG / 1000) * 55);
   const costPerMacaron = macaronsCount > 0 ? totalCost / macaronsCount : 0;
   const costPerKg = totalCoqueWeightG > 0 ? (totalCost / (totalCoqueWeightG / 1000)) : 0;
+
+  // Batch materials calculations
+  const batchMaterialsCost = batchMaterials.reduce((s, m) => s + m.quantity * m.unit_cost, 0);
+  const batchProductionValue = batchForm.produced_quantity * batchForm.selling_price_per_unit;
+  const batchProfit = batchProductionValue - batchMaterialsCost;
+
+  const filteredRawMaterials = rawMaterials.filter(m =>
+    m.name.toLowerCase().includes(materialSearch.toLowerCase())
+  );
+
+  const addBatchMaterial = (materialId: string) => {
+    const mat = rawMaterials.find(m => m.id === materialId);
+    if (!mat) return;
+    if (batchMaterials.some(m => m.material_id === materialId)) return;
+    setBatchMaterials([...batchMaterials, {
+      material_id: mat.id,
+      quantity: 0,
+      unit_cost: mat.unit_cost,
+      name: mat.name,
+      unit: mat.unit,
+    }]);
+    setMaterialSearch('');
+  };
+
+  const updateBatchMaterial = (index: number, field: keyof BatchMaterialLine, value: number | string) => {
+    setBatchMaterials(lines => lines.map((l, i) => i === index ? { ...l, [field]: value } : l));
+  };
+
+  const removeBatchMaterial = (index: number) => {
+    setBatchMaterials(lines => lines.filter((_, i) => i !== index));
+  };
 
   // --- Batch handlers ---
   const openBatchModal = (batch?: typeof productionBatches[0]) => {
@@ -133,24 +173,83 @@ export default function ProductionPage() {
         planned_quantity: batch.planned_quantity,
         produced_quantity: batch.produced_quantity,
         lost_quantity: batch.lost_quantity,
-        notes: batch.notes || ''
+        notes: batch.notes || '',
+        quantity_produced: batch.quantity_produced,
+        selling_price_per_unit: batch.production_value && batch.produced_quantity
+          ? batch.production_value / batch.produced_quantity : 0,
       });
+      // Load existing materials if any
+      if (batch.materials && batch.materials.length > 0) {
+        setBatchMaterials(batch.materials.map(m => ({
+          material_id: m.material_id,
+          quantity: m.quantity,
+          unit_cost: m.unit_cost,
+          name: m.material?.name || 'Inconnu',
+          unit: m.material?.unit || 'kg',
+        })));
+      } else {
+        setBatchMaterials([]);
+      }
     } else {
       setEditBatch(null);
-      setBatchForm({ batch_date: format(new Date(), 'yyyy-MM-dd'), planned_quantity: 0, produced_quantity: 0, lost_quantity: 0, notes: '' });
+      setBatchForm({ batch_date: format(new Date(), 'yyyy-MM-dd'), planned_quantity: 0, produced_quantity: 0, lost_quantity: 0, notes: '', quantity_produced: undefined, selling_price_per_unit: 0 });
+      setBatchMaterials([]);
     }
+    setMaterialSearch('');
     setShowBatchModal(true);
   };
 
   const handleBatchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const production_cost = batchMaterialsCost;
+      const production_value = batchProductionValue;
+      const profit = batchProfit;
+
       if (editBatch) {
-        const updated = await api.productionBatchService.update(editBatch, batchForm);
-        setProductionBatches(productionBatches.map(b => b.id === editBatch ? updated : b));
+        const updated = await api.productionBatchService.update(editBatch, {
+          ...batchForm,
+          quantity_produced: batchForm.quantity_produced,
+          production_cost,
+          production_value,
+          profit,
+        });
+        // Replace materials
+        await api.productionMaterialsService.deleteByBatch(editBatch);
+        for (const m of batchMaterials) {
+          await api.productionMaterialsService.create({
+            batch_id: editBatch,
+            material_id: m.material_id,
+            quantity: m.quantity,
+            unit_cost: m.unit_cost,
+            total_cost: m.quantity * m.unit_cost,
+          });
+        }
+        setProductionBatches(productionBatches.map(b => b.id === editBatch ? { ...updated, materials: batchMaterials.map((m, i) => ({
+          id: `temp-${i}`, batch_id: editBatch, material_id: m.material_id, quantity: m.quantity, unit_cost: m.unit_cost, total_cost: m.quantity * m.unit_cost, created_at: new Date().toISOString(),
+          material: rawMaterials.find(r => r.id === m.material_id)
+        })) } : b));
       } else {
-        const newBatch = await api.productionBatchService.create(batchForm);
-        setProductionBatches([newBatch, ...productionBatches]);
+        const newBatch = await api.productionBatchService.create({
+          ...batchForm,
+          quantity_produced: batchForm.quantity_produced,
+          production_cost,
+          production_value,
+          profit,
+        });
+        for (const m of batchMaterials) {
+          await api.productionMaterialsService.create({
+            batch_id: newBatch.id,
+            material_id: m.material_id,
+            quantity: m.quantity,
+            unit_cost: m.unit_cost,
+            total_cost: m.quantity * m.unit_cost,
+          });
+        }
+        setProductionBatches([{ ...newBatch, materials: batchMaterials.map((m, i) => ({
+          id: `temp-${i}`, batch_id: newBatch.id, material_id: m.material_id, quantity: m.quantity, unit_cost: m.unit_cost, total_cost: m.quantity * m.unit_cost, created_at: new Date().toISOString(),
+          material: rawMaterials.find(r => r.id === m.material_id)
+        })) }, ...productionBatches]);
       }
       setShowBatchModal(false);
     } catch (error) {
@@ -206,6 +305,7 @@ export default function ProductionPage() {
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   });
   const totalUnsold = unsoldThisMonth.reduce((s, u) => s + u.quantity, 0);
+  const totalProfitThisMonth = batchesThisMonth.reduce((s, b) => s + (b.profit || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -228,19 +328,20 @@ export default function ProductionPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         {[
           { label: 'Planifié ce mois', value: totalPlanned, icon: <Package size={20} className="text-blue-600" />, bg: 'bg-blue-100' },
           { label: 'Produit ce mois', value: totalProduced, icon: <ChefHat size={20} className="text-emerald-600" />, bg: 'bg-emerald-100' },
           { label: 'Pertes production', value: totalLost, icon: <AlertTriangle size={20} className="text-orange-600" />, bg: 'bg-orange-100' },
           { label: 'Non vendu', value: totalUnsold, icon: <AlertTriangle size={20} className="text-rose-600" />, bg: 'bg-rose-100' },
+          { label: 'Bénéfice ce mois', value: `${totalProfitThisMonth.toLocaleString()} DA`, icon: <TrendingUp size={20} className="text-emerald-600" />, bg: 'bg-emerald-100' },
         ].map((s, i) => (
           <div key={i} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
             <div className="flex items-center gap-3">
               <div className={`p-2 ${s.bg} rounded-lg`}>{s.icon}</div>
               <div>
                 <p className="text-xs text-gray-500">{s.label}</p>
-                <p className="text-xl font-bold text-gray-900">{s.value.toLocaleString()}</p>
+                <p className="text-xl font-bold text-gray-900">{s.value}</p>
               </div>
             </div>
           </div>
@@ -274,7 +375,7 @@ export default function ProductionPage() {
         ] as const).map(tab => (
           <button key={tab.id}
             onClick={() => { setActiveTab(tab.id); if (tab.id === 'cost') initCostTab(); }}
-            className={`flex items-center gap-2 px-4 py-2.5 font-medium text-sm transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2.5 font-medium text-sm transition-colors whitespace-nowrap ${
               activeTab === tab.id ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:text-gray-700'
             }`}>
             {tab.icon} {tab.label}
@@ -295,6 +396,9 @@ export default function ProductionPage() {
                   <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Produit</th>
                   <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Pertes</th>
                   <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Efficacité</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Coût Prod.</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Valeur</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Bénéfice</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Notes</th>
                   <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Actions</th>
                 </tr>
@@ -303,6 +407,7 @@ export default function ProductionPage() {
                 {productionBatches.map(batch => {
                   const eff = batch.planned_quantity > 0
                     ? (batch.produced_quantity / batch.planned_quantity * 100).toFixed(1) : 0;
+                  const profit = batch.profit || 0;
                   return (
                     <tr key={batch.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-600">{format(new Date(batch.batch_date), 'dd/MM/yyyy')}</td>
@@ -319,6 +424,19 @@ export default function ProductionPage() {
                           parseFloat(String(eff)) >= 80 ? 'bg-amber-100 text-amber-700' :
                           'bg-red-100 text-red-700'
                         }`}>{eff}%</span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600 text-sm">
+                        {batch.production_cost ? `${batch.production_cost.toLocaleString()} DA` : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600 text-sm">
+                        {batch.production_value ? `${batch.production_value.toLocaleString()} DA` : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-right text-sm font-medium">
+                        {batch.production_cost ? (
+                          <span className={profit >= 0 ? 'text-emerald-600' : 'text-red-600'}>
+                            {profit.toLocaleString()} DA
+                          </span>
+                        ) : '—'}
                       </td>
                       <td className="px-4 py-3 text-gray-400 text-sm max-w-xs truncate">{batch.notes || '—'}</td>
                       <td className="px-4 py-3">
@@ -384,7 +502,6 @@ export default function ProductionPage() {
       {/* Coût de Revient */}
       {activeTab === 'cost' && (
         <div className="space-y-4">
-          {/* Multiplier */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
             <div className="flex flex-col sm:flex-row sm:items-center gap-4">
               <div className="flex-1">
@@ -393,26 +510,19 @@ export default function ProductionPage() {
               </div>
               <div className="flex items-center gap-3">
                 <button onClick={() => handleMultiplierChange(Math.max(0.5, costMultiplier - 0.5))}
-                  className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-xl font-bold text-gray-600">
-                  -
-                </button>
+                  className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-xl font-bold text-gray-600">-</button>
                 <div className="text-center">
-                  <input type="number" min="0.5" step="0.5"
-                    value={costMultiplier}
+                  <input type="number" min="0.5" step="0.5" value={costMultiplier}
                     onChange={e => handleMultiplierChange(Math.max(0.5, parseFloat(e.target.value) || 1))}
-                    className="w-20 text-center text-3xl font-bold text-amber-600 bg-transparent border-b-2 border-amber-300 focus:border-amber-500 outline-none"
-                  />
+                    className="w-20 text-center text-3xl font-bold text-amber-600 bg-transparent border-b-2 border-amber-300 focus:border-amber-500 outline-none" />
                   <p className="text-xs text-gray-400 mt-0.5">kg de coques</p>
                 </div>
                 <button onClick={() => handleMultiplierChange(costMultiplier + 0.5)}
-                  className="w-10 h-10 rounded-xl bg-amber-100 hover:bg-amber-200 flex items-center justify-center text-xl font-bold text-amber-600">
-                  +
-                </button>
+                  className="w-10 h-10 rounded-xl bg-amber-100 hover:bg-amber-200 flex items-center justify-center text-xl font-bold text-amber-600">+</button>
               </div>
             </div>
           </div>
 
-          {/* Ingrédients Coque */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-4 border-b bg-amber-50 flex items-center gap-2">
               <ChefHat size={18} className="text-amber-600" />
@@ -433,22 +543,16 @@ export default function ProductionPage() {
                     <tr key={i} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900">{line.name}</td>
                       <td className="px-4 py-2 text-right">
-                        <input type="number" min="0" step="1"
-                          value={line.qtyG}
+                        <input type="number" min="0" step="1" value={line.qtyG}
                           onChange={e => updateCostLine(i, 'qtyG', parseFloat(e.target.value) || 0)}
-                          className="w-28 px-2 py-1 border rounded-lg text-right text-sm focus:ring-2 focus:ring-amber-500"
-                        />
+                          className="w-28 px-2 py-1 border rounded-lg text-right text-sm focus:ring-2 focus:ring-amber-500" />
                       </td>
                       <td className="px-4 py-2 text-right">
-                        <input type="number" min="0" step="1"
-                          value={line.pricePerKg}
+                        <input type="number" min="0" step="1" value={line.pricePerKg}
                           onChange={e => updateCostLine(i, 'pricePerKg', parseFloat(e.target.value) || 0)}
-                          className="w-28 px-2 py-1 border rounded-lg text-right text-sm focus:ring-2 focus:ring-amber-500"
-                        />
+                          className="w-28 px-2 py-1 border rounded-lg text-right text-sm focus:ring-2 focus:ring-amber-500" />
                       </td>
-                      <td className="px-4 py-3 text-right font-medium text-amber-700">
-                        {((line.qtyG / 1000) * line.pricePerKg).toFixed(0)} DA
-                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-amber-700">{((line.qtyG / 1000) * line.pricePerKg).toFixed(0)} DA</td>
                     </tr>
                   ))}
                 </tbody>
@@ -462,7 +566,6 @@ export default function ProductionPage() {
             </div>
           </div>
 
-          {/* Ganache */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-4 border-b bg-rose-50 flex items-center gap-2">
               <Package size={18} className="text-rose-600" />
@@ -472,20 +575,16 @@ export default function ProductionPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Poids total ganache utilisée (kg)</label>
-                  <input type="number" min="0" step="0.01"
-                    value={ganacheKg}
+                  <input type="number" min="0" step="0.01" value={ganacheKg}
                     onChange={e => setGanacheKg(parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-rose-500 text-lg font-bold"
-                  />
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-rose-500 text-lg font-bold" />
                   <p className="text-xs text-gray-400 mt-1">{(ganacheKg * 1000).toFixed(0)} grammes</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Prix de revient ganache (DA/kg)</label>
-                  <input type="number" min="0" step="1"
-                    value={ganachePricePerKg}
+                  <input type="number" min="0" step="1" value={ganachePricePerKg}
                     onChange={e => setGanachePricePerKg(parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-rose-500 text-lg font-bold"
-                  />
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-rose-500 text-lg font-bold" />
                   <p className="text-xs text-gray-400 mt-1">Depuis la page Chocolat Maison</p>
                 </div>
                 <div className="bg-rose-50 rounded-xl p-4 text-center border border-rose-200">
@@ -497,7 +596,6 @@ export default function ProductionPage() {
             </div>
           </div>
 
-          {/* Résumé Prix de Revient */}
           <div className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-2xl p-6 text-white shadow-xl">
             <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
               <Calculator size={22} />
@@ -534,8 +632,8 @@ export default function ProductionPage() {
       {/* Batch Modal */}
       {showBatchModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
-            <div className="flex items-center justify-between p-4 border-b">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
               <h2 className="text-lg font-semibold">{editBatch ? 'Modifier le Lot' : 'Nouveau Lot de Production'}</h2>
               <button onClick={() => setShowBatchModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
             </div>
@@ -561,6 +659,126 @@ export default function ProductionPage() {
                   </div>
                 ))}
               </div>
+
+              {/* Selling price per unit */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Prix de vente par unité (DA)</label>
+                  <input type="number" min="0" step="0.01"
+                    value={batchForm.selling_price_per_unit}
+                    onChange={e => setBatchForm({ ...batchForm, selling_price_per_unit: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Quantité produite (kg)</label>
+                  <input type="number" min="0" step="0.01"
+                    value={batchForm.quantity_produced ?? ''}
+                    onChange={e => setBatchForm({ ...batchForm, quantity_produced: parseFloat(e.target.value) || undefined })}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500"
+                    placeholder="Optionnel" />
+                </div>
+              </div>
+
+              {/* Materials Section */}
+              <div className="border-t pt-4">
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <Package size={18} className="text-amber-600" />
+                  Matières premières utilisées
+                </h3>
+
+                {/* Material search and add */}
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input type="text" placeholder="Rechercher et ajouter une matière..."
+                    value={materialSearch}
+                    onChange={e => setMaterialSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-amber-500" />
+                  {materialSearch && (
+                    <div className="absolute z-20 mt-1 w-full max-h-40 overflow-y-auto bg-white border rounded-lg shadow-lg divide-y divide-gray-100">
+                      {filteredRawMaterials.filter(m => !batchMaterials.some(bm => bm.material_id === m.id)).map(m => (
+                        <button key={m.id} type="button" onClick={() => addBatchMaterial(m.id)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 text-gray-700">
+                          {m.name} <span className="text-gray-400">({m.unit}) — {m.unit_cost.toLocaleString()} DA</span>
+                        </button>
+                      ))}
+                      {filteredRawMaterials.filter(m => !batchMaterials.some(bm => bm.material_id === m.id)).length === 0 && (
+                        <p className="px-3 py-2 text-sm text-gray-400">Aucune matière trouvée</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Materials table */}
+                {batchMaterials.length > 0 && (
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-600">Matière</th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-600">Qté</th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-600">Prix/Unité</th>
+                          <th className="px-3 py-2 text-right text-xs font-medium text-gray-600">Total</th>
+                          <th className="px-3 py-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {batchMaterials.map((m, i) => (
+                          <tr key={m.material_id}>
+                            <td className="px-3 py-2 text-sm font-medium text-gray-900">{m.name}</td>
+                            <td className="px-2 py-2 text-right">
+                              <input type="number" min="0" step="0.01" value={m.quantity}
+                                onChange={e => updateBatchMaterial(i, 'quantity', parseFloat(e.target.value) || 0)}
+                                className="w-20 px-2 py-1 border rounded text-right text-sm focus:ring-1 focus:ring-amber-500" />
+                            </td>
+                            <td className="px-2 py-2 text-right">
+                              <input type="number" min="0" step="0.01" value={m.unit_cost}
+                                onChange={e => updateBatchMaterial(i, 'unit_cost', parseFloat(e.target.value) || 0)}
+                                className="w-20 px-2 py-1 border rounded text-right text-sm focus:ring-1 focus:ring-amber-500" />
+                            </td>
+                            <td className="px-3 py-2 text-right text-sm font-medium text-amber-700">
+                              {(m.quantity * m.unit_cost).toLocaleString()} DA
+                            </td>
+                            <td className="px-2 py-2">
+                              <button type="button" onClick={() => removeBatchMaterial(i)}
+                                className="p-1 text-red-500 hover:bg-red-50 rounded">
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-50">
+                        <tr>
+                          <td colSpan={3} className="px-3 py-2 text-right font-bold text-sm text-gray-700">Coût total matières:</td>
+                          <td className="px-3 py-2 text-right font-bold text-amber-700 text-sm">{batchMaterialsCost.toLocaleString()} DA</td>
+                          <td />
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+
+                {/* Profit summary */}
+                {batchMaterials.length > 0 && batchForm.produced_quantity > 0 && (
+                  <div className="mt-3 grid grid-cols-3 gap-3">
+                    <div className="bg-amber-50 rounded-lg p-3 border border-amber-100">
+                      <p className="text-xs text-amber-600 font-medium">Coût Production</p>
+                      <p className="text-lg font-bold text-amber-800">{batchMaterialsCost.toLocaleString()} DA</p>
+                    </div>
+                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                      <p className="text-xs text-blue-600 font-medium">Valeur de Production</p>
+                      <p className="text-lg font-bold text-blue-800">{batchProductionValue.toLocaleString()} DA</p>
+                    </div>
+                    <div className={`rounded-lg p-3 border ${batchProfit >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
+                      <p className={`text-xs font-medium ${batchProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>Bénéfice</p>
+                      <p className={`text-lg font-bold ${batchProfit >= 0 ? 'text-emerald-800' : 'text-red-800'}`}>
+                        {batchProfit.toLocaleString()} DA
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optionnel)</label>
                 <textarea value={batchForm.notes}

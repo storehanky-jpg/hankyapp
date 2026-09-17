@@ -4,7 +4,7 @@ import { offlineStorage, isOnline } from '../lib/storage';
 import { offlineCreate, offlineUpdate, offlineDelete, mergeWithLocal } from '../lib/offlineDb';
 import type {
   RawMaterial, MaterialPurchase, FixedCharge, VariableExpense,
-  Utility, LaborCost, Packaging, ProductionBatch, Sale, UnsoldProduct,
+  Utility, LaborCost, Packaging, ProductionBatch, ProductionMaterial, Sale, UnsoldProduct,
   CompanySettings, BulkSale, RecipeConfig, RecipeItem, ShopSale,
   Customer, CustomerPrice, CustomerProduct, FiscalInfo, Supplier, SupplierPurchase
 } from '../types';
@@ -98,6 +98,15 @@ export const materialPurchasesService = {
       return offlineCreate<MaterialPurchase>('material_purchases', purchase);
     }
     const { data, error } = await supabase.from('material_purchases').insert(purchase).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async update(id: string, purchase: Partial<MaterialPurchase>): Promise<MaterialPurchase> {
+    if (!isOnline()) {
+      return offlineUpdate<MaterialPurchase>('material_purchases', id, purchase);
+    }
+    const { data, error } = await supabase.from('material_purchases').update(purchase).eq('id', id).select().single();
     if (error) throw error;
     return data;
   },
@@ -317,7 +326,10 @@ export const productionBatchService = {
       return offlineStorage.get<ProductionBatch[]>('production_batches') || [];
     }
     try {
-      const { data, error } = await supabase.from('production_batches').select('*').order('batch_date', { ascending: false });
+      const { data, error } = await supabase
+        .from('production_batches')
+        .select('*, materials:production_materials(*, material:raw_materials(*))')
+        .order('batch_date', { ascending: false });
       if (error) throw error;
       const merged = mergeWithLocal<ProductionBatch>('production_batches', data);
       offlineStorage.set('production_batches', merged);
@@ -327,7 +339,7 @@ export const productionBatchService = {
     }
   },
 
-  async create(batch: Omit<ProductionBatch, 'id' | 'created_at'>): Promise<ProductionBatch> {
+  async create(batch: Omit<ProductionBatch, 'id' | 'created_at' | 'materials'>): Promise<ProductionBatch> {
     if (!isOnline()) {
       return offlineCreate<ProductionBatch>('production_batches', batch);
     }
@@ -1056,5 +1068,64 @@ export const supplierPurchasesService = {
     }
     const { error } = await supabase.from('supplier_purchases').delete().eq('id', id);
     if (error) throw error;
+  }
+};
+
+// Production Materials (raw materials used per batch)
+export const productionMaterialsService = {
+  async getByBatch(batchId: string): Promise<ProductionMaterial[]> {
+    if (!isOnline()) {
+      const all = offlineStorage.get<ProductionMaterial[]>('production_materials') || [];
+      return all.filter(m => m.batch_id === batchId);
+    }
+    try {
+      const { data, error } = await supabase
+        .from('production_materials')
+        .select('*, material:raw_materials(*)')
+        .eq('batch_id', batchId);
+      if (error) throw error;
+      return data || [];
+    } catch {
+      const all = offlineStorage.get<ProductionMaterial[]>('production_materials') || [];
+      return all.filter(m => m.batch_id === batchId);
+    }
+  },
+
+  async create(item: Omit<ProductionMaterial, 'id' | 'created_at'>): Promise<ProductionMaterial> {
+    if (!isOnline()) {
+      return offlineCreate<ProductionMaterial>('production_materials', item);
+    }
+    const { data, error } = await supabase.from('production_materials').insert(item).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteByBatch(batchId: string): Promise<void> {
+    if (!isOnline()) {
+      const all = offlineStorage.get<ProductionMaterial[]>('production_materials') || [];
+      offlineStorage.set('production_materials', all.filter(m => m.batch_id !== batchId));
+      return;
+    }
+    const { error } = await supabase.from('production_materials').delete().eq('batch_id', batchId);
+    if (error) throw error;
+  }
+};
+
+// Reset sales and purchases (admin only)
+export const resetDataService = {
+  async resetSalesAndPurchases(): Promise<void> {
+    if (!isOnline()) {
+      offlineStorage.set('sales', []);
+      offlineStorage.set('material_purchases', []);
+      offlineStorage.set('bulk_sales', []);
+      offlineStorage.set('shop_sales', []);
+      offlineStorage.set('supplier_purchases', []);
+      return;
+    }
+    const tables = ['sales', 'material_purchases', 'bulk_sales', 'shop_sales', 'supplier_purchases'];
+    for (const table of tables) {
+      const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) throw error;
+    }
   }
 };

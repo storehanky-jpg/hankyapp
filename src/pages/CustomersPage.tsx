@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Plus, Trash2, Edit2, X, Phone, Mail, MapPin,
   Users, ShoppingBag, Tag, Save, Search, ChevronRight,
-  Scale, Package, Store, Sparkles
+  Scale, Package, Store, Sparkles, Building2, FileText
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
@@ -22,6 +22,7 @@ interface ProductPriceEntry { product_type: string; label: string; unit_price: n
 function emptyForm() {
   return {
     name: '', phone: '', email: '', address: '', notes: '',
+    legal_name: '', fiscal_address: '', rc: '', nif: '', nis: '', ai: '', fiscal_phone: '',
     productPrices: PRODUCT_TYPES.map(pt => ({
       product_type: pt.type, label: pt.fullLabel, unit_price: pt.defaultPrice, unit_label: pt.unitLabel,
     })) as ProductPriceEntry[],
@@ -86,6 +87,8 @@ export default function CustomersPage() {
     setForm({
       name: c.name, phone: c.phone || '', email: c.email || '',
       address: c.address || '', notes: c.notes || '',
+      legal_name: c.legal_name || '', fiscal_address: c.fiscal_address || '',
+      rc: c.rc || '', nif: c.nif || '', nis: c.nis || '', ai: c.ai || '', fiscal_phone: c.fiscal_phone || '',
       productPrices: existingProductPrices,
     });
     setShowModal(true);
@@ -101,6 +104,13 @@ export default function CustomersPage() {
         email: form.email || undefined,
         address: form.address || undefined,
         notes: form.notes || undefined,
+        legal_name: form.legal_name || undefined,
+        fiscal_address: form.fiscal_address || undefined,
+        rc: form.rc || undefined,
+        nif: form.nif || undefined,
+        nis: form.nis || undefined,
+        ai: form.ai || undefined,
+        fiscal_phone: form.fiscal_phone || undefined,
       };
       let customerId: string;
       if (editCustomer) {
@@ -201,77 +211,90 @@ export default function CustomersPage() {
           className="flex-1 bg-transparent outline-none text-sm" />
       </div>
 
-      {/* Customer Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {filtered.length === 0 && (
-          <div className="col-span-full bg-white rounded-2xl p-12 text-center text-gray-400 shadow-sm border border-gray-100">
-            <Users size={48} className="mx-auto mb-3 text-gray-200" />
-            <p className="font-medium text-gray-500">Aucun client enregistré</p>
-            <p className="text-sm mt-1">Cliquez sur "Nouveau Client" pour commencer</p>
-          </div>
-        )}
-
-        {filtered.map(customer => {
-          const stats = salesByCustomer[customer.id];
-          return (
-            <div key={customer.id}
-              className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md hover:border-emerald-200 transition-all group">
-              {/* Card header */}
-              <div className="flex items-center gap-3 px-5 pt-4 pb-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
-                  {customer.name.charAt(0).toUpperCase()}
-                </div>
-                <button onClick={() => setSelectedCustomer(customer)} className="flex-1 min-w-0 text-left">
-                  <p className="font-semibold text-gray-900 truncate group-hover:text-emerald-600 transition-colors flex items-center gap-1">
-                    {customer.name}
-                    <ChevronRight size={14} className="text-gray-300 group-hover:text-emerald-500" />
-                  </p>
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                    {customer.phone && <span className="text-xs text-gray-500 flex items-center gap-1"><Phone size={10} /> {customer.phone}</span>}
-                    {customer.email && <span className="text-xs text-gray-500 flex items-center gap-1"><Mail size={10} /> {customer.email}</span>}
-                  </div>
-                </button>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button onClick={() => openEdit(customer)} className="p-2 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors" title="Modifier">
-                    <Edit2 size={15} />
-                  </button>
-                  <button onClick={() => handleDelete(customer.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Supprimer">
-                    <Trash2 size={15} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Price chips */}
-              <div className="px-5 pb-3">
-                <div className="flex flex-wrap gap-1.5">
-                  {PRODUCT_TYPES.map(pt => {
-                    const cp = customer.prices?.find(p => p.product_type === pt.type);
-                    const price = cp ? Number(cp.unit_price) : pt.defaultPrice;
-                    const c = colorMap[pt.color];
-                    return (
-                      <span key={pt.type} className={`inline-flex items-center gap-1 px-2.5 py-1 ${c.light} ${c.text} border ${c.border} rounded-lg text-xs font-medium`}>
-                        {pt.icon}
-                        {pt.label}: <strong className="ml-0.5">{price.toLocaleString()}</strong>
-                        <span className="text-gray-400 font-normal">/{pt.unitLabel}</span>
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Footer stats */}
-              {stats && (
-                <div className="px-5 py-2.5 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-sm">
-                  <span className="text-gray-500 flex items-center gap-1.5">
-                    <ShoppingBag size={13} className="text-gray-400" />
-                    {stats.count} vente{stats.count > 1 ? 's' : ''}
-                  </span>
-                  <span className="font-bold text-emerald-700">{stats.total.toLocaleString()} DA</span>
-                </div>
+      {/* Customer Table — compact */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Nom</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 hidden sm:table-cell">Contact</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600 hidden lg:table-cell">Tarifs</th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-600 hidden sm:table-cell">Ventes</th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filtered.length === 0 && (
+                <tr><td colSpan={5} className="p-12 text-center text-gray-400">
+                  <Users size={40} className="mx-auto mb-2 text-gray-200" />
+                  <p className="font-medium">Aucun client enregistré</p>
+                  <p className="text-sm mt-1">Cliquez sur "Nouveau Client" pour commencer</p>
+                </td></tr>
               )}
-            </div>
-          );
-        })}
+              {filtered.map(customer => {
+                const stats = salesByCustomer[customer.id];
+                return (
+                  <tr key={customer.id} className="hover:bg-gray-50 transition-colors group">
+                    <td className="px-4 py-3">
+                      <button onClick={() => setSelectedCustomer(customer)} className="flex items-center gap-3 text-left">
+                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                          {customer.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-gray-900 truncate group-hover:text-emerald-600 transition-colors flex items-center gap-1">
+                            {customer.name}
+                            <ChevronRight size={13} className="text-gray-300 group-hover:text-emerald-500" />
+                          </p>
+                          {customer.legal_name && <p className="text-xs text-gray-400 truncate">{customer.legal_name}</p>}
+                        </div>
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 hidden sm:table-cell">
+                      <div className="space-y-0.5">
+                        {customer.phone && <p className="text-xs text-gray-500 flex items-center gap-1"><Phone size={10} /> {customer.phone}</p>}
+                        {customer.email && <p className="text-xs text-gray-500 flex items-center gap-1"><Mail size={10} /> {customer.email}</p>}
+                        {!customer.phone && !customer.email && <span className="text-gray-300 text-xs">—</span>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 hidden lg:table-cell">
+                      <div className="flex flex-wrap gap-1">
+                        {PRODUCT_TYPES.map(pt => {
+                          const cp = customer.prices?.find(p => p.product_type === pt.type);
+                          const price = cp ? Number(cp.unit_price) : pt.defaultPrice;
+                          const c = colorMap[pt.color];
+                          return (
+                            <span key={pt.type} className={`inline-flex items-center px-2 py-0.5 ${c.light} ${c.text} border ${c.border} rounded text-xs font-medium`}>
+                              {pt.label}: <strong className="ml-0.5">{price.toLocaleString()}</strong>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right hidden sm:table-cell">
+                      {stats ? (
+                        <div>
+                          <p className="text-sm font-bold text-emerald-700">{stats.total.toLocaleString()} DA</p>
+                          <p className="text-xs text-gray-400">{stats.count} vente{stats.count > 1 ? 's' : ''}</p>
+                        </div>
+                      ) : <span className="text-gray-300 text-xs">—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1">
+                        <button onClick={() => openEdit(customer)} className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors" title="Modifier">
+                          <Edit2 size={15} />
+                        </button>
+                        <button onClick={() => handleDelete(customer.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Supprimer">
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Modal ajout/modification */}
@@ -329,6 +352,59 @@ export default function CustomersPage() {
                     onChange={e => setForm({ ...form, notes: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg text-sm" rows={2}
                     placeholder="Informations supplémentaires..." />
+                </div>
+              </div>
+
+              {/* Coordonnées fiscales */}
+              <div className="space-y-3">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1">
+                  <Building2 size={12} /> Coordonnées Fiscales (optionnel)
+                </p>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Raison sociale</label>
+                  <input type="text" value={form.legal_name}
+                    onChange={e => setForm({ ...form, legal_name: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm"
+                    placeholder="Nom officiel / société" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Adresse fiscale</label>
+                  <input type="text" value={form.fiscal_address}
+                    onChange={e => setForm({ ...form, fiscal_address: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm"
+                    placeholder="Adresse complète" />
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">RC</label>
+                    <input type="text" value={form.rc}
+                      onChange={e => setForm({ ...form, rc: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">NIF</label>
+                    <input type="text" value={form.nif}
+                      onChange={e => setForm({ ...form, nif: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">NIS</label>
+                    <input type="text" value={form.nis}
+                      onChange={e => setForm({ ...form, nis: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">AI</label>
+                    <input type="text" value={form.ai}
+                      onChange={e => setForm({ ...form, ai: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1"><Phone size={12} /> Tel fiscal</label>
+                    <input type="tel" value={form.fiscal_phone}
+                      onChange={e => setForm({ ...form, fiscal_phone: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm" />
+                  </div>
                 </div>
               </div>
 

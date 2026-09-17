@@ -52,6 +52,8 @@ export interface MaterialPurchase {
   purchase_date: string;
   invoice_number?: string;
   notes?: string;
+  payment_status: 'paid' | 'unpaid' | 'partial';
+  amount_paid: number;
   created_at: string;
   material?: RawMaterial;
 }
@@ -108,14 +110,30 @@ export interface Packaging {
   created_at: string;
 }
 
+export interface ProductionMaterial {
+  id: string;
+  batch_id: string;
+  material_id: string;
+  quantity: number;
+  unit_cost: number;
+  total_cost: number;
+  created_at: string;
+  material?: RawMaterial;
+}
+
 export interface ProductionBatch {
   id: string;
   batch_date: string;
   planned_quantity: number;
   produced_quantity: number;
   lost_quantity: number;
+  quantity_produced?: number;
+  production_cost?: number;
+  production_value?: number;
+  profit?: number;
   notes?: string;
   created_at: string;
+  materials?: ProductionMaterial[];
 }
 
 export interface RecipeIngredient {
@@ -133,6 +151,13 @@ export interface Customer {
   email?: string;
   address?: string;
   notes?: string;
+  legal_name?: string;
+  fiscal_address?: string;
+  rc?: string;
+  nif?: string;
+  nis?: string;
+  ai?: string;
+  fiscal_phone?: string;
   created_at: string;
   prices?: CustomerPrice[];
   products?: CustomerProduct[];
@@ -177,6 +202,7 @@ export interface Sale {
   bon_livraison_number?: string;
   facture_number?: string;
   production_batch_id?: string;
+  sale_group_id?: string;
   created_at: string;
 }
 

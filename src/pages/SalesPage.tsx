@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Plus, Trash2, ShoppingCart, Calendar, FileText, X,
   Printer, Edit2, Phone, CheckCircle, XCircle, Truck,
-  Receipt, ChevronDown, ChevronUp, Search, Users
+  Receipt, ChevronDown, ChevronUp, Search, Users, Layers
 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -12,11 +12,16 @@ import type { Sale } from '../types';
 
 const defaultPrices: Record<number, number> = { 6: 400, 10: 600, 12: 720, 20: 1100, 24: 1300 };
 
+interface SaleLine {
+  box_size: number;
+  quantity: number;
+  unit_price: number;
+}
+
+const emptyLine = (): SaleLine => ({ box_size: 10, quantity: 1, unit_price: 600 });
+
 const emptyForm = () => ({
   sale_date: format(new Date(), 'yyyy-MM-dd'),
-  box_size: 10,
-  quantity: 1,
-  unit_price: 600,
   customer_name: '',
   customer_phone: '',
   customer_id: '',
@@ -24,6 +29,7 @@ const emptyForm = () => ({
   is_paid: false,
   bon_livraison_number: '',
   facture_number: '',
+  lines: [emptyLine()],
 });
 
 export default function SalesPage() {
@@ -50,13 +56,15 @@ export default function SalesPage() {
   function selectCustomer(customerId: string) {
     const customer = customers.find(c => c.id === customerId);
     if (!customer) return;
-    const customerPrice = customer.prices?.find(p => p.box_size === saleForm.box_size);
     setSaleForm(f => ({
       ...f,
       customer_id: customer.id,
       customer_name: customer.name,
       customer_phone: customer.phone || '',
-      unit_price: customerPrice?.unit_price ?? defaultPrices[f.box_size] ?? f.unit_price,
+      lines: f.lines.map((line, i) => {
+        const customerPrice = customer.prices?.find(p => p.box_size === line.box_size);
+        return { ...line, unit_price: customerPrice?.unit_price ?? defaultPrices[line.box_size] ?? line.unit_price };
+      }),
     }));
     setCustomerSearch(customer.name);
     setShowCustomerDropdown(false);
@@ -78,9 +86,6 @@ export default function SalesPage() {
     setEditSale(sale);
     setSaleForm({
       sale_date: sale.sale_date,
-      box_size: sale.box_size,
-      quantity: sale.quantity,
-      unit_price: sale.unit_price,
       customer_name: sale.customer_name || '',
       customer_phone: sale.customer_phone || '',
       customer_id: sale.customer_id || '',
@@ -88,23 +93,77 @@ export default function SalesPage() {
       is_paid: sale.is_paid ?? false,
       bon_livraison_number: sale.bon_livraison_number || '',
       facture_number: sale.facture_number || '',
+      lines: [{ box_size: sale.box_size, quantity: sale.quantity, unit_price: sale.unit_price }],
     });
     const c = customers.find(c => c.id === sale.customer_id);
     setCustomerSearch(c ? c.name : sale.customer_name || '');
     setShowModal(true);
   }
 
+  function updateLine(index: number, field: keyof SaleLine, value: number) {
+    setSaleForm(f => ({
+      ...f,
+      lines: f.lines.map((l, i) => i === index ? { ...l, [field]: value } : l),
+    }));
+  }
+
+  function addLine() {
+    setSaleForm(f => ({ ...f, lines: [...f.lines, emptyLine()] }));
+  }
+
+  function removeLine(index: number) {
+    setSaleForm(f => ({ ...f, lines: f.lines.filter((_, i) => i !== index) }));
+  }
+
+  function onBoxSizeChange(index: number, size: number) {
+    const customer = customers.find(c => c.id === saleForm.customer_id);
+    const customerPrice = customer?.prices?.find(p => p.box_size === size);
+    setSaleForm(f => ({
+      ...f,
+      lines: f.lines.map((l, i) => i === index ? {
+        ...l,
+        box_size: size,
+        unit_price: customerPrice?.unit_price ?? defaultPrices[size] ?? l.unit_price,
+      } : l),
+    }));
+  }
+
+  const formTotal = saleForm.lines.reduce((s, l) => s + l.quantity * l.unit_price, 0);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const total_amount = saleForm.quantity * saleForm.unit_price;
-      const payload = { ...saleForm, total_amount };
       if (editSale) {
+        // Single sale update (existing behavior)
+        const line = saleForm.lines[0];
+        const total_amount = line.quantity * line.unit_price;
+        const payload = {
+          ...saleForm,
+          box_size: line.box_size,
+          quantity: line.quantity,
+          unit_price: line.unit_price,
+          total_amount,
+        };
         const updated = await api.salesService.update(editSale.id, payload);
         setSales(sales.map(s => s.id === editSale.id ? updated : s));
       } else {
-        const newSale = await api.salesService.create(payload);
-        setSales([newSale, ...sales]);
+        // Multi-product: create one sale per line, grouped by sale_group_id
+        const groupId = saleForm.lines.length > 1 ? `GRP-${Date.now()}` : undefined;
+        const newSales: Sale[] = [];
+        for (const line of saleForm.lines) {
+          const total_amount = line.quantity * line.unit_price;
+          const payload = {
+            ...saleForm,
+            box_size: line.box_size,
+            quantity: line.quantity,
+            unit_price: line.unit_price,
+            total_amount,
+            sale_group_id: groupId,
+          };
+          const newSale = await api.salesService.create(payload);
+          newSales.push(newSale);
+        }
+        setSales([...newSales.reverse(), ...sales]);
       }
       setShowModal(false);
     } catch (error) {
@@ -122,12 +181,40 @@ export default function SalesPage() {
     }
   };
 
+  const handleDeleteGroup = async (groupId: string) => {
+    if (!confirm('Supprimer toutes les ventes de ce groupe?')) return;
+    try {
+      const groupSales = sales.filter(s => s.sale_group_id === groupId);
+      for (const s of groupSales) {
+        await api.salesService.delete(s.id);
+      }
+      setSales(sales.filter(s => s.sale_group_id !== groupId));
+    } catch (error) {
+      console.error('Error deleting group:', error);
+    }
+  };
+
   const togglePaid = async (sale: Sale) => {
     try {
       const updated = await api.salesService.update(sale.id, { is_paid: !sale.is_paid });
       setSales(sales.map(s => s.id === sale.id ? updated : s));
     } catch (error) {
       console.error('Error updating payment status:', error);
+    }
+  };
+
+  const toggleGroupPaid = async (groupId: string) => {
+    const groupSales = sales.filter(s => s.sale_group_id === groupId);
+    const allPaid = groupSales.every(s => s.is_paid);
+    try {
+      for (const s of groupSales) {
+        if (s.is_paid === allPaid) {
+          const updated = await api.salesService.update(s.id, { is_paid: !allPaid });
+          setSales(prev => prev.map(x => x.id === s.id ? updated : x));
+        }
+      }
+    } catch (error) {
+      console.error('Error updating group payment:', error);
     }
   };
 
@@ -155,6 +242,37 @@ export default function SalesPage() {
       (s.facture_number || '').toLowerCase().includes(q)
     );
   }
+
+  // Group sales: group by sale_group_id, standalone sales get their own group
+  const groupedSales = useMemo(() => {
+    const groups: { key: string; sales: Sale[]; customer_name: string; customer_phone: string; customer_id?: string; sale_date: string; is_paid: boolean; total: number; count: number }[] = [];
+    const groupMap: Record<string, number> = {};
+
+    for (const s of filteredSales) {
+      const key = s.sale_group_id || s.id;
+      if (groupMap[key] === undefined) {
+        groupMap[key] = groups.length;
+        groups.push({
+          key,
+          sales: [],
+          customer_name: s.customer_name || 'Sans nom',
+          customer_phone: s.customer_phone || '',
+          customer_id: s.customer_id,
+          sale_date: s.sale_date,
+          is_paid: true,
+          total: 0,
+          count: 0,
+        });
+      }
+      const g = groups[groupMap[key]];
+      g.sales.push(s);
+      g.total += s.total_amount;
+      g.count++;
+      if (!s.is_paid) g.is_paid = false;
+    }
+
+    return groups.sort((a, b) => b.sale_date.localeCompare(a.sale_date));
+  }, [filteredSales]);
 
   const totalAmount = filteredSales.reduce((s, x) => s + x.total_amount, 0);
   const totalBoxes = filteredSales.reduce((s, x) => s + x.quantity, 0);
@@ -296,176 +414,139 @@ export default function SalesPage() {
         </div>
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
           <p className="text-xs text-gray-500">Transactions</p>
-          <p className="text-xl font-bold text-gray-900">{filteredSales.length}</p>
+          <p className="text-xl font-bold text-gray-900">{groupedSales.length}</p>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Client</th>
-                <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Date</th>
-                <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Prix Vente</th>
-                <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Qte</th>
-                <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Total</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Paiement</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">BL</th>
-                <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wide">Facture</th>
-                <th className="px-3 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredSales.map(sale => (
-                <React.Fragment key={sale.id}>
-                  <tr className="hover:bg-gray-50 transition-colors">
-                    {/* Client */}
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setExpandedRow(expandedRow === sale.id ? null : sale.id)}
-                          className="p-0.5 text-gray-400 hover:text-gray-600"
-                          title="Voir details">
-                          {expandedRow === sale.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                        </button>
-                        <div>
-                          <p className="font-medium text-gray-900 text-sm">
-                            {sale.customer_name || <span className="text-gray-400 italic">Sans nom</span>}
-                          </p>
-                          {sale.customer_phone && (
-                            <p className="text-xs text-gray-400 flex items-center gap-1">
-                              <Phone size={10} /> {sale.customer_phone}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    {/* Date */}
-                    <td className="px-3 py-3 text-sm text-gray-600 whitespace-nowrap">
-                      {format(new Date(sale.sale_date), 'dd/MM/yyyy', { locale: fr })}
-                    </td>
-                    {/* Prix vente */}
-                    <td className="px-3 py-3 text-right text-sm">
-                      <div className="text-gray-900 font-medium">{sale.unit_price.toLocaleString()} DA</div>
-                      <div className="text-xs text-gray-400">boite {sale.box_size} pcs</div>
-                    </td>
-                    {/* Qte */}
-                    <td className="px-3 py-3 text-right">
-                      <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-sm font-semibold">
-                        {sale.quantity}
-                      </span>
-                    </td>
-                    {/* Total */}
-                    <td className="px-3 py-3 text-right font-bold text-gray-900">
-                      {sale.total_amount.toLocaleString()} DA
-                    </td>
-                    {/* Paiement */}
-                    <td className="px-3 py-3 text-center">
-                      <button
-                        onClick={() => togglePaid(sale)}
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
-                          sale.is_paid
-                            ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                            : 'bg-red-100 text-red-700 hover:bg-red-200'
-                        }`}
-                        title="Cliquer pour changer le statut">
-                        {sale.is_paid
-                          ? <><CheckCircle size={12} /> Paye</>
-                          : <><XCircle size={12} /> Non paye</>
-                        }
-                      </button>
-                    </td>
-                    {/* BL */}
-                    <td className="px-3 py-3 text-center">
-                      {sale.bon_livraison_number ? (
-                        <button
-                          onClick={() => printBL(sale)}
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-100 transition-colors"
-                          title="Imprimer le bon de livraison">
-                          <Truck size={11} /> {sale.bon_livraison_number}
-                        </button>
-                      ) : (
-                        <span className="text-gray-300 text-xs">—</span>
-                      )}
-                    </td>
-                    {/* Facture */}
-                    <td className="px-3 py-3 text-center">
-                      {sale.facture_number ? (
-                        <button
-                          onClick={() => printFacture(sale)}
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-violet-50 text-violet-700 rounded-lg text-xs font-medium hover:bg-violet-100 transition-colors"
-                          title="Imprimer la facture">
-                          <Receipt size={11} /> {sale.facture_number}
-                        </button>
-                      ) : (
-                        <span className="text-gray-300 text-xs">—</span>
-                      )}
-                    </td>
-                    {/* Actions */}
-                    <td className="px-3 py-3">
-                      <div className="flex justify-end gap-1">
-                        <button onClick={() => openEdit(sale)}
-                          className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg" title="Modifier">
-                          <Edit2 size={14} />
-                        </button>
-                        <button onClick={() => handleDelete(sale.id)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Supprimer">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-
-                  {/* Ligne de detail expandable */}
-                  {expandedRow === sale.id && (
-                    <tr className="bg-amber-50/60">
-                      <td colSpan={9} className="px-6 py-4">
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <p className="text-xs text-gray-500 font-medium mb-1">Client</p>
-                            <p className="font-semibold text-gray-800">{sale.customer_name || '—'}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500 font-medium mb-1 flex items-center gap-1"><Phone size={10} /> Telephone</p>
-                            <p className="font-semibold text-gray-800">{sale.customer_phone || '—'}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500 font-medium mb-1 flex items-center gap-1"><Truck size={10} /> Bon de Livraison</p>
-                            <p className="font-semibold text-blue-700">{sale.bon_livraison_number || '—'}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500 font-medium mb-1 flex items-center gap-1"><Receipt size={10} /> N° Facture</p>
-                            <p className="font-semibold text-violet-700">{sale.facture_number || '—'}</p>
-                          </div>
-                          {sale.notes && (
-                            <div className="col-span-2 sm:col-span-4">
-                              <p className="text-xs text-gray-500 font-medium mb-1">Notes</p>
-                              <p className="text-gray-700">{sale.notes}</p>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {filteredSales.length === 0 && (
-          <div className="p-10 text-center text-gray-400">
+      {/* Grouped sales list */}
+      <div className="space-y-3">
+        {groupedSales.length === 0 && (
+          <div className="bg-white rounded-2xl p-10 text-center text-gray-400 shadow-sm border border-gray-100">
             <ShoppingCart size={48} className="mx-auto mb-3 text-gray-200" />
             <p className="font-medium">Aucune vente enregistree</p>
           </div>
         )}
+
+        {groupedSales.map(group => {
+          const isExpanded = expandedRow === group.key;
+          const isMulti = group.sales.length > 1;
+          return (
+            <div key={group.key} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              {/* Group header row */}
+              <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                <button
+                  onClick={() => setExpandedRow(isExpanded ? null : group.key)}
+                  className="p-0.5 text-gray-400 hover:text-gray-600"
+                  title="Voir details">
+                  {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-gray-900 text-sm">
+                      {group.customer_name}
+                    </p>
+                    {isMulti && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+                        <Layers size={10} /> {group.count} produits
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
+                    {group.customer_phone && <span className="text-xs text-gray-400 flex items-center gap-1"><Phone size={10} /> {group.customer_phone}</span>}
+                    <span className="text-xs text-gray-400">{format(new Date(group.sale_date), 'dd/MM/yyyy', { locale: fr })}</span>
+                  </div>
+                </div>
+                {/* Total */}
+                <div className="text-right flex-shrink-0">
+                  <p className="font-bold text-gray-900">{group.total.toLocaleString()} DA</p>
+                  {!isMulti && (
+                    <p className="text-xs text-gray-400">{group.sales[0].quantity}× boîte {group.sales[0].box_size}</p>
+                  )}
+                </div>
+                {/* Paid status */}
+                <button
+                  onClick={() => isMulti ? toggleGroupPaid(group.key) : togglePaid(group.sales[0])}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold transition-all flex-shrink-0 ${
+                    group.is_paid
+                      ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                      : 'bg-red-100 text-red-700 hover:bg-red-200'
+                  }`}
+                  title="Cliquer pour changer le statut">
+                  {group.is_paid ? <><CheckCircle size={12} /> Paye</> : <><XCircle size={12} /> Non paye</>}
+                </button>
+                {/* Actions */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {!isMulti && (
+                    <button onClick={() => openEdit(group.sales[0])}
+                      className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg" title="Modifier">
+                      <Edit2 size={14} />
+                    </button>
+                  )}
+                  <button onClick={() => isMulti ? handleDeleteGroup(group.key) : handleDelete(group.sales[0].id)}
+                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Supprimer">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Expanded details */}
+              {isExpanded && (
+                <div className="bg-amber-50/60 border-t border-gray-100 px-6 py-4">
+                  {isMulti && (
+                    <div className="space-y-2 mb-3">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Produits de la vente</p>
+                      {group.sales.map(s => (
+                        <div key={s.id} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 border border-gray-100">
+                          <div className="flex-1">
+                            <span className="text-sm font-medium text-gray-900">Boîte {s.box_size} pcs</span>
+                            <span className="text-xs text-gray-500 ml-2">× {s.quantity}</span>
+                          </div>
+                          <span className="text-sm text-gray-600">{s.unit_price.toLocaleString()} DA/unité</span>
+                          <span className="text-sm font-bold text-gray-900">{s.total_amount.toLocaleString()} DA</span>
+                          <button onClick={() => togglePaid(s)} className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            s.is_paid ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                            {s.is_paid ? 'Payé' : 'Non payé'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium mb-1">Client</p>
+                      <p className="font-semibold text-gray-800">{group.customer_name}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium mb-1 flex items-center gap-1"><Phone size={10} /> Telephone</p>
+                      <p className="font-semibold text-gray-800">{group.customer_phone || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium mb-1 flex items-center gap-1"><Truck size={10} /> Bon de Livraison</p>
+                      <p className="font-semibold text-blue-700">{group.sales[0]?.bon_livraison_number || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 font-medium mb-1 flex items-center gap-1"><Receipt size={10} /> N° Facture</p>
+                      <p className="font-semibold text-violet-700">{group.sales[0]?.facture_number || '—'}</p>
+                    </div>
+                    {group.sales[0]?.notes && (
+                      <div className="col-span-2 sm:col-span-4">
+                        <p className="text-xs text-gray-500 font-medium mb-1">Notes</p>
+                        <p className="text-gray-700">{group.sales[0].notes}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Modal ajout / modification */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white z-10">
               <h2 className="text-lg font-bold">{editSale ? 'Modifier la Vente' : 'Nouvelle Vente'}</h2>
               <button onClick={() => setShowModal(false)} className="p-1.5 hover:bg-gray-100 rounded-lg">
@@ -477,11 +558,9 @@ export default function SalesPage() {
               {/* Section client */}
               <div className="bg-gray-50 rounded-xl p-4 space-y-3">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Informations Client</p>
-
-                {/* Selecteur client depuis la liste */}
                 <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                    <Users size={13} /> Selecter un client existant
+                    <Users size={13} /> Selectionner un client existant
                   </label>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
@@ -501,11 +580,6 @@ export default function SalesPage() {
                                 <p className="text-sm font-semibold text-gray-900">{c.name}</p>
                                 {c.phone && <p className="text-xs text-gray-400 flex items-center gap-1"><Phone size={9} />{c.phone}</p>}
                               </div>
-                              {c.prices?.find(p => p.box_size === saleForm.box_size) && (
-                                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
-                                  {c.prices.find(p => p.box_size === saleForm.box_size)?.unit_price.toLocaleString()} DA
-                                </span>
-                              )}
                             </button>
                           ))}
                         </div>
@@ -524,16 +598,15 @@ export default function SalesPage() {
                     </p>
                   )}
                 </div>
-
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2 sm:col-span-1">
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Nom (manuel)</label>
                     <input type="text" value={saleForm.customer_name}
                       onChange={e => setSaleForm({ ...saleForm, customer_name: e.target.value })}
                       className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 text-sm"
                       placeholder="Nom du client" />
                   </div>
-                  <div className="col-span-2 sm:col-span-1">
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
                       <Phone size={13} /> Telephone
                     </label>
@@ -545,50 +618,68 @@ export default function SalesPage() {
                 </div>
               </div>
 
-              {/* Section commande */}
+              {/* Section commande — multi-product */}
               <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Commande</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Commande</p>
+                  {!editSale && (
+                    <button type="button" onClick={addLine}
+                      className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-medium hover:bg-emerald-600 transition-colors">
+                      <Plus size={14} /> Ajouter un autre produit
+                    </button>
+                  )}
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                   <input type="date" required value={saleForm.sale_date}
                     onChange={e => setSaleForm({ ...saleForm, sale_date: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 text-sm" />
                 </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Boite</label>
-                    <select value={saleForm.box_size}
-                      onChange={e => {
-                        const size = parseInt(e.target.value);
-                        const customer = customers.find(c => c.id === saleForm.customer_id);
-                        const customerPrice = customer?.prices?.find(p => p.box_size === size);
-                        setSaleForm(f => ({
-                          ...f,
-                          box_size: size,
-                          unit_price: customerPrice?.unit_price ?? defaultPrices[size] ?? f.unit_price,
-                        }));
-                      }}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 text-sm">
-                      {[6, 10, 12, 20, 24].map(s => <option key={s} value={s}>{s} pcs</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantite</label>
-                    <input type="number" min="1" required value={saleForm.quantity}
-                      onChange={e => setSaleForm({ ...saleForm, quantity: parseInt(e.target.value) || 1 })}
-                      className="w-full px-3 py-2 border rounded-lg text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Prix/boite (DA)</label>
-                    <input type="number" min="0" required value={saleForm.unit_price}
-                      onChange={e => setSaleForm({ ...saleForm, unit_price: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border rounded-lg text-sm" />
-                  </div>
+
+                {/* Product lines */}
+                <div className="space-y-2">
+                  {saleForm.lines.map((line, idx) => (
+                    <div key={idx} className="flex items-center gap-2 bg-white rounded-lg p-2 border border-gray-200">
+                      <div className="flex-1 grid grid-cols-3 gap-2">
+                        <div>
+                          {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Boîte</label>}
+                          <select value={line.box_size}
+                            onChange={e => onBoxSizeChange(idx, parseInt(e.target.value))}
+                            className="w-full px-2 py-1.5 border rounded text-sm focus:ring-1 focus:ring-amber-500">
+                            {[6, 10, 12, 20, 24].map(s => <option key={s} value={s}>{s} pcs</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Qté</label>}
+                          <input type="number" min="1" required value={line.quantity}
+                            onChange={e => updateLine(idx, 'quantity', parseInt(e.target.value) || 1)}
+                            className="w-full px-2 py-1.5 border rounded text-sm" />
+                        </div>
+                        <div>
+                          {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Prix/boîte</label>}
+                          <input type="number" min="0" required value={line.unit_price}
+                            onChange={e => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)}
+                            className="w-full px-2 py-1.5 border rounded text-sm" />
+                        </div>
+                      </div>
+                      <div className="text-right w-24 flex-shrink-0">
+                        {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Total</label>}
+                        <p className="text-sm font-bold text-gray-900 py-1.5">{(line.quantity * line.unit_price).toLocaleString()} DA</p>
+                      </div>
+                      {saleForm.lines.length > 1 && (
+                        <button type="button" onClick={() => removeLine(idx)}
+                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
+
                 <div className="bg-emerald-50 rounded-lg p-3 flex justify-between items-center">
-                  <span className="text-sm text-emerald-700 font-medium">Total:</span>
+                  <span className="text-sm text-emerald-700 font-medium">Total général:</span>
                   <span className="text-xl font-bold text-emerald-700">
-                    {(saleForm.quantity * saleForm.unit_price).toLocaleString()} DA
+                    {formTotal.toLocaleString()} DA
                   </span>
                 </div>
               </div>

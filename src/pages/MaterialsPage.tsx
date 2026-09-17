@@ -1,9 +1,32 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Edit2, Trash2, Search, Package, ShoppingCart, X, Truck, ChevronRight, Wallet, ArrowLeft } from 'lucide-react';
-import { format } from 'date-fns';
+import { Plus, Edit2, Trash2, Search, Package, ShoppingCart, X, Truck, ChevronRight, Wallet, ArrowLeft, BarChart3, TrendingUp } from 'lucide-react';
+import { format, startOfWeek, startOfMonth, startOfYear, subWeeks, subMonths, subYears, isAfter } from 'date-fns';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
 import type { RawMaterial, MaterialPurchase, Supplier, SupplierPurchase } from '../types';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+} from 'recharts';
+
+type PaymentStatus = 'paid' | 'unpaid' | 'partial';
+
+const STATUS_LABELS: Record<PaymentStatus, string> = {
+  paid: 'Payé',
+  unpaid: 'Non payé',
+  partial: 'Versement',
+};
+
+const STATUS_STYLES: Record<PaymentStatus, string> = {
+  paid: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+  unpaid: 'bg-red-100 text-red-700 border border-red-200',
+  partial: 'bg-orange-100 text-orange-700 border border-orange-200',
+};
+
+const STATUS_DOT: Record<PaymentStatus, string> = {
+  paid: 'bg-emerald-500',
+  unpaid: 'bg-red-500',
+  partial: 'bg-orange-500',
+};
 
 export default function MaterialsPage() {
   const {
@@ -11,12 +34,13 @@ export default function MaterialsPage() {
     materialPurchases, setMaterialPurchases
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'materials' | 'purchases' | 'suppliers'>('materials');
+  const [activeTab, setActiveTab] = useState<'materials' | 'purchases' | 'suppliers' | 'stats'>('materials');
   const [searchTerm, setSearchTerm] = useState('');
   const [showMaterialModal, setShowMaterialModal] = useState(false);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<RawMaterial | null>(null);
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>('');
+  const [materialSearch, setMaterialSearch] = useState('');
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
@@ -31,6 +55,8 @@ export default function MaterialsPage() {
     item_name: '', quantity: 1, unit: 'kg', unit_cost: 0,
     purchase_date: format(new Date(), 'yyyy-MM-dd'), amount_paid: 0, invoice_number: '', notes: ''
   });
+
+  const [statsPeriod, setStatsPeriod] = useState<'week' | 'month' | 'year'>('month');
 
   useEffect(() => {
     api.suppliersService.getAll().then(setSuppliers).catch(() => {});
@@ -55,7 +81,9 @@ export default function MaterialsPage() {
     unit_cost: 0,
     purchase_date: format(new Date(), 'yyyy-MM-dd'),
     invoice_number: '',
-    notes: ''
+    notes: '',
+    payment_status: 'unpaid' as PaymentStatus,
+    amount_paid: 0,
   });
 
   useEffect(() => {
@@ -71,7 +99,13 @@ export default function MaterialsPage() {
   );
 
   const filteredPurchases = materialPurchases.filter(p =>
-    p.material?.name.toLowerCase().includes(searchTerm.toLowerCase())
+    p.material?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Filtered materials for the purchase modal dropdown
+  const dropdownMaterials = rawMaterials.filter(m =>
+    m.name.toLowerCase().includes(materialSearch.toLowerCase())
   );
 
   const handleMaterialSubmit = async (e: React.FormEvent) => {
@@ -107,6 +141,10 @@ export default function MaterialsPage() {
     e.preventDefault();
     try {
       const total_cost = purchaseForm.quantity * purchaseForm.unit_cost;
+      const amount_paid = purchaseForm.payment_status === 'paid' ? total_cost
+        : purchaseForm.payment_status === 'partial' ? purchaseForm.amount_paid
+        : 0;
+
       const newPurchase = await api.materialPurchasesService.create({
         material_id: purchaseForm.material_id,
         quantity: purchaseForm.quantity,
@@ -114,7 +152,9 @@ export default function MaterialsPage() {
         total_cost,
         purchase_date: purchaseForm.purchase_date,
         invoice_number: purchaseForm.invoice_number || undefined,
-        notes: purchaseForm.notes || undefined
+        notes: purchaseForm.notes || undefined,
+        payment_status: purchaseForm.payment_status,
+        amount_paid,
       });
       const material = rawMaterials.find(m => m.id === purchaseForm.material_id);
       setMaterialPurchases([{ ...newPurchase, material }, ...materialPurchases]);
@@ -125,16 +165,46 @@ export default function MaterialsPage() {
       });
 
       setShowPurchaseModal(false);
+      setMaterialSearch('');
       setPurchaseForm({
         material_id: rawMaterials[0]?.id || '',
         quantity: 0,
         unit_cost: 0,
         purchase_date: format(new Date(), 'yyyy-MM-dd'),
         invoice_number: '',
-        notes: ''
+        notes: '',
+        payment_status: 'unpaid',
+        amount_paid: 0,
       });
     } catch (error) {
       console.error('Error saving purchase:', error);
+    }
+  };
+
+  const handleUpdatePurchaseStatus = async (purchase: MaterialPurchase, status: PaymentStatus) => {
+    const amount_paid = status === 'paid' ? purchase.total_cost
+      : status === 'partial' ? (purchase.amount_paid || 0)
+      : 0;
+    try {
+      const updated = await api.materialPurchasesService.update(purchase.id, {
+        payment_status: status,
+        amount_paid,
+      });
+      setMaterialPurchases(materialPurchases.map(p => p.id === updated.id ? updated : p));
+    } catch (error) {
+      console.error('Error updating payment status:', error);
+    }
+  };
+
+  const handleUpdatePurchaseAmountPaid = async (purchase: MaterialPurchase, amount: number) => {
+    try {
+      const updated = await api.materialPurchasesService.update(purchase.id, {
+        amount_paid: amount,
+        payment_status: 'partial',
+      });
+      setMaterialPurchases(materialPurchases.map(p => p.id === updated.id ? updated : p));
+    } catch (error) {
+      console.error('Error updating amount paid:', error);
     }
   };
 
@@ -180,6 +250,7 @@ export default function MaterialsPage() {
     if (material) {
       setPurchaseForm(prev => ({ ...prev, unit_cost: material.unit_cost }));
     }
+    setMaterialSearch('');
     setShowPurchaseModal(true);
   };
 
@@ -191,7 +262,45 @@ export default function MaterialsPage() {
     })
     .reduce((sum, p) => sum + p.total_cost, 0);
 
-  // Supplier stats
+  // Statistics calculations
+  const statsData = useMemo(() => {
+    const now = new Date();
+    let startDate: Date;
+    if (statsPeriod === 'week') {
+      startDate = startOfWeek(now, { weekStartsOn: 1 });
+    } else if (statsPeriod === 'month') {
+      startDate = startOfMonth(now);
+    } else {
+      startDate = startOfYear(now);
+    }
+
+    const periodPurchases = materialPurchases.filter(p => isAfter(new Date(p.purchase_date), startDate));
+
+    const byMaterial: Record<string, { name: string; quantity: number; cost: number; unit: string }> = {};
+    for (const p of periodPurchases) {
+      const key = p.material_id;
+      if (!byMaterial[key]) {
+        byMaterial[key] = {
+          name: p.material?.name || 'Inconnu',
+          quantity: 0,
+          cost: 0,
+          unit: p.material?.unit || 'kg',
+        };
+      }
+      byMaterial[key].quantity += p.quantity;
+      byMaterial[key].cost += p.total_cost;
+    }
+
+    const chartData = Object.values(byMaterial)
+      .sort((a, b) => b.quantity - a.quantity)
+      .map(d => ({ name: d.name, Quantité: d.quantity, Coût: d.cost, unit: d.unit }));
+
+    const totalQuantity = chartData.reduce((s, d) => s + d.Quantité, 0);
+    const totalCost = chartData.reduce((s, d) => s + d.Coût, 0);
+
+    return { chartData, totalQuantity, totalCost, count: periodPurchases.length };
+  }, [materialPurchases, statsPeriod]);
+
   const supplierStats = useMemo(() => {
     const total = supplierPurchases.reduce((s, p) => s + p.total_amount, 0);
     const paid = supplierPurchases.reduce((s, p) => s + p.amount_paid, 0);
@@ -270,6 +379,9 @@ Montant du règlement:`);
     } catch (err) { console.error(err); }
   };
 
+  const purchaseTotal = purchaseForm.quantity * purchaseForm.unit_cost;
+  const resteAPayer = purchaseTotal - purchaseForm.amount_paid;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -339,13 +451,15 @@ Montant du règlement:`);
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200">
+      <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
         <button onClick={() => setActiveTab('materials')}
-          className={`px-4 py-2 font-medium transition-colors ${activeTab === 'materials' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>Matières Premières</button>
+          className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${activeTab === 'materials' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>Matières Premières</button>
         <button onClick={() => setActiveTab('purchases')}
-          className={`px-4 py-2 font-medium transition-colors ${activeTab === 'purchases' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>Historique Achats</button>
+          className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${activeTab === 'purchases' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>Historique Achats</button>
+        <button onClick={() => setActiveTab('stats')}
+          className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${activeTab === 'stats' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>Statistiques</button>
         <button onClick={() => setActiveTab('suppliers')}
-          className={`px-4 py-2 font-medium transition-colors ${activeTab === 'suppliers' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>Fournisseurs</button>
+          className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${activeTab === 'suppliers' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>Fournisseurs</button>
       </div>
 
       {/* Materials Table */}
@@ -425,40 +539,188 @@ Montant du règlement:`);
                   <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Quantité</th>
                   <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Prix/Unité</th>
                   <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Total</th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Facture</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">Statut</th>
+                  <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Reste</th>
                   <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredPurchases.map(purchase => (
-                  <tr key={purchase.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-600">
-                      {format(new Date(purchase.purchase_date), 'dd/MM/yyyy')}
-                    </td>
-                    <td className="px-4 py-3 font-medium text-gray-900">{purchase.material?.name || '-'}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{purchase.quantity} {purchase.material?.unit}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{purchase.unit_cost.toLocaleString()} DZD</td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900">{purchase.total_cost.toLocaleString()} DZD</td>
-                    <td className="px-4 py-3 text-gray-600">{purchase.invoice_number || '-'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end">
-                        <button
-                          onClick={() => handleDeletePurchase(purchase.id)}
-                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
-                          title="Supprimer"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filteredPurchases.map(purchase => {
+                  const reste = purchase.total_cost - (purchase.amount_paid || 0);
+                  return (
+                    <tr key={purchase.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-gray-600">
+                        {format(new Date(purchase.purchase_date), 'dd/MM/yyyy')}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{purchase.material?.name || '-'}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{purchase.quantity} {purchase.material?.unit}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{purchase.unit_cost.toLocaleString()} DZD</td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900">{purchase.total_cost.toLocaleString()} DZD</td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-center gap-1">
+                          {(['paid', 'unpaid', 'partial'] as PaymentStatus[]).map(s => (
+                            <button
+                              key={s}
+                              onClick={() => handleUpdatePurchaseStatus(purchase, s)}
+                              className={`px-2 py-0.5 rounded-md text-xs font-medium transition-all ${
+                                purchase.payment_status === s
+                                  ? STATUS_STYLES[s]
+                                  : 'bg-gray-50 text-gray-400 border border-gray-100 hover:bg-gray-100'
+                              }`}
+                            >
+                              {STATUS_LABELS[s]}
+                            </button>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {purchase.payment_status === 'partial' ? (
+                          <button
+                            onClick={() => {
+                              const val = prompt('Montant déjà versé (DA):', String(purchase.amount_paid || 0));
+                              if (val !== null) handleUpdatePurchaseAmountPaid(purchase, parseFloat(val) || 0);
+                            }}
+                            className="text-orange-600 font-medium hover:underline"
+                          >
+                            {reste.toLocaleString()} DZD
+                          </button>
+                        ) : purchase.payment_status === 'unpaid' ? (
+                          <span className="text-red-600 font-medium">{reste.toLocaleString()} DZD</span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end">
+                          <button
+                            onClick={() => handleDeletePurchase(purchase.id)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg"
+                            title="Supprimer"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           {filteredPurchases.length === 0 && (
             <div className="p-8 text-center text-gray-400">
               Aucun achat trouvé
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Statistics Tab */}
+      {activeTab === 'stats' && (
+        <div className="space-y-6">
+          {/* Period selector */}
+          <div className="flex gap-2">
+            {(['week', 'month', 'year'] as const).map(p => (
+              <button
+                key={p}
+                onClick={() => setStatsPeriod(p)}
+                className={`px-4 py-2 rounded-xl font-medium transition-all ${
+                  statsPeriod === p
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                {p === 'week' ? 'Cette semaine' : p === 'month' ? 'Ce mois' : 'Cette année'}
+              </button>
+            ))}
+          </div>
+
+          {/* Summary cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-100 rounded-lg"><BarChart3 size={20} className="text-amber-600" /></div>
+                <div>
+                  <p className="text-sm text-gray-500">Achats ({statsPeriod === 'week' ? 'semaine' : statsPeriod === 'month' ? 'mois' : 'année'})</p>
+                  <p className="text-xl font-bold text-gray-900">{statsData.count}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg"><Package size={20} className="text-blue-600" /></div>
+                <div>
+                  <p className="text-sm text-gray-500">Quantité totale</p>
+                  <p className="text-xl font-bold text-gray-900">{statsData.totalQuantity.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-100 rounded-lg"><TrendingUp size={20} className="text-emerald-600" /></div>
+                <div>
+                  <p className="text-sm text-gray-500">Coût total</p>
+                  <p className="text-xl font-bold text-gray-900">{statsData.totalCost.toLocaleString()} DZD</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Chart */}
+          {statsData.chartData.length > 0 ? (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Consommation par matière première</h3>
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={statsData.chartData} margin={{ top: 5, right: 20, left: 10, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="name" angle={-30} textAnchor="end" height={70} tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip
+                    formatter={(value: number, name: string) => {
+                      if (name === 'Coût') return `${value.toLocaleString()} DZD`;
+                      return value.toLocaleString();
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="Quantité" fill="#f59e0b" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="Coût" fill="#10b981" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl p-12 text-center text-gray-400 shadow-sm border border-gray-100">
+              <BarChart3 size={48} className="mx-auto mb-3 text-gray-300" />
+              <p className="font-medium">Aucune donnée pour cette période</p>
+            </div>
+          )}
+
+          {/* Table */}
+          {statsData.chartData.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Matière Première</th>
+                      <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Quantité</th>
+                      <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Coût Total</th>
+                      <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Prix moyen/Unité</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {statsData.chartData.map((d) => (
+                      <tr key={d.name} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-900">{d.name}</td>
+                        <td className="px-4 py-3 text-right text-gray-600">{d.Quantité.toLocaleString()} {d.unit}</td>
+                        <td className="px-4 py-3 text-right font-medium text-gray-900">{d.Coût.toLocaleString()} DZD</td>
+                        <td className="px-4 py-3 text-right text-gray-600">
+                          {d.Quantité > 0 ? (d.Coût / d.Quantité).toLocaleString() : 0} DZD
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
@@ -770,35 +1032,51 @@ Montant du règlement:`);
       {/* Purchase Modal */}
       {showPurchaseModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
-            <div className="flex items-center justify-between p-4 border-b">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
               <h2 className="text-lg font-semibold">Nouvel Achat</h2>
               <button onClick={() => setShowPurchaseModal(false)} className="p-1 hover:bg-gray-100 rounded-lg">
                 <X size={20} />
               </button>
             </div>
             <form onSubmit={handlePurchaseSubmit} className="p-4 space-y-4">
+              {/* Searchable Material Selector */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Matière Première</label>
-                <select
-                  required
-                  value={purchaseForm.material_id}
-                  onChange={e => {
-                    const material = rawMaterials.find(m => m.id === e.target.value);
-                    setPurchaseForm({
-                      ...purchaseForm,
-                      material_id: e.target.value,
-                      unit_cost: material?.unit_cost || purchaseForm.unit_cost
-                    });
-                  }}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                >
-                  <option value="">Sélectionner</option>
-                  {rawMaterials.map(m => (
-                    <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>
+                <div className="relative mb-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                  <input
+                    type="text"
+                    placeholder="Rechercher une matière..."
+                    value={materialSearch}
+                    onChange={e => setMaterialSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  />
+                </div>
+                <div className="max-h-40 overflow-y-auto border rounded-lg divide-y divide-gray-100">
+                  {dropdownMaterials.map(m => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => {
+                        setPurchaseForm({ ...purchaseForm, material_id: m.id, unit_cost: m.unit_cost });
+                        setMaterialSearch('');
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                        purchaseForm.material_id === m.id
+                          ? 'bg-amber-50 text-amber-700 font-medium'
+                          : 'hover:bg-gray-50 text-gray-700'
+                      }`}
+                    >
+                      {m.name} <span className="text-gray-400">({m.unit}) — {m.unit_cost.toLocaleString()} DZD</span>
+                    </button>
                   ))}
-                </select>
+                  {dropdownMaterials.length === 0 && (
+                    <p className="px-3 py-2 text-sm text-gray-400">Aucune matière trouvée</p>
+                  )}
+                </div>
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Quantité</label>
@@ -835,6 +1113,52 @@ Montant du règlement:`);
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                 />
               </div>
+
+              {/* Payment Status */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Statut de paiement</label>
+                <div className="flex gap-2">
+                  {(['paid', 'unpaid', 'partial'] as PaymentStatus[]).map(s => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setPurchaseForm({
+                        ...purchaseForm,
+                        payment_status: s,
+                        amount_paid: s === 'paid' ? purchaseTotal : s === 'unpaid' ? 0 : purchaseForm.amount_paid,
+                      })}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        purchaseForm.payment_status === s
+                          ? STATUS_STYLES[s]
+                          : 'bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100'
+                      }`}
+                    >
+                      <span className={`inline-block w-2 h-2 rounded-full mr-2 ${STATUS_DOT[s]}`} />
+                      {STATUS_LABELS[s]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Partial payment amount */}
+              {purchaseForm.payment_status === 'partial' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Montant déjà versé (DZD)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max={purchaseTotal}
+                    value={purchaseForm.amount_paid}
+                    onChange={e => setPurchaseForm({ ...purchaseForm, amount_paid: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  />
+                  <p className="text-sm text-orange-600 mt-1">
+                    Reste à payer: <strong>{resteAPayer.toLocaleString()} DZD</strong>
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">N° Facture (optionnel)</label>
                 <input
@@ -855,7 +1179,10 @@ Montant du règlement:`);
               </div>
               <div className="bg-amber-50 p-3 rounded-lg">
                 <p className="text-sm text-amber-800">
-                  Total: <span className="font-bold">{(purchaseForm.quantity * purchaseForm.unit_cost).toLocaleString()} DZD</span>
+                  Total: <span className="font-bold">{purchaseTotal.toLocaleString()} DZD</span>
+                  {purchaseForm.payment_status === 'partial' && (
+                    <span className="ml-3 text-orange-600">Reste: {resteAPayer.toLocaleString()} DZD</span>
+                  )}
                 </p>
               </div>
               <div className="flex justify-end gap-2 pt-4">
