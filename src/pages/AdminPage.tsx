@@ -197,10 +197,20 @@ export default function AdminPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Erreur ${res.status}: ${res.statusText}`);
       showSuccess(`Utilisateur ${formData.email} créé avec succès`);
+      const newUser: ManagedUser = {
+        id: data.user_id,
+        email: formData.email,
+        display_name: formData.display_name || formData.email.split('@')[0],
+        role: formData.role,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        permissions: { ...formPerms },
+      };
+      setUsers(prev => [...prev, newUser]);
       setShowCreate(false);
       setFormData({ email: '', password: '', confirmPassword: '', display_name: '', role: 'user' });
       setFormPerms({ ...EMPTY_PERMISSIONS });
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 1500));
       await fetchAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');

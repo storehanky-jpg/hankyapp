@@ -3,7 +3,7 @@ import type {
   RawMaterial, MaterialPurchase, FixedCharge, VariableExpense,
   Utility, LaborCost, Packaging, ProductionBatch, Sale, UnsoldProduct,
   CompanySettings, DashboardStats, BulkSale, RecipeConfig, RecipeItem, ShopSale,
-  Customer
+  Customer, Order
 } from '../types';
 import * as api from '../services/api';
 import { offlineStorage } from '../lib/storage';
@@ -22,6 +22,7 @@ interface AppState {
   bulkSales: BulkSale[];
   shopSales: ShopSale[];
   customers: Customer[];
+  orders: Order[];
   recipeConfig: RecipeConfig | null;
   recipeItems: RecipeItem[];
   settings: CompanySettings | null;
@@ -45,6 +46,7 @@ interface AppContextType extends AppState {
   setBulkSales: (sales: BulkSale[]) => void;
   setShopSales: (sales: ShopSale[]) => void;
   setCustomers: (customers: Customer[]) => void;
+  setOrders: (orders: Order[]) => void;
   setRecipeConfig: (config: RecipeConfig) => void;
   setRecipeItems: (items: RecipeItem[]) => void;
   setSettings: (settings: CompanySettings) => void;
@@ -69,6 +71,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     bulkSales: [],
     shopSales: [],
     customers: [],
+    orders: [],
     recipeConfig: null,
     recipeItems: [],
     settings: null,
@@ -92,6 +95,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const cachedBulkSales = offlineStorage.get<BulkSale[]>('bulk_sales') || [];
     const cachedShopSales = offlineStorage.get<ShopSale[]>('shop_sales') || [];
     const cachedCustomers = offlineStorage.get<Customer[]>('customers') || [];
+    const cachedOrders = offlineStorage.get<Order[]>('orders') || [];
     const cachedRecipeConfig = offlineStorage.get<RecipeConfig>('recipe_config');
     const cachedRecipeItems = offlineStorage.get<RecipeItem[]>('recipe_items') || [];
     const cachedSettings = offlineStorage.get<CompanySettings>('settings');
@@ -114,6 +118,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         bulkSales: cachedBulkSales,
         shopSales: cachedShopSales,
         customers: cachedCustomers,
+        orders: cachedOrders,
         recipeConfig: cachedRecipeConfig || s.recipeConfig,
         recipeItems: cachedRecipeItems,
         settings: cachedSettings || s.settings,
@@ -147,6 +152,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         bulkSales,
         shopSales,
         customers,
+        orders,
         recipeConfig,
         recipeItems,
         settings
@@ -164,6 +170,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         withTimeout(api.bulkSalesService.getAll()).catch(() => cachedBulkSales),
         withTimeout(api.shopSalesService.getAll()).catch(() => cachedShopSales),
         withTimeout(api.customersService.getAll()).catch(() => cachedCustomers),
+        withTimeout(api.ordersService.getAll()).catch(() => cachedOrders),
         withTimeout(api.recipeConfigService.get()).catch(() => cachedRecipeConfig || { id: 'default', name: 'Macaron Classique', batch_size_kg: 1, created_at: new Date().toISOString() }),
         withTimeout(api.recipeItemsService.getAll()).catch(() => cachedRecipeItems),
         withTimeout(api.settingsService.get()).catch(() => cachedSettings || { id: 'default', company_name: 'Hanky Macarons', currency: 'DZD', profit_margin: 30, created_at: new Date().toISOString() })
@@ -183,6 +190,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         bulkSales,
         shopSales,
         customers,
+        orders,
         recipeConfig,
         recipeItems,
         settings,
@@ -318,6 +326,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setBulkSales: (bulkSales) => setState(s => ({ ...s, bulkSales })),
     setShopSales: (shopSales) => setState(s => ({ ...s, shopSales })),
     setCustomers: (customers) => setState(s => ({ ...s, customers })),
+    setOrders: (orders) => setState(s => ({ ...s, orders })),
     setRecipeConfig: (recipeConfig) => setState(s => ({ ...s, recipeConfig })),
     setRecipeItems: (recipeItems) => setState(s => ({ ...s, recipeItems })),
     setSettings: (settings) => setState(s => ({ ...s, settings })),

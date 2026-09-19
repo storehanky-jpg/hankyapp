@@ -310,3 +310,14 @@ export interface SupplierPurchase {
   notes?: string;
   created_at: string;
 }
+
+export interface Order {
+  id: string;
+  customer_name: string;
+  customer_phone?: string;
+  product_description: string;
+  expected_date: string;
+  notes?: string;
+  status: 'pending' | 'delivered' | 'cancelled';
+  created_at: string;
+}

@@ -130,25 +130,23 @@ export default function BulkSalesPage() {
     return customers.filter(c => c.name.toLowerCase().includes(q) || c.phone?.includes(q));
   }, [customers, search]);
 
-  // Sale modal state
+  // Sale modal state — multi-line
   const [showSaleModal, setShowSaleModal] = useState(false);
   const [editSale, setEditSale] = useState<UnifiedSale | null>(null);
-  const [saleForm, setSaleForm] = useState({
-    type: 'boite20' as SaleType,
-    sale_date: format(new Date(), 'yyyy-MM-dd'),
-    quantity: 1, unit_price: DEFAULT_PRICES.boite20,
-    payment_status: 'unpaid' as 'paid' | 'unpaid' | 'partial',
-    amount_paid: 0, notes: '',
-  });
+  const [saleLines, setSaleLines] = useState<{ type: SaleType; quantity: number; unit_price: number }[]>([]);
+  const [saleDate, setSaleDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [paymentStatus, setPaymentStatus] = useState<'paid' | 'unpaid' | 'partial'>('unpaid');
+  const [amountPaid, setAmountPaid] = useState(0);
+  const [saleNotes, setSaleNotes] = useState('');
+  const [savingSale, setSavingSale] = useState(false);
 
   function openAddSale() {
     setEditSale(null);
-    const initialType: SaleType = 'boite20';
-    setSaleForm({
-      type: initialType, sale_date: format(new Date(), 'yyyy-MM-dd'),
-      quantity: 1, unit_price: getCustomerPrice(selectedCustomer, initialType),
-      payment_status: 'unpaid', amount_paid: 0, notes: '',
-    });
+    setSaleDate(format(new Date(), 'yyyy-MM-dd'));
+    setPaymentStatus('unpaid');
+    setAmountPaid(0);
+    setSaleNotes('');
+    setSaleLines([{ type: 'boite20', quantity: 1, unit_price: getCustomerPrice(selectedCustomer, 'boite20') }]);
     setShowSaleModal(true);
   }
 
@@ -156,76 +154,111 @@ export default function BulkSalesPage() {
     const isPaid = s.amount_paid >= s.total_amount;
     const isPartial = s.amount_paid > 0 && s.amount_paid < s.total_amount;
     setEditSale(s);
-    setSaleForm({
-      type: s.type, sale_date: s.sale_date, quantity: s.quantity,
-      unit_price: s.unit_price,
-      payment_status: isPaid ? 'paid' : isPartial ? 'partial' : 'unpaid',
-      amount_paid: s.amount_paid, notes: s.notes || '',
-    });
+    setSaleDate(s.sale_date);
+    setPaymentStatus(isPaid ? 'paid' : isPartial ? 'partial' : 'unpaid');
+    setAmountPaid(s.amount_paid);
+    setSaleNotes(s.notes || '');
+    setSaleLines([{ type: s.type, quantity: s.quantity, unit_price: s.unit_price }]);
     setShowSaleModal(true);
   }
 
-  function handleTypeChange(type: SaleType) {
-    setSaleForm(f => ({ ...f, type, unit_price: getCustomerPrice(selectedCustomer, type) }));
+  function addSaleLine() {
+    const lastType = saleLines[saleLines.length - 1]?.type || 'boite20';
+    setSaleLines([...saleLines, { type: lastType, quantity: 1, unit_price: getCustomerPrice(selectedCustomer, lastType) }]);
   }
+
+  function updateSaleLine(idx: number, field: 'type' | 'quantity' | 'unit_price', value: string | number) {
+    setSaleLines(lines => lines.map((l, i) => {
+      if (i !== idx) return l;
+      if (field === 'type') {
+        const newType = value as SaleType;
+        return { ...l, type: newType, unit_price: getCustomerPrice(selectedCustomer, newType) };
+      }
+      if (field === 'quantity') return { ...l, quantity: parseFloat(String(value)) || 0 };
+      return { ...l, unit_price: parseFloat(String(value)) || 0 };
+    }));
+  }
+
+  function removeSaleLine(idx: number) {
+    setSaleLines(lines => lines.filter((_, i) => i !== idx));
+  }
+
+  const saleTotal = saleLines.reduce((sum, l) => sum + l.quantity * l.unit_price, 0);
+  const saleReste = paymentStatus === 'paid' ? 0 : paymentStatus === 'partial' ? saleTotal - amountPaid : saleTotal;
 
   const handleSaleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCustomer) return;
-    const total = saleForm.quantity * saleForm.unit_price;
-    const amount_paid = saleForm.payment_status === 'paid' ? total
-      : saleForm.payment_status === 'partial' ? saleForm.amount_paid
-      : 0;
-    const meta = SALE_TYPES.find(t => t.id === saleForm.type)!;
-    const common = { sale_date: saleForm.sale_date, amount_paid, notes: saleForm.notes || undefined };
+    if (!selectedCustomer || saleLines.length === 0) return;
+    const total = saleTotal;
+    const paid = paymentStatus === 'paid' ? total : paymentStatus === 'partial' ? amountPaid : 0;
+    const groupId = editSale?.raw && 'sale_group_id' in editSale.raw ? (editSale.raw as Sale).sale_group_id : `sale-${Date.now()}`;
+    const notes = saleNotes || undefined;
+    const common = { sale_date: saleDate, amount_paid: paid, notes };
 
     try {
-      if (editSale) {
+      setSavingSale(true);
+      if (editSale && saleLines.length === 1) {
+        const line = saleLines[0];
+        const meta = SALE_TYPES.find(t => t.id === line.type)!;
+        const lineTotal = line.quantity * line.unit_price;
         if (meta.table === 'bulk') {
           const updated = await api.bulkSalesService.update(editSale.id, {
-            ...common, quantity_kg: saleForm.quantity, price_per_kg: saleForm.unit_price, total_amount: total,
+            ...common, quantity_kg: line.quantity, price_per_kg: line.unit_price, total_amount: lineTotal,
           });
           setBulkSales(bulkSales.map(s => s.id === editSale.id ? updated : s));
         } else if (meta.table === 'sales') {
-          const boxSize = saleForm.type === 'boite20' ? 20 : saleForm.type === 'boite10' ? 10 : 6;
+          const boxSize = line.type === 'boite20' ? 20 : line.type === 'boite10' ? 10 : 6;
           const updated = await api.salesService.update(editSale.id, {
-            ...common, box_size: boxSize, quantity: saleForm.quantity, unit_price: saleForm.unit_price,
-            total_amount: total, is_paid: amount_paid >= total,
+            ...common, box_size: boxSize, quantity: line.quantity, unit_price: line.unit_price,
+            total_amount: lineTotal, is_paid: paid >= lineTotal,
           });
           setSales(sales.map(s => s.id === editSale.id ? updated : s));
         } else {
           const updated = await api.shopSalesService.update(editSale.id, {
-            ...common, quantity: saleForm.quantity, price_per_piece: saleForm.unit_price,
-            total_amount: total, is_paid: amount_paid >= total,
+            ...common, quantity: line.quantity, price_per_piece: line.unit_price,
+            total_amount: lineTotal, is_paid: paid >= lineTotal,
           });
           setShopSales(shopSales.map(s => s.id === editSale.id ? updated : s));
         }
       } else {
-        if (meta.table === 'bulk') {
-          const created = await api.bulkSalesService.create({
-            ...common, quantity_kg: saleForm.quantity, price_per_kg: saleForm.unit_price,
-            total_amount: total, customer_id: selectedCustomer.id, customer_name: selectedCustomer.name,
-          });
-          setBulkSales([created, ...bulkSales]);
-        } else if (meta.table === 'sales') {
-          const boxSize = saleForm.type === 'boite20' ? 20 : saleForm.type === 'boite10' ? 10 : 6;
-          const created = await api.salesService.create({
-            ...common, box_size: boxSize, quantity: saleForm.quantity, unit_price: saleForm.unit_price,
-            total_amount: total, is_paid: amount_paid >= total,
-            customer_id: selectedCustomer.id, customer_name: selectedCustomer.name,
-          });
-          setSales([created, ...sales]);
-        } else {
-          const created = await api.shopSalesService.create({
-            ...common, quantity: saleForm.quantity, price_per_piece: saleForm.unit_price,
-            total_amount: total, is_paid: amount_paid >= total,
-            customer_id: selectedCustomer.id, customer_name: selectedCustomer.name,
-          });
-          setShopSales([created, ...shopSales]);
+        const newBulk: BulkSale[] = [];
+        const newSales: Sale[] = [];
+        const newShop: ShopSale[] = [];
+        for (const line of saleLines) {
+          const meta = SALE_TYPES.find(t => t.id === line.type)!;
+          const lineTotal = line.quantity * line.unit_price;
+          const linePaid = paid;
+          if (meta.table === 'bulk') {
+            const created = await api.bulkSalesService.create({
+              ...common, quantity_kg: line.quantity, price_per_kg: line.unit_price,
+              total_amount: lineTotal, customer_id: selectedCustomer.id, customer_name: selectedCustomer.name,
+            });
+            newBulk.push(created);
+          } else if (meta.table === 'sales') {
+            const boxSize = line.type === 'boite20' ? 20 : line.type === 'boite10' ? 10 : 6;
+            const created = await api.salesService.create({
+              ...common, box_size: boxSize, quantity: line.quantity, unit_price: line.unit_price,
+              total_amount: lineTotal, is_paid: linePaid >= lineTotal,
+              customer_id: selectedCustomer.id, customer_name: selectedCustomer.name,
+              sale_group_id: groupId,
+            });
+            newSales.push(created);
+          } else {
+            const created = await api.shopSalesService.create({
+              ...common, quantity: line.quantity, price_per_piece: line.unit_price,
+              total_amount: lineTotal, is_paid: linePaid >= lineTotal,
+              customer_id: selectedCustomer.id, customer_name: selectedCustomer.name,
+            });
+            newShop.push(created);
+          }
         }
+        if (newBulk.length) setBulkSales([...newBulk, ...bulkSales]);
+        if (newSales.length) setSales([...newSales, ...sales]);
+        if (newShop.length) setShopSales([...newShop, ...shopSales]);
       }
       setShowSaleModal(false);
     } catch (err) { console.error(err); }
+    finally { setSavingSale(false); }
   };
 
   const handleDeleteSale = async (s: UnifiedSale) => {
@@ -631,65 +664,112 @@ export default function BulkSalesPage() {
           </div>
         )}
 
-        {/* Sale Modal — compact product grid + payment status */}
+        {/* Sale Modal — multi-line product table + payment status */}
         {showSaleModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
-                <h2 className="text-lg font-semibold">{editSale ? 'Modifier Vente' : 'Nouvelle Vente'}</h2>
+                <h2 className="text-lg font-semibold">{editSale && saleLines.length === 1 ? 'Modifier Vente' : 'Nouvelle Vente'}</h2>
                 <button onClick={() => setShowSaleModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
               </div>
               <form onSubmit={handleSaleSubmit} className="p-4 space-y-3">
-                {/* Compact product grid */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Produit</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {SALE_TYPES.map(t => {
-                      const c = colorMap[t.color];
-                      const isSel = saleForm.type === t.id;
-                      return (
-                        <button key={t.id} type="button" onClick={() => handleTypeChange(t.id)}
-                          className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border-2 transition-all text-left ${isSel ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                          <span className={`w-7 h-7 rounded-lg ${c.solid} flex items-center justify-center flex-shrink-0`}>{t.icon}</span>
-                          <span className={`text-xs font-medium ${isSel ? 'text-emerald-700' : 'text-gray-600'}`}>{t.shortLabel}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                {/* Date + qty + price */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                  <input type="date" required value={saleForm.sale_date} onChange={e => setSaleForm({ ...saleForm, sale_date: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm" />
-                </div>
+                {/* Date */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{saleForm.type === 'vrac' ? 'Qté (kg)' : 'Quantité'}</label>
-                    <input type="number" step={saleForm.type === 'vrac' ? '0.1' : '1'} min="0" required value={saleForm.quantity}
-                      onChange={e => setSaleForm({ ...saleForm, quantity: parseFloat(e.target.value) || 0 })}
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <input type="date" required value={saleDate} onChange={e => setSaleDate(e.target.value)}
                       className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm" />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Prix unit. (DA)</label>
-                    <input type="number" min="0" step="10" required value={saleForm.unit_price}
-                      onChange={e => setSaleForm({ ...saleForm, unit_price: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-amber-700" />
+                  <div className="flex items-end">
+                    <p className="text-sm text-gray-500">Client: <strong className="text-gray-900">{selectedCustomer?.name}</strong></p>
                   </div>
                 </div>
+
+                {/* Multi-line product table */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-sm font-medium text-gray-700">Produits</label>
+                    {editSale && saleLines.length === 1 ? null : (
+                      <button type="button" onClick={addSaleLine}
+                        className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700 font-medium">
+                        <Plus size={16} /> Ajouter une ligne
+                      </button>
+                    )}
+                  </div>
+                  <div className="border border-gray-200 rounded-xl overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-600">Produit</th>
+                          <th className="px-2 py-2 text-right text-xs font-medium text-gray-600 w-20">Qté</th>
+                          <th className="px-2 py-2 text-right text-xs font-medium text-gray-600 w-24">Prix U.</th>
+                          <th className="px-2 py-2 text-right text-xs font-medium text-gray-600 w-24">Total</th>
+                          {editSale && saleLines.length === 1 ? null : <th className="w-8" />}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {saleLines.map((line, idx) => {
+                          const meta = SALE_TYPES.find(t => t.id === line.type)!;
+                          const c = colorMap[meta.color];
+                          return (
+                            <tr key={idx}>
+                              <td className="px-2 py-1.5">
+                                <select value={line.type} onChange={e => updateSaleLine(idx, 'type', e.target.value)}
+                                  className="w-full px-2 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500">
+                                  {SALE_TYPES.map(t => (
+                                    <option key={t.id} value={t.id}>{t.label}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-2 py-1.5">
+                                <input type="number" step={line.type === 'vrac' ? '0.1' : '1'} min="0" value={line.quantity}
+                                  onChange={e => updateSaleLine(idx, 'quantity', e.target.value)}
+                                  className="w-full px-2 py-1.5 border rounded-lg text-sm text-right focus:ring-2 focus:ring-emerald-500" />
+                              </td>
+                              <td className="px-2 py-1.5">
+                                <input type="number" min="0" step="10" value={line.unit_price}
+                                  onChange={e => updateSaleLine(idx, 'unit_price', e.target.value)}
+                                  className="w-full px-2 py-1.5 border rounded-lg text-sm text-right font-bold text-amber-700 focus:ring-2 focus:ring-emerald-500" />
+                              </td>
+                              <td className="px-2 py-1.5 text-right text-sm font-bold text-gray-900">
+                                {(line.quantity * line.unit_price).toLocaleString()}
+                              </td>
+                              {editSale && saleLines.length === 1 ? null : (
+                                <td className="px-1 py-1.5">
+                                  <button type="button" onClick={() => removeSaleLine(idx)}
+                                    className="p-1 text-red-500 hover:bg-red-50 rounded-lg" title="Supprimer">
+                                    <Trash2 size={14} />
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="bg-gray-50">
+                        <tr>
+                          <td colSpan={3} className="px-2 py-2 text-right text-sm font-semibold text-gray-700">Total Général</td>
+                          <td className="px-2 py-2 text-right text-base font-bold text-emerald-700">{saleTotal.toLocaleString()} DA</td>
+                          {editSale && saleLines.length === 1 ? null : <td />}
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
                 {/* Payment status buttons */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Statut de paiement</label>
                   <div className="flex gap-2">
                     {(['paid', 'unpaid', 'partial'] as const).map(s => (
                       <button key={s} type="button"
-                        onClick={() => setSaleForm({
-                          ...saleForm,
-                          payment_status: s,
-                          amount_paid: s === 'paid' ? saleForm.quantity * saleForm.unit_price : s === 'unpaid' ? 0 : saleForm.amount_paid,
-                        })}
+                        onClick={() => {
+                          setPaymentStatus(s);
+                          if (s === 'paid') setAmountPaid(saleTotal);
+                          else if (s === 'unpaid') setAmountPaid(0);
+                        }}
                         className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                          saleForm.payment_status === s
+                          paymentStatus === s
                             ? s === 'paid' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
                               : s === 'unpaid' ? 'bg-red-100 text-red-700 border border-red-200'
                               : 'bg-orange-100 text-orange-700 border border-orange-200'
@@ -703,35 +783,45 @@ export default function BulkSalesPage() {
                     ))}
                   </div>
                 </div>
+
                 {/* Partial payment amount */}
-                {saleForm.payment_status === 'partial' && (
+                {paymentStatus === 'partial' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Montant versé (DA)</label>
-                    <input type="number" min="0" max={saleForm.quantity * saleForm.unit_price}
-                      value={saleForm.amount_paid}
-                      onChange={e => setSaleForm({ ...saleForm, amount_paid: parseFloat(e.target.value) || 0 })}
+                    <input type="number" min="0" max={saleTotal}
+                      value={amountPaid}
+                      onChange={e => setAmountPaid(parseFloat(e.target.value) || 0)}
                       className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 text-sm" />
                     <p className="text-sm text-orange-600 mt-1">
-                      Reste à payer: <strong>{((saleForm.quantity * saleForm.unit_price) - saleForm.amount_paid).toLocaleString()} DA</strong>
+                      Reste à payer: <strong>{saleReste.toLocaleString()} DA</strong>
                     </p>
                   </div>
                 )}
+
                 {/* Notes */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optionnel)</label>
-                  <textarea value={saleForm.notes} rows={2} onChange={e => setSaleForm({ ...saleForm, notes: e.target.value })}
+                  <textarea value={saleNotes} rows={2} onChange={e => setSaleNotes(e.target.value)}
                     className="w-full px-3 py-2 border rounded-lg text-sm" />
                 </div>
-                {/* Total */}
+
+                {/* Summary */}
                 <div className="bg-emerald-50 p-3 rounded-xl flex justify-between items-center">
-                  <span className="text-sm text-emerald-800">Total: <strong>{(saleForm.quantity * saleForm.unit_price).toLocaleString()} DA</strong></span>
-                  {saleForm.payment_status === 'partial' && (
-                    <span className="text-sm text-orange-600">Reste: {((saleForm.quantity * saleForm.unit_price) - saleForm.amount_paid).toLocaleString()} DA</span>
+                  <span className="text-sm text-emerald-800">Total: <strong>{saleTotal.toLocaleString()} DA</strong></span>
+                  {paymentStatus === 'partial' && (
+                    <span className="text-sm text-orange-600">Reste: {saleReste.toLocaleString()} DA</span>
+                  )}
+                  {paymentStatus === 'unpaid' && (
+                    <span className="text-sm text-red-600">Non payé: {saleTotal.toLocaleString()} DA</span>
                   )}
                 </div>
+
                 <div className="flex justify-end gap-2 pt-1">
                   <button type="button" onClick={() => setShowSaleModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm">Annuler</button>
-                  <button type="submit" className="px-5 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium">{editSale ? 'Modifier' : 'Enregistrer'}</button>
+                  <button type="submit" disabled={savingSale || saleLines.length === 0}
+                    className="px-5 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium disabled:opacity-60">
+                    {savingSale ? 'Enregistrement...' : editSale && saleLines.length === 1 ? 'Modifier' : 'Enregistrer la vente'}
+                  </button>
                 </div>
               </form>
             </div>

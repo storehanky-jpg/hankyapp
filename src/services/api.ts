@@ -6,7 +6,7 @@ import type {
   RawMaterial, MaterialPurchase, FixedCharge, VariableExpense,
   Utility, LaborCost, Packaging, ProductionBatch, ProductionMaterial, Sale, UnsoldProduct,
   CompanySettings, BulkSale, RecipeConfig, RecipeItem, ShopSale,
-  Customer, CustomerPrice, CustomerProduct, FiscalInfo, Supplier, SupplierPurchase
+  Customer, CustomerPrice, CustomerProduct, FiscalInfo, Supplier, SupplierPurchase, Order
 } from '../types';
 
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -1107,6 +1107,51 @@ export const productionMaterialsService = {
       return;
     }
     const { error } = await supabase.from('production_materials').delete().eq('batch_id', batchId);
+    if (error) throw error;
+  }
+};
+
+// Orders (dashboard command tracking)
+export const ordersService = {
+  async getAll(): Promise<Order[]> {
+    if (!isOnline()) {
+      return offlineStorage.get<Order[]>('orders') || [];
+    }
+    try {
+      const { data, error } = await supabase.from('orders').select('*').order('expected_date', { ascending: true });
+      if (error) throw error;
+      const merged = mergeWithLocal<Order>('orders', data);
+      offlineStorage.set('orders', merged);
+      return merged;
+    } catch {
+      return offlineStorage.get<Order[]>('orders') || [];
+    }
+  },
+
+  async create(order: Omit<Order, 'id' | 'created_at'>): Promise<Order> {
+    if (!isOnline()) {
+      return offlineCreate<Order>('orders', order);
+    }
+    const { data, error } = await supabase.from('orders').insert(order).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async update(id: string, updates: Partial<Order>): Promise<Order> {
+    if (!isOnline()) {
+      return offlineUpdate<Order>('orders', id, updates);
+    }
+    const { data, error } = await supabase.from('orders').update(updates).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async delete(id: string): Promise<void> {
+    if (!isOnline()) {
+      offlineDelete<Order>('orders', id);
+      return;
+    }
+    const { error } = await supabase.from('orders').delete().eq('id', id);
     if (error) throw error;
   }
 };
