@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../lib/supabase';
 import { offlineStorage, isOnline } from '../lib/storage';
-import { offlineCreate, offlineUpdate, offlineDelete, mergeWithLocal } from '../lib/offlineDb';
+import { offlineCreate, offlineUpdate, offlineDelete, purgeFromLocal, mergeWithLocal } from '../lib/offlineDb';
 import type {
   RawMaterial, MaterialPurchase, FixedCharge, VariableExpense,
   Utility, LaborCost, Packaging, ProductionBatch, ProductionMaterial, Sale, UnsoldProduct,
@@ -70,6 +70,7 @@ export const rawMaterialsService = {
     }
     const { error } = await supabase.from('raw_materials').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<RawMaterial>('raw_materials', id);
   }
 };
 
@@ -118,6 +119,7 @@ export const materialPurchasesService = {
     }
     const { error } = await supabase.from('material_purchases').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<MaterialPurchase>('material_purchases', id);
   }
 };
 
@@ -163,6 +165,7 @@ export const fixedChargesService = {
     }
     const { error } = await supabase.from('fixed_charges').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<FixedCharge>('fixed_charges', id);
   }
 };
 
@@ -199,6 +202,7 @@ export const variableExpensesService = {
     }
     const { error } = await supabase.from('variable_expenses').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<VariableExpense>('variable_expenses', id);
   }
 };
 
@@ -235,6 +239,7 @@ export const utilitiesService = {
     }
     const { error } = await supabase.from('utilities').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<Utility>('utilities', id);
   }
 };
 
@@ -271,6 +276,7 @@ export const laborCostsService = {
     }
     const { error } = await supabase.from('labor_costs').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<LaborCost>('labor_costs', id);
   }
 };
 
@@ -316,6 +322,7 @@ export const packagingService = {
     }
     const { error } = await supabase.from('packaging').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<Packaging>('packaging', id);
   }
 };
 
@@ -364,6 +371,7 @@ export const productionBatchService = {
     }
     const { error } = await supabase.from('production_batches').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<ProductionBatch>('production_batches', id);
   }
 };
 
@@ -409,6 +417,7 @@ export const salesService = {
     }
     const { error } = await supabase.from('sales').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<Sale>('sales', id);
   },
 
   async getByDateRange(startDate: string, endDate: string): Promise<Sale[]> {
@@ -460,6 +469,7 @@ export const unsoldProductsService = {
     }
     const { error } = await supabase.from('unsold_products').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<UnsoldProduct>('unsold_products', id);
   }
 };
 
@@ -570,6 +580,7 @@ export const bulkSalesService = {
     }
     const { error } = await supabase.from('bulk_sales').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<BulkSale>('bulk_sales', id);
   }
 };
 
@@ -677,6 +688,7 @@ export const recipeItemsService = {
     }
     const { error } = await supabase.from('recipe_items').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<RecipeItem>('recipe_items', id);
   }
 };
 
@@ -722,6 +734,7 @@ export const shopSalesService = {
     }
     const { error } = await supabase.from('shop_sales').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<ShopSale>('shop_sales', id);
   }
 };
 
@@ -797,6 +810,7 @@ export const customersService = {
     }
     const { error } = await supabase.from('customers').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<Customer>('customers', id);
   }
 };
 
@@ -875,6 +889,7 @@ export const customerPricesService = {
     }
     const { error } = await supabase.from('customer_prices').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<CustomerPrice>('customer_prices', id);
   }
 };
 
@@ -932,6 +947,7 @@ export const customerProductsService = {
     }
     const { error } = await supabase.from('customer_products').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<CustomerProduct>('customer_products', id);
   }
 };
 
@@ -1024,6 +1040,7 @@ export const suppliersService = {
     }
     const { error } = await supabase.from('suppliers').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<Supplier>('suppliers', id);
   }
 };
 
@@ -1068,6 +1085,7 @@ export const supplierPurchasesService = {
     }
     const { error } = await supabase.from('supplier_purchases').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<SupplierPurchase>('supplier_purchases', id);
   }
 };
 
@@ -1108,6 +1126,8 @@ export const productionMaterialsService = {
     }
     const { error } = await supabase.from('production_materials').delete().eq('batch_id', batchId);
     if (error) throw error;
+    const pmAll = offlineStorage.get<ProductionMaterial[]>('production_materials') || [];
+    offlineStorage.set('production_materials', pmAll.filter(m => m.batch_id !== batchId));
   }
 };
 
@@ -1153,6 +1173,7 @@ export const ordersService = {
     }
     const { error } = await supabase.from('orders').delete().eq('id', id);
     if (error) throw error;
+    purgeFromLocal<Order>('orders', id);
   }
 };
 
@@ -1171,6 +1192,7 @@ export const resetDataService = {
     for (const table of tables) {
       const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
       if (error) throw error;
+      offlineStorage.set(table, []);
     }
   }
 };

@@ -31,6 +31,11 @@ export function offlineDelete<T extends { id: string }>(key: string, id: string)
   offlineStorage.set(key, items.filter(i => i.id !== id));
 }
 
+export function purgeFromLocal<T extends { id: string }>(key: string, id: string): void {
+  const items = offlineStorage.get<T[]>(key) || [];
+  offlineStorage.set(key, items.filter(i => i.id !== id));
+}
+
 export function mergeWithLocal<T extends { id: string }>(key: string, remoteItems: T[]): T[] {
   const localItems = offlineStorage.get<T[]>(key) || [];
   const remoteIds = new Set(remoteItems.map(i => i.id));
