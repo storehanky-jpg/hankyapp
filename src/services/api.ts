@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '../lib/supabase';
 import { offlineStorage, isOnline } from '../lib/storage';
-import { offlineCreate, offlineUpdate, offlineDelete, purgeFromLocal, mergeWithLocal } from '../lib/offlineDb';
+import { offlineCreate, offlineUpdate, offlineDelete, purgeFromLocal, mergeWithLocal, addToTombstone } from '../lib/offlineDb';
 import type {
   RawMaterial, MaterialPurchase, FixedCharge, VariableExpense,
   Utility, LaborCost, Packaging, ProductionBatch, ProductionMaterial, Sale, UnsoldProduct,
@@ -66,11 +66,13 @@ export const rawMaterialsService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<RawMaterial>('raw_materials', id);
+      addToTombstone('raw_materials', id);
       return;
     }
     const { error } = await supabase.from('raw_materials').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<RawMaterial>('raw_materials', id);
+    addToTombstone('raw_materials', id);
   }
 };
 
@@ -115,11 +117,13 @@ export const materialPurchasesService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<MaterialPurchase>('material_purchases', id);
+      addToTombstone('material_purchases', id);
       return;
     }
     const { error } = await supabase.from('material_purchases').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<MaterialPurchase>('material_purchases', id);
+    addToTombstone('material_purchases', id);
   }
 };
 
@@ -161,11 +165,13 @@ export const fixedChargesService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<FixedCharge>('fixed_charges', id);
+      addToTombstone('fixed_charges', id);
       return;
     }
     const { error } = await supabase.from('fixed_charges').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<FixedCharge>('fixed_charges', id);
+    addToTombstone('fixed_charges', id);
   }
 };
 
@@ -198,11 +204,13 @@ export const variableExpensesService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<VariableExpense>('variable_expenses', id);
+      addToTombstone('variable_expenses', id);
       return;
     }
     const { error } = await supabase.from('variable_expenses').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<VariableExpense>('variable_expenses', id);
+    addToTombstone('variable_expenses', id);
   }
 };
 
@@ -235,11 +243,13 @@ export const utilitiesService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<Utility>('utilities', id);
+      addToTombstone('utilities', id);
       return;
     }
     const { error } = await supabase.from('utilities').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<Utility>('utilities', id);
+    addToTombstone('utilities', id);
   }
 };
 
@@ -272,11 +282,13 @@ export const laborCostsService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<LaborCost>('labor_costs', id);
+      addToTombstone('labor_costs', id);
       return;
     }
     const { error } = await supabase.from('labor_costs').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<LaborCost>('labor_costs', id);
+    addToTombstone('labor_costs', id);
   }
 };
 
@@ -318,11 +330,13 @@ export const packagingService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<Packaging>('packaging', id);
+      addToTombstone('packaging', id);
       return;
     }
     const { error } = await supabase.from('packaging').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<Packaging>('packaging', id);
+    addToTombstone('packaging', id);
   }
 };
 
@@ -367,11 +381,13 @@ export const productionBatchService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<ProductionBatch>('production_batches', id);
+      addToTombstone('production_batches', id);
       return;
     }
     const { error } = await supabase.from('production_batches').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<ProductionBatch>('production_batches', id);
+    addToTombstone('production_batches', id);
   }
 };
 
@@ -413,11 +429,13 @@ export const salesService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<Sale>('sales', id);
+      addToTombstone('sales', id);
       return;
     }
     const { error } = await supabase.from('sales').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<Sale>('sales', id);
+    addToTombstone('sales', id);
   },
 
   async getByDateRange(startDate: string, endDate: string): Promise<Sale[]> {
@@ -465,11 +483,13 @@ export const unsoldProductsService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<UnsoldProduct>('unsold_products', id);
+      addToTombstone('unsold_products', id);
       return;
     }
     const { error } = await supabase.from('unsold_products').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<UnsoldProduct>('unsold_products', id);
+    addToTombstone('unsold_products', id);
   }
 };
 
@@ -576,11 +596,13 @@ export const bulkSalesService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<BulkSale>('bulk_sales', id);
+      addToTombstone('bulk_sales', id);
       return;
     }
     const { error } = await supabase.from('bulk_sales').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<BulkSale>('bulk_sales', id);
+    addToTombstone('bulk_sales', id);
   }
 };
 
@@ -684,11 +706,13 @@ export const recipeItemsService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<RecipeItem>('recipe_items', id);
+      addToTombstone('recipe_items', id);
       return;
     }
     const { error } = await supabase.from('recipe_items').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<RecipeItem>('recipe_items', id);
+    addToTombstone('recipe_items', id);
   }
 };
 
@@ -730,11 +754,13 @@ export const shopSalesService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<ShopSale>('shop_sales', id);
+      addToTombstone('shop_sales', id);
       return;
     }
     const { error } = await supabase.from('shop_sales').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<ShopSale>('shop_sales', id);
+    addToTombstone('shop_sales', id);
   }
 };
 
@@ -804,6 +830,7 @@ export const customersService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<Customer>('customers', id);
+      addToTombstone('customers', id);
       const prices = offlineStorage.get<CustomerPrice[]>('customer_prices') || [];
       offlineStorage.set('customer_prices', prices.filter(p => p.customer_id !== id));
       return;
@@ -811,6 +838,7 @@ export const customersService = {
     const { error } = await supabase.from('customers').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<Customer>('customers', id);
+    addToTombstone('customers', id);
   }
 };
 
@@ -885,11 +913,13 @@ export const customerPricesService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<CustomerPrice>('customer_prices', id);
+      addToTombstone('customer_prices', id);
       return;
     }
     const { error } = await supabase.from('customer_prices').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<CustomerPrice>('customer_prices', id);
+    addToTombstone('customer_prices', id);
   }
 };
 
@@ -943,11 +973,13 @@ export const customerProductsService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<CustomerProduct>('customer_products', id);
+      addToTombstone('customer_products', id);
       return;
     }
     const { error } = await supabase.from('customer_products').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<CustomerProduct>('customer_products', id);
+    addToTombstone('customer_products', id);
   }
 };
 
@@ -1036,11 +1068,13 @@ export const suppliersService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<Supplier>('suppliers', id);
+      addToTombstone('suppliers', id);
       return;
     }
     const { error } = await supabase.from('suppliers').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<Supplier>('suppliers', id);
+    addToTombstone('suppliers', id);
   }
 };
 
@@ -1081,11 +1115,13 @@ export const supplierPurchasesService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<SupplierPurchase>('supplier_purchases', id);
+      addToTombstone('supplier_purchases', id);
       return;
     }
     const { error } = await supabase.from('supplier_purchases').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<SupplierPurchase>('supplier_purchases', id);
+    addToTombstone('supplier_purchases', id);
   }
 };
 
@@ -1169,29 +1205,35 @@ export const ordersService = {
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<Order>('orders', id);
+      addToTombstone('orders', id);
       return;
     }
     const { error } = await supabase.from('orders').delete().eq('id', id);
     if (error) throw error;
     purgeFromLocal<Order>('orders', id);
+    addToTombstone('orders', id);
   }
 };
 
 // Reset sales and purchases (admin only)
 export const resetDataService = {
   async resetSalesAndPurchases(): Promise<void> {
+    const tables = ['sales', 'material_purchases', 'bulk_sales', 'shop_sales', 'supplier_purchases'];
     if (!isOnline()) {
-      offlineStorage.set('sales', []);
-      offlineStorage.set('material_purchases', []);
-      offlineStorage.set('bulk_sales', []);
-      offlineStorage.set('shop_sales', []);
-      offlineStorage.set('supplier_purchases', []);
+      for (const table of tables) {
+        const existing = offlineStorage.get<{ id: string }[]>(table) || [];
+        const tomb = new Set(existing.map(i => i.id));
+        offlineStorage.set('deleted_' + table, [...tomb]);
+        offlineStorage.set(table, []);
+      }
       return;
     }
-    const tables = ['sales', 'material_purchases', 'bulk_sales', 'shop_sales', 'supplier_purchases'];
     for (const table of tables) {
       const { error } = await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000');
       if (error) throw error;
+      const existing = offlineStorage.get<{ id: string }[]>(table) || [];
+      const tomb = new Set(existing.map(i => i.id));
+      offlineStorage.set('deleted_' + table, [...tomb]);
       offlineStorage.set(table, []);
     }
   }
