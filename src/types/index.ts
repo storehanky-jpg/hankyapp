@@ -54,6 +54,7 @@ export interface MaterialPurchase {
   notes?: string;
   payment_status: 'paid' | 'unpaid' | 'partial';
   amount_paid: number;
+  purchase_group_id?: string;
   created_at: string;
   material?: RawMaterial;
 }
@@ -199,10 +200,12 @@ export interface Sale {
   customer_id?: string;
   notes?: string;
   is_paid: boolean;
+  payment_status?: 'paid' | 'unpaid' | 'partial';
   bon_livraison_number?: string;
   facture_number?: string;
   production_batch_id?: string;
   sale_group_id?: string;
+  product_type?: string;
   created_at: string;
 }
 
