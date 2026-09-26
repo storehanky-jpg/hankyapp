@@ -61,11 +61,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadProfile = useCallback(async () => {
+    const cachedProfile = localStorage.getItem('hanky_macarons_cached_profile');
+    const cachedPerms = localStorage.getItem('hanky_macarons_cached_perms');
+
+    // If offline, use cached profile immediately
+    if (!navigator.onLine) {
+      if (cachedProfile) {
+        try {
+          const prof = JSON.parse(cachedProfile);
+          setProfile(prof);
+          if (cachedPerms) {
+            setPermissions(JSON.parse(cachedPerms));
+          } else if (prof.role === 'admin') {
+            setPermissions(DEFAULT_PERMISSIONS);
+          }
+        } catch {
+          setProfile(null);
+          setPermissions(null);
+        }
+      }
+      setLoading(false);
+      return;
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setProfile(null);
         setPermissions(null);
+        localStorage.removeItem('hanky_macarons_cached_profile');
+        localStorage.removeItem('hanky_macarons_cached_perms');
         setLoading(false);
         return;
       }
@@ -77,6 +102,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       if (error || !prof) {
+        // Fall back to cached profile if network fails but session exists
+        if (cachedProfile) {
+          try {
+            const cached = JSON.parse(cachedProfile);
+            setProfile(cached);
+            if (cachedPerms) {
+              setPermissions(JSON.parse(cachedPerms));
+            } else if (cached.role === 'admin') {
+              setPermissions(DEFAULT_PERMISSIONS);
+            }
+            setLoading(false);
+            return;
+          } catch {}
+        }
         setProfile(null);
         setPermissions(null);
         setLoading(false);
@@ -84,6 +123,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setProfile(prof as UserProfile);
+      localStorage.setItem('hanky_macarons_cached_profile', JSON.stringify(prof));
 
       // Load permissions
       const { data: perms } = await supabase
@@ -94,11 +134,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (perms) {
         setPermissions(perms as unknown as UserPermissions);
+        localStorage.setItem('hanky_macarons_cached_perms', JSON.stringify(perms));
       } else if (prof.role === 'admin') {
         setPermissions(DEFAULT_PERMISSIONS);
+        localStorage.setItem('hanky_macarons_cached_perms', JSON.stringify(DEFAULT_PERMISSIONS));
       } else {
-        // Default: dashboard only
-        setPermissions({ ...DEFAULT_PERMISSIONS, dashboard: 'full', recipe: 'none', chocolat: 'none', materials: 'none', charges: 'none', production: 'none', customers: 'none', bulksales: 'none', pricing: 'none', reports: 'none', history: 'none', settings: 'none', admin: 'none' });
+        const defaultUserPerms = { ...DEFAULT_PERMISSIONS, dashboard: 'full', recipe: 'none', chocolat: 'none', materials: 'none', charges: 'none', production: 'none', customers: 'none', bulksales: 'none', pricing: 'none', reports: 'none', history: 'none', settings: 'none', admin: 'none' };
+        setPermissions(defaultUserPerms);
+        localStorage.setItem('hanky_macarons_cached_perms', JSON.stringify(defaultUserPerms));
       }
     } catch {
       setProfile(null);

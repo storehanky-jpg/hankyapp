@@ -46,21 +46,3 @@ export const offlineStorage = {
 export const isOnline = (): boolean => {
   return navigator.onLine;
 };
-
-export const savePendingSync = (action: string, data: unknown): void => {
-  const pending = offlineStorage.get<{ action: string; data: unknown; timestamp: number }[]>('pending_sync') || [];
-  pending.push({
-    action,
-    data,
-    timestamp: Date.now()
-  });
-  offlineStorage.set('pending_sync', pending);
-};
-
-export const getPendingSync = (): { action: string; data: unknown; timestamp: number }[] => {
-  return offlineStorage.get('pending_sync') || [];
-};
-
-export const clearPendingSync = (): void => {
-  offlineStorage.remove('pending_sync');
-};

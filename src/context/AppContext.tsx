@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import type {
   RawMaterial, MaterialPurchase, FixedCharge, VariableExpense,
   Utility, LaborCost, Packaging, ProductionBatch, Sale, UnsoldProduct,
@@ -7,6 +7,7 @@ import type {
 } from '../types';
 import * as api from '../services/api';
 import { offlineStorage } from '../lib/storage';
+import { syncPendingOperations, countPendingOperations } from '../lib/syncEngine';
 
 interface AppState {
   rawMaterials: RawMaterial[];
@@ -32,6 +33,8 @@ interface AppState {
 }
 
 interface AppContextType extends AppState {
+  pendingCount: number;
+  syncStatus: 'idle' | 'syncing' | 'done' | 'error';
   refreshAll: () => Promise<void>;
   setRawMaterials: (materials: RawMaterial[]) => void;
   setMaterialPurchases: (purchases: MaterialPurchase[]) => void;
@@ -79,6 +82,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     isOnline: navigator.onLine,
     error: null
   });
+
+  const [pendingCount, setPendingCount] = useState(0);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'done' | 'error'>('idle');
+  const isSyncingRef = useRef(false);
+
+  const updatePendingCount = useCallback(() => {
+    setPendingCount(countPendingOperations());
+  }, []);
 
   const refreshAll = useCallback(async () => {
     // ── Show cached data instantly while network loads in background ──
@@ -209,11 +220,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refreshAll();
-  }, [refreshAll]);
+    updatePendingCount();
+  }, [refreshAll, updatePendingCount]);
+
+  const runSync = useCallback(async () => {
+    if (isSyncingRef.current || !navigator.onLine) return;
+    const count = countPendingOperations();
+    if (count === 0) return;
+
+    isSyncingRef.current = true;
+    setSyncStatus('syncing');
+    try {
+      const result = await syncPendingOperations();
+      if (result.failed === 0) {
+        setSyncStatus('done');
+      } else if (result.pushed > 0) {
+        setSyncStatus('done');
+      } else {
+        setSyncStatus('error');
+      }
+      updatePendingCount();
+      await refreshAll();
+      setTimeout(() => setSyncStatus('idle'), 3000);
+    } catch {
+      setSyncStatus('error');
+    } finally {
+      isSyncingRef.current = false;
+    }
+  }, [refreshAll, updatePendingCount]);
 
   useEffect(() => {
     const handleOnline = () => {
       setState(s => ({ ...s, isOnline: true }));
+      runSync();
       refreshAll();
     };
     const handleOffline = () => setState(s => ({ ...s, isOnline: false }));
@@ -221,11 +260,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
+    // Also try sync on initial load if online with pending items
+    if (navigator.onLine && countPendingOperations() > 0) {
+      runSync();
+    }
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, [refreshAll]);
+  }, [refreshAll, runSync]);
 
   const calculateDashboardStats = useCallback((): DashboardStats => {
     const today = new Date().toISOString().split('T')[0];
@@ -312,6 +356,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const contextValue: AppContextType = {
     ...state,
+    pendingCount,
+    syncStatus,
     refreshAll,
     setRawMaterials: (rawMaterials) => setState(s => ({ ...s, rawMaterials })),
     setMaterialPurchases: (materialPurchases) => setState(s => ({ ...s, materialPurchases })),

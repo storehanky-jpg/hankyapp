@@ -18,11 +18,11 @@ import CustomersPage from './pages/CustomersPage';
 import AdminPage from './pages/AdminPage';
 import LoginPage from './pages/LoginPage';
 import { supabase } from './lib/supabase';
-import { Shield, ArrowLeft } from 'lucide-react';
+import { Shield, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
-  const { isLoading, isOnline, error, clearError } = useApp();
+  const { isLoading, isOnline, error, clearError, pendingCount, syncStatus } = useApp();
   const { canAccess, isAdmin, isSessionExpired, loading: authLoading } = useAuth();
 
   useEffect(() => {
@@ -134,9 +134,35 @@ function AppContent() {
       )}
 
       {!isOnline && (
-        <div className="fixed bottom-4 right-4 z-40 bg-orange-500 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 lg:ml-72">
-          <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-          Mode hors ligne
+        <div className="fixed bottom-4 right-4 z-40 bg-orange-500 text-white px-4 py-3 rounded-2xl shadow-lg flex items-center gap-2 lg:ml-72 max-w-sm">
+          <div className="w-2 h-2 bg-white rounded-full animate-pulse flex-shrink-0" />
+          <div className="flex flex-col">
+            <span className="font-semibold text-sm">Hors ligne</span>
+            {pendingCount > 0 && (
+              <span className="text-xs text-white/90">{pendingCount} opération{pendingCount > 1 ? 's' : ''} en attente de synchronisation</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isOnline && syncStatus === 'syncing' && (
+        <div className="fixed bottom-4 right-4 z-40 bg-blue-500 text-white px-4 py-3 rounded-2xl shadow-lg flex items-center gap-2 lg:ml-72">
+          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          <span className="font-semibold text-sm">Synchronisation en cours...</span>
+        </div>
+      )}
+
+      {isOnline && syncStatus === 'done' && pendingCount === 0 && (
+        <div className="fixed bottom-4 right-4 z-40 bg-emerald-500 text-white px-4 py-3 rounded-2xl shadow-lg flex items-center gap-2 lg:ml-72">
+          <CheckCircle size={16} />
+          <span className="font-semibold text-sm">Synchronisé</span>
+        </div>
+      )}
+
+      {isOnline && syncStatus === 'error' && (
+        <div className="fixed bottom-4 right-4 z-40 bg-red-500 text-white px-4 py-3 rounded-2xl shadow-lg flex items-center gap-2 lg:ml-72">
+          <AlertCircle size={16} />
+          <span className="font-semibold text-sm">Erreur de synchro — nouvelle tentative au prochain lancement</span>
         </div>
       )}
 
