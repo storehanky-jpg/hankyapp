@@ -10,21 +10,6 @@ import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
 import type { Sale } from '../types';
 
-const defaultPrices: Record<number, number> = { 6: 400, 10: 600, 12: 720, 20: 1100, 24: 1300 };
-const vracDefaultPrice = 1800;
-
-type ProductKind = 'vrac' | 'boite';
-
-interface SaleLine {
-  product_kind: ProductKind;
-  box_size: number;
-  quantity: number;
-  unit_price: number;
-  unit_label: string;
-}
-
-const emptyLine = (): SaleLine => ({ product_kind: 'boite', box_size: 10, quantity: 1, unit_price: 600, unit_label: 'boîte' });
-
 type PaymentStatus = 'paid' | 'unpaid' | 'partial';
 
 const PAYMENT_LABELS: Record<PaymentStatus, string> = {
@@ -36,6 +21,28 @@ const PAYMENT_STYLES: Record<PaymentStatus, string> = {
   partial: 'bg-orange-100 text-orange-700 border border-orange-200',
 };
 
+interface FixedProduct {
+  key: string;
+  label: string;
+  unit: string;
+  box_size: number;
+  product_type: string;
+  defaultPrice: number;
+  icon: 'vrac' | 'box';
+}
+
+const FIXED_PRODUCTS: FixedProduct[] = [
+  { key: 'vrac', label: 'Macaron en vrac', unit: 'kg', box_size: 0, product_type: 'vrac', defaultPrice: 1800, icon: 'vrac' },
+  { key: 'boite20', label: 'Boîte de 20 pcs', unit: 'boîte', box_size: 20, product_type: 'boite', defaultPrice: 1100, icon: 'box' },
+  { key: 'boite10', label: 'Boîte de 10 pcs', unit: 'boîte', box_size: 10, product_type: 'boite', defaultPrice: 600, icon: 'box' },
+  { key: 'boite6', label: 'Boîte de 06 pcs', unit: 'boîte', box_size: 6, product_type: 'boite', defaultPrice: 400, icon: 'box' },
+];
+
+interface ProductSelection {
+  quantity: number;
+  unit_price: number;
+}
+
 const emptyForm = () => ({
   sale_date: format(new Date(), 'yyyy-MM-dd'),
   customer_name: '',
@@ -46,12 +53,15 @@ const emptyForm = () => ({
   amount_paid: 0,
   bon_livraison_number: '',
   facture_number: '',
-  lines: [emptyLine()],
+  selections: {} as Record<string, ProductSelection>,
 });
 
-function describeProduct(s: Sale): string {
-  if (s.product_type === 'vrac') return `Macaron en vrac (${s.quantity} kg)`;
-  return `Boîte ${s.box_size} pcs × ${s.quantity}`;
+function getCustomerPriceForProduct(customer: { prices?: { product_type: string; box_size: number | null; unit_price: number }[] } | undefined, product: FixedProduct): number {
+  if (!customer?.prices) return product.defaultPrice;
+  const cp = customer.prices.find(p =>
+    product.key === 'vrac' ? p.product_type === 'vrac' : p.box_size === product.box_size
+  );
+  return cp?.unit_price ?? product.defaultPrice;
 }
 
 export default function SalesPage() {
@@ -83,14 +93,13 @@ export default function SalesPage() {
       customer_id: customer.id,
       customer_name: customer.name,
       customer_phone: customer.phone || '',
-      lines: f.lines.map(line => {
-        if (line.product_kind === 'vrac') {
-          const cp = customer.prices?.find(p => p.product_type === 'vrac');
-          return { ...line, unit_price: cp?.unit_price ?? vracDefaultPrice };
-        }
-        const customerPrice = customer.prices?.find(p => p.box_size === line.box_size);
-        return { ...line, unit_price: customerPrice?.unit_price ?? defaultPrices[line.box_size] ?? line.unit_price };
-      }),
+      selections: Object.fromEntries(
+        Object.entries(f.selections).map(([key, sel]) => {
+          const product = FIXED_PRODUCTS.find(p => p.key === key);
+          if (!product) return [key, sel];
+          return [key, { ...sel, unit_price: getCustomerPriceForProduct(customer, product) }];
+        })
+      ),
     }));
     setCustomerSearch(customer.name);
     setShowCustomerDropdown(false);
@@ -111,6 +120,7 @@ export default function SalesPage() {
   function openEdit(sale: Sale) {
     setEditSale(sale);
     const isVrac = sale.product_type === 'vrac';
+    const productKey = isVrac ? 'vrac' : `boite${sale.box_size}`;
     setSaleForm({
       sale_date: sale.sale_date,
       customer_name: sale.customer_name || '',
@@ -121,65 +131,45 @@ export default function SalesPage() {
       amount_paid: sale.amount_paid || 0,
       bon_livraison_number: sale.bon_livraison_number || '',
       facture_number: sale.facture_number || '',
-      lines: [{
-        product_kind: isVrac ? 'vrac' : 'boite',
-        box_size: sale.box_size,
-        quantity: sale.quantity,
-        unit_price: sale.unit_price,
-        unit_label: isVrac ? 'kg' : 'boîte',
-      }],
+      selections: {
+        [productKey]: { quantity: sale.quantity, unit_price: sale.unit_price },
+      },
     });
     const c = customers.find(c => c.id === sale.customer_id);
     setCustomerSearch(c ? c.name : sale.customer_name || '');
     setShowModal(true);
   }
 
-  function updateLine(index: number, field: keyof SaleLine, value: string | number) {
+  function toggleProduct(productKey: string) {
+    setSaleForm(f => {
+      const selections = { ...f.selections };
+      if (selections[productKey]) {
+        delete selections[productKey];
+      } else {
+        const product = FIXED_PRODUCTS.find(p => p.key === productKey)!;
+        const customer = customers.find(c => c.id === f.customer_id);
+        selections[productKey] = {
+          quantity: 1,
+          unit_price: getCustomerPriceForProduct(customer, product),
+        };
+      }
+      return { ...f, selections };
+    });
+  }
+
+  function updateSelection(productKey: string, field: 'quantity' | 'unit_price', value: number) {
     setSaleForm(f => ({
       ...f,
-      lines: f.lines.map((l, i) => i === index ? { ...l, [field]: value } : l),
+      selections: {
+        ...f.selections,
+        [productKey]: { ...f.selections[productKey], [field]: value },
+      },
     }));
   }
 
-  function addLine() {
-    setSaleForm(f => ({ ...f, lines: [...f.lines, emptyLine()] }));
-  }
-
-  function removeLine(index: number) {
-    setSaleForm(f => ({ ...f, lines: f.lines.filter((_, i) => i !== index) }));
-  }
-
-  function onProductKindChange(index: number, kind: ProductKind) {
-    const customer = customers.find(c => c.id === saleForm.customer_id);
-    if (kind === 'vrac') {
-      const cp = customer?.prices?.find(p => p.product_type === 'vrac');
-      updateLine(index, 'product_kind', kind);
-      updateLine(index, 'unit_label', 'kg');
-      updateLine(index, 'unit_price', cp?.unit_price ?? vracDefaultPrice);
-      updateLine(index, 'box_size', 0);
-    } else {
-      const size = 10;
-      const cp = customer?.prices?.find(p => p.box_size === size);
-      updateLine(index, 'product_kind', kind);
-      updateLine(index, 'unit_label', 'boîte');
-      updateLine(index, 'box_size', size);
-      updateLine(index, 'unit_price', cp?.unit_price ?? defaultPrices[size]);
-    }
-  }
-
-  function onBoxSizeChange(index: number, size: number) {
-    const customer = customers.find(c => c.id === saleForm.customer_id);
-    const customerPrice = customer?.prices?.find(p => p.box_size === size);
-    setSaleForm(f => ({
-      ...f,
-      lines: f.lines.map((l, i) => i === index ? {
-        ...l, box_size: size, unit_price: customerPrice?.unit_price ?? defaultPrices[size] ?? l.unit_price,
-      } : l),
-    }));
-  }
-
-  const formTotal = saleForm.lines.reduce((s, l) => s + l.quantity * l.unit_price, 0);
+  const formTotal = Object.entries(saleForm.selections).reduce((s, [, sel]) => s + sel.quantity * sel.unit_price, 0);
   const resteAPayer = formTotal - saleForm.amount_paid;
+  const hasSelections = Object.keys(saleForm.selections).length > 0;
 
   function onPaymentStatusChange(status: PaymentStatus) {
     setSaleForm(f => ({
@@ -192,11 +182,14 @@ export default function SalesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (saleForm.lines.length === 0) return;
+    if (!hasSelections) return;
     try {
       if (editSale) {
-        const line = saleForm.lines[0];
-        const total_amount = line.quantity * line.unit_price;
+        const selEntries = Object.entries(saleForm.selections);
+        const firstKey = selEntries[0][0];
+        const firstSel = selEntries[0][1];
+        const product = FIXED_PRODUCTS.find(p => p.key === firstKey)!;
+        const total_amount = firstSel.quantity * firstSel.unit_price;
         const payload = {
           sale_date: saleForm.sale_date,
           customer_name: saleForm.customer_name,
@@ -208,19 +201,20 @@ export default function SalesPage() {
           amount_paid: saleForm.payment_status === 'paid' ? total_amount : saleForm.payment_status === 'partial' ? saleForm.amount_paid : 0,
           bon_livraison_number: saleForm.bon_livraison_number || undefined,
           facture_number: saleForm.facture_number || undefined,
-          box_size: line.box_size,
-          quantity: line.quantity,
-          unit_price: line.unit_price,
+          box_size: product.box_size,
+          quantity: firstSel.quantity,
+          unit_price: firstSel.unit_price,
           total_amount,
-          product_type: line.product_kind === 'vrac' ? 'vrac' : 'boite',
+          product_type: product.product_type,
         };
         const updated = await api.salesService.update(editSale.id, payload);
         setSales(sales.map(s => s.id === editSale.id ? updated : s));
       } else {
         const groupId = `GRP-${Date.now()}`;
         const newSales: Sale[] = [];
-        for (const line of saleForm.lines) {
-          const total_amount = line.quantity * line.unit_price;
+        for (const [key, sel] of Object.entries(saleForm.selections)) {
+          const product = FIXED_PRODUCTS.find(p => p.key === key)!;
+          const total_amount = sel.quantity * sel.unit_price;
           const payload = {
             sale_date: saleForm.sale_date,
             customer_name: saleForm.customer_name,
@@ -232,12 +226,12 @@ export default function SalesPage() {
             amount_paid: saleForm.payment_status === 'paid' ? total_amount : saleForm.payment_status === 'partial' ? (saleForm.amount_paid / formTotal) * total_amount : 0,
             bon_livraison_number: saleForm.bon_livraison_number || undefined,
             facture_number: saleForm.facture_number || undefined,
-            box_size: line.box_size,
-            quantity: line.quantity,
-            unit_price: line.unit_price,
+            box_size: product.box_size,
+            quantity: sel.quantity,
+            unit_price: sel.unit_price,
             total_amount,
             sale_group_id: groupId,
-            product_type: line.product_kind === 'vrac' ? 'vrac' : 'boite',
+            product_type: product.product_type,
           };
           const newSale = await api.salesService.create(payload);
           newSales.push(newSale);
@@ -287,19 +281,6 @@ export default function SalesPage() {
       }
     } catch (error) {
       console.error('Error updating group payment:', error);
-    }
-  };
-
-  const setSalePaymentStatus = async (sale: Sale, status: PaymentStatus, amountPaid?: number) => {
-    try {
-      const updated = await api.salesService.update(sale.id, {
-        is_paid: status === 'paid',
-        payment_status: status,
-        amount_paid: status === 'paid' ? sale.total_amount : status === 'partial' ? (amountPaid ?? sale.amount_paid ?? 0) : 0,
-      });
-      setSales(sales.map(s => s.id === sale.id ? updated : s));
-    } catch (error) {
-      console.error('Error updating payment status:', error);
     }
   };
 
@@ -692,17 +673,9 @@ export default function SalesPage() {
                 </div>
               </div>
 
-              {/* Section commande — multi-product */}
+              {/* Section commande — fixed product selector */}
               <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Commande</p>
-                  {!editSale && (
-                    <button type="button" onClick={addLine}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-medium hover:bg-emerald-600 transition-colors">
-                      <Plus size={14} /> Ajouter un produit
-                    </button>
-                  )}
-                </div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Produits</p>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                   <input type="date" required value={saleForm.sale_date}
@@ -710,61 +683,60 @@ export default function SalesPage() {
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 text-sm" />
                 </div>
 
-                {/* Product lines */}
+                {/* Fixed product list — clickable cards */}
                 <div className="space-y-2">
-                  {saleForm.lines.map((line, idx) => (
-                    <div key={idx} className="bg-white rounded-lg p-2 border border-gray-200">
-                      <div className="flex items-center gap-2">
-                        {/* Product kind selector */}
-                        <div className="flex-shrink-0">
-                          {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Type</label>}
-                          <select value={line.product_kind}
-                            onChange={e => onProductKindChange(idx, e.target.value as ProductKind)}
-                            className="px-2 py-1.5 border rounded text-sm focus:ring-1 focus:ring-amber-500">
-                            <option value="boite">Boîte</option>
-                            <option value="vrac">Vrac</option>
-                          </select>
-                        </div>
-                        {/* Box size (only if boite) */}
-                        {line.product_kind === 'boite' && (
-                          <div className="flex-shrink-0">
-                            {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Taille</label>}
-                            <select value={line.box_size}
-                              onChange={e => onBoxSizeChange(idx, parseInt(e.target.value))}
-                              className="px-2 py-1.5 border rounded text-sm focus:ring-1 focus:ring-amber-500">
-                              {[6, 10, 12, 20, 24].map(s => <option key={s} value={s}>{s} pcs</option>)}
-                            </select>
+                  {FIXED_PRODUCTS.map(product => {
+                    const isSelected = !!saleForm.selections[product.key];
+                    const sel = saleForm.selections[product.key];
+                    return (
+                      <div key={product.key}
+                        className={`rounded-xl border transition-all overflow-hidden ${
+                          isSelected ? 'border-emerald-400 bg-white shadow-sm' : 'border-gray-200 bg-white hover:border-amber-300'
+                        }`}>
+                        <button type="button"
+                          onClick={() => toggleProduct(product.key)}
+                          className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                            isSelected ? 'bg-emerald-50' : 'hover:bg-amber-50'
+                          }`}>
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                            isSelected ? 'bg-emerald-500 text-white' : 'bg-amber-100 text-amber-600'
+                          }`}>
+                            {product.icon === 'vrac' ? <Scale size={18} /> : <Package size={18} />}
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-gray-900">{product.label}</p>
+                            <p className="text-xs text-gray-400">{getCustomerPriceForProduct(customers.find(c => c.id === saleForm.customer_id), product).toLocaleString()} DA / {product.unit}</p>
+                          </div>
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                            isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300'
+                          }`}>
+                            {isSelected && <CheckCircle size={12} className="text-white" />}
+                          </div>
+                        </button>
+                        {/* Quantity + price inputs when selected */}
+                        {isSelected && sel && (
+                          <div className="flex items-center gap-3 px-4 pb-3 pt-1 bg-white border-t border-emerald-50">
+                            <div className="flex-1">
+                              <label className="block text-xs text-gray-500 mb-0.5">Quantité ({product.unit})</label>
+                              <input type="number" min="0.5" step={product.unit === 'kg' ? '0.5' : '1'} value={sel.quantity}
+                                onChange={e => updateSelection(product.key, 'quantity', parseFloat(e.target.value) || 0)}
+                                className="w-full px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500" />
+                            </div>
+                            <div className="flex-1">
+                              <label className="block text-xs text-gray-500 mb-0.5">Prix / {product.unit} (DA)</label>
+                              <input type="number" min="0" value={sel.unit_price}
+                                onChange={e => updateSelection(product.key, 'unit_price', parseFloat(e.target.value) || 0)}
+                                className="w-full px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500" />
+                            </div>
+                            <div className="text-right">
+                              <label className="block text-xs text-gray-500 mb-0.5">Total</label>
+                              <p className="text-sm font-bold text-gray-900 py-1.5">{(sel.quantity * sel.unit_price).toLocaleString()} DA</p>
+                            </div>
                           </div>
                         )}
-                        {/* Quantity */}
-                        <div className="flex-1 min-w-0">
-                          {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Qté</label>}
-                          <input type="number" min="1" step={line.product_kind === 'vrac' ? '0.5' : '1'} required value={line.quantity}
-                            onChange={e => updateLine(idx, 'quantity', parseFloat(e.target.value) || 1)}
-                            className="w-full px-2 py-1.5 border rounded text-sm" />
-                        </div>
-                        {/* Price */}
-                        <div className="flex-1 min-w-0">
-                          {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Prix/{line.unit_label}</label>}
-                          <input type="number" min="0" required value={line.unit_price}
-                            onChange={e => updateLine(idx, 'unit_price', parseFloat(e.target.value) || 0)}
-                            className="w-full px-2 py-1.5 border rounded text-sm" />
-                        </div>
-                        {/* Line total */}
-                        <div className="text-right w-20 flex-shrink-0">
-                          {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Total</label>}
-                          <p className="text-sm font-bold text-gray-900 py-1.5">{(line.quantity * line.unit_price).toLocaleString()} DA</p>
-                        </div>
-                        {/* Delete */}
-                        {saleForm.lines.length > 1 && (
-                          <button type="button" onClick={() => removeLine(idx)}
-                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0">
-                            <Trash2 size={14} />
-                          </button>
-                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 <div className="bg-emerald-50 rounded-lg p-3 flex justify-between items-center">
@@ -836,8 +808,8 @@ export default function SalesPage() {
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setShowModal(false)}
                   className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm">Annuler</button>
-                <button type="submit"
-                  className="px-5 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 font-medium text-sm">
+                <button type="submit" disabled={!hasSelections}
+                  className="px-5 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                   {editSale ? 'Modifier' : 'Enregistrer la vente'}
                 </button>
               </div>
