@@ -7,6 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: false,
       includeAssets: ['IMG-20260608-WA0000.jpg', 'icon-192.png', 'icon-512.png'],
       manifest: {
         name: 'Hanky Macarons',
