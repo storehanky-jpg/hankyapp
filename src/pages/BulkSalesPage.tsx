@@ -2,8 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Plus, Trash2, Edit2, X, Printer, Store, Package, Scale,
   Check, Clock, ArrowLeft, Search, FileText, FileCheck,
-  Users, Phone, Mail, Wallet, TrendingUp, ShoppingBag, Tag,
-  ChevronRight, Sparkles, Receipt
+  Users, Phone, Mail, TrendingUp, ShoppingBag, Tag,
+  ChevronRight, ChevronDown, Sparkles, Receipt
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -48,6 +48,26 @@ interface UnifiedSale {
   quantity: number; unit_price: number; total_amount: number;
   amount_paid: number; is_paid: boolean; notes?: string;
   raw: BulkSale | Sale | ShopSale;
+}
+
+interface GroupedSale {
+  id: string;
+  sale_date: string;
+  items: UnifiedSale[];
+  productSummary: string;
+  total_quantity: number;
+  total_amount: number;
+  amount_paid: number;
+  reste: number;
+  status: 'paid' | 'unpaid' | 'partial';
+}
+
+interface SaleLineForm {
+  id?: string;
+  originalType?: SaleType;
+  type: SaleType;
+  quantity: number;
+  unit_price: number;
 }
 
 export default function BulkSalesPage() {
@@ -130,10 +150,53 @@ export default function BulkSalesPage() {
     return customers.filter(c => c.name.toLowerCase().includes(q) || c.phone?.includes(q));
   }, [customers, search]);
 
+  // Group sales by date for display
+  const groupedSales = useMemo<GroupedSale[]>(() => {
+    const map = new Map<string, UnifiedSale[]>();
+    for (const s of customerSales) {
+      const existing = map.get(s.sale_date);
+      if (existing) {
+        existing.push(s);
+      } else {
+        map.set(s.sale_date, [s]);
+      }
+    }
+    const groups: GroupedSale[] = [];
+    map.forEach((items, dateKey) => {
+      const total_quantity = items.reduce((sum, item) => sum + item.quantity, 0);
+      const total_amount = items.reduce((sum, item) => sum + item.total_amount, 0);
+      const amount_paid = items.reduce((sum, item) => sum + item.amount_paid, 0);
+      const reste = Math.max(0, total_amount - amount_paid);
+      const productSummary = items
+        .map(item => `${item.label} x${item.quantity}${item.type === 'vrac' ? ' kg' : ''}`)
+        .join(' · ');
+      const status: 'paid' | 'unpaid' | 'partial' =
+        reste <= 0 ? 'paid' : amount_paid <= 0 ? 'unpaid' : 'partial';
+
+      groups.push({
+        id: dateKey,
+        sale_date: dateKey,
+        items,
+        productSummary,
+        total_quantity,
+        total_amount,
+        amount_paid,
+        reste,
+        status,
+      });
+    });
+    return groups.sort((a, b) => b.sale_date.localeCompare(a.sale_date));
+  }, [customerSales]);
+
+  const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
+  const toggleExpand = (dateKey: string) => {
+    setExpandedDates(prev => ({ ...prev, [dateKey]: !prev[dateKey] }));
+  };
+
   // Sale modal state — multi-line
   const [showSaleModal, setShowSaleModal] = useState(false);
-  const [editSale, setEditSale] = useState<UnifiedSale | null>(null);
-  const [saleLines, setSaleLines] = useState<{ type: SaleType; quantity: number; unit_price: number }[]>([]);
+  const [editGroup, setEditGroup] = useState<GroupedSale | null>(null);
+  const [saleLines, setSaleLines] = useState<SaleLineForm[]>([]);
   const [saleDate, setSaleDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [paymentStatus, setPaymentStatus] = useState<'paid' | 'unpaid' | 'partial'>('unpaid');
   const [amountPaid, setAmountPaid] = useState(0);
@@ -141,7 +204,7 @@ export default function BulkSalesPage() {
   const [savingSale, setSavingSale] = useState(false);
 
   function openAddSale() {
-    setEditSale(null);
+    setEditGroup(null);
     setSaleDate(format(new Date(), 'yyyy-MM-dd'));
     setPaymentStatus('unpaid');
     setAmountPaid(0);
@@ -150,15 +213,20 @@ export default function BulkSalesPage() {
     setShowSaleModal(true);
   }
 
-  function openEditSale(s: UnifiedSale) {
-    const isPaid = s.amount_paid >= s.total_amount;
-    const isPartial = s.amount_paid > 0 && s.amount_paid < s.total_amount;
-    setEditSale(s);
-    setSaleDate(s.sale_date);
-    setPaymentStatus(isPaid ? 'paid' : isPartial ? 'partial' : 'unpaid');
-    setAmountPaid(s.amount_paid);
-    setSaleNotes(s.notes || '');
-    setSaleLines([{ type: s.type, quantity: s.quantity, unit_price: s.unit_price }]);
+  function openEditGroup(group: GroupedSale) {
+    setEditGroup(group);
+    setSaleDate(group.sale_date);
+    setPaymentStatus(group.status);
+    setAmountPaid(group.amount_paid);
+    const existingNotes = group.items.map(i => i.notes).filter(Boolean).join(' | ');
+    setSaleNotes(existingNotes);
+    setSaleLines(group.items.map(item => ({
+      id: item.id,
+      originalType: item.type,
+      type: item.type,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+    })));
     setShowSaleModal(true);
   }
 
@@ -180,116 +248,251 @@ export default function BulkSalesPage() {
   }
 
   function removeSaleLine(idx: number) {
+    if (saleLines.length <= 1) return;
     setSaleLines(lines => lines.filter((_, i) => i !== idx));
   }
 
   const saleTotal = saleLines.reduce((sum, l) => sum + l.quantity * l.unit_price, 0);
-  const saleReste = paymentStatus === 'paid' ? 0 : paymentStatus === 'partial' ? saleTotal - amountPaid : saleTotal;
+  const saleReste = paymentStatus === 'paid' ? 0 : paymentStatus === 'partial' ? Math.max(0, saleTotal - amountPaid) : saleTotal;
 
   const handleSaleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCustomer || saleLines.length === 0) return;
     const total = saleTotal;
-    const paid = paymentStatus === 'paid' ? total : paymentStatus === 'partial' ? amountPaid : 0;
-    const groupId = editSale?.raw && 'sale_group_id' in editSale.raw ? (editSale.raw as Sale).sale_group_id : `sale-${Date.now()}`;
-    const notes = saleNotes || undefined;
-    const common = { sale_date: saleDate, amount_paid: paid, notes };
+    if (total <= 0) {
+      alert("Le montant total de la vente doit être supérieur à 0.");
+      return;
+    }
+    if (paymentStatus === 'partial') {
+      if (amountPaid <= 0 || amountPaid >= total) {
+        alert(`Pour un versement, le montant versé doit être supérieur à 0 DA et strictement inférieur au total (${total.toLocaleString()} DA).`);
+        return;
+      }
+    }
+    const paid = paymentStatus === 'paid' ? total : paymentStatus === 'unpaid' ? 0 : amountPaid;
+    const notes = saleNotes.trim() || undefined;
+
+    // Distribute paid amount line by line
+    let remainingPaid = paid;
+    const linesWithPaid = saleLines.map(line => {
+      const lineTotal = line.quantity * line.unit_price;
+      const linePaid = Math.min(lineTotal, Math.max(0, remainingPaid));
+      remainingPaid -= linePaid;
+      return {
+        ...line,
+        lineTotal,
+        linePaid,
+        lineIsPaid: linePaid >= lineTotal,
+      };
+    });
 
     try {
       setSavingSale(true);
-      if (editSale && saleLines.length === 1) {
-        const line = saleLines[0];
-        const meta = SALE_TYPES.find(t => t.id === line.type)!;
-        const lineTotal = line.quantity * line.unit_price;
-        if (meta.table === 'bulk') {
-          const updated = await api.bulkSalesService.update(editSale.id, {
-            ...common, quantity_kg: line.quantity, price_per_kg: line.unit_price, total_amount: lineTotal,
-          });
-          setBulkSales(bulkSales.map(s => s.id === editSale.id ? updated : s));
-        } else if (meta.table === 'sales') {
-          const boxSize = line.type === 'boite20' ? 20 : line.type === 'boite10' ? 10 : 6;
-          const updated = await api.salesService.update(editSale.id, {
-            ...common, box_size: boxSize, quantity: line.quantity, unit_price: line.unit_price,
-            total_amount: lineTotal, is_paid: paid >= lineTotal,
-          });
-          setSales(sales.map(s => s.id === editSale.id ? updated : s));
-        } else {
-          const updated = await api.shopSalesService.update(editSale.id, {
-            ...common, quantity: line.quantity, price_per_piece: line.unit_price,
-            total_amount: lineTotal, is_paid: paid >= lineTotal,
-          });
-          setShopSales(shopSales.map(s => s.id === editSale.id ? updated : s));
+      if (editGroup) {
+        const activeIds = new Set(saleLines.map(l => l.id).filter(Boolean));
+        // Delete removed lines from DB
+        for (const orig of editGroup.items) {
+          if (!activeIds.has(orig.id)) {
+            const meta = SALE_TYPES.find(t => t.id === orig.type)!;
+            if (meta.table === 'bulk') await api.bulkSalesService.delete(orig.id);
+            else if (meta.table === 'sales') await api.salesService.delete(orig.id);
+            else await api.shopSalesService.delete(orig.id);
+          }
         }
+
+        let updatedBulk = bulkSales.filter(b => !editGroup.items.some(orig => !activeIds.has(orig.id) && orig.id === b.id));
+        let updatedSales = sales.filter(s => !editGroup.items.some(orig => !activeIds.has(orig.id) && orig.id === s.id));
+        let updatedShop = shopSales.filter(sh => !editGroup.items.some(orig => !activeIds.has(orig.id) && orig.id === sh.id));
+
+        const existingGroupId = (editGroup.items.find(i => 'sale_group_id' in (i.raw as any))?.raw as Sale | undefined)?.sale_group_id;
+        const groupId = existingGroupId || `sale-${Date.now()}`;
+
+        for (const line of linesWithPaid) {
+          const meta = SALE_TYPES.find(t => t.id === line.type)!;
+          const common = {
+            sale_date: saleDate,
+            amount_paid: line.linePaid,
+            notes,
+          };
+
+          if (line.id && line.originalType === line.type) {
+            if (meta.table === 'bulk') {
+              const res = await api.bulkSalesService.update(line.id, {
+                ...common,
+                quantity_kg: line.quantity,
+                price_per_kg: line.unit_price,
+                total_amount: line.lineTotal,
+              });
+              updatedBulk = updatedBulk.map(b => b.id === line.id ? res : b);
+            } else if (meta.table === 'sales') {
+              const boxSize = line.type === 'boite20' ? 20 : line.type === 'boite10' ? 10 : 6;
+              const res = await api.salesService.update(line.id, {
+                ...common,
+                box_size: boxSize,
+                quantity: line.quantity,
+                unit_price: line.unit_price,
+                total_amount: line.lineTotal,
+                is_paid: line.lineIsPaid,
+              });
+              updatedSales = updatedSales.map(s => s.id === line.id ? res : s);
+            } else {
+              const res = await api.shopSalesService.update(line.id, {
+                ...common,
+                quantity: line.quantity,
+                price_per_piece: line.unit_price,
+                total_amount: line.lineTotal,
+                is_paid: line.lineIsPaid,
+              });
+              updatedShop = updatedShop.map(sh => sh.id === line.id ? res : sh);
+            }
+          } else {
+            // Type changed: delete from old table if had an id
+            if (line.id && line.originalType && line.originalType !== line.type) {
+              const oldMeta = SALE_TYPES.find(t => t.id === line.originalType)!;
+              if (oldMeta.table === 'bulk') {
+                await api.bulkSalesService.delete(line.id);
+                updatedBulk = updatedBulk.filter(b => b.id !== line.id);
+              } else if (oldMeta.table === 'sales') {
+                await api.salesService.delete(line.id);
+                updatedSales = updatedSales.filter(s => s.id !== line.id);
+              } else {
+                await api.shopSalesService.delete(line.id);
+                updatedShop = updatedShop.filter(sh => sh.id !== line.id);
+              }
+            }
+
+            // Create new
+            if (meta.table === 'bulk') {
+              const res = await api.bulkSalesService.create({
+                ...common,
+                quantity_kg: line.quantity,
+                price_per_kg: line.unit_price,
+                total_amount: line.lineTotal,
+                customer_id: selectedCustomer.id,
+                customer_name: selectedCustomer.name,
+              });
+              updatedBulk = [res, ...updatedBulk];
+            } else if (meta.table === 'sales') {
+              const boxSize = line.type === 'boite20' ? 20 : line.type === 'boite10' ? 10 : 6;
+              const res = await api.salesService.create({
+                ...common,
+                box_size: boxSize,
+                quantity: line.quantity,
+                unit_price: line.unit_price,
+                total_amount: line.lineTotal,
+                is_paid: line.lineIsPaid,
+                customer_id: selectedCustomer.id,
+                customer_name: selectedCustomer.name,
+                sale_group_id: groupId,
+              });
+              updatedSales = [res, ...updatedSales];
+            } else {
+              const res = await api.shopSalesService.create({
+                ...common,
+                quantity: line.quantity,
+                price_per_piece: line.unit_price,
+                total_amount: line.lineTotal,
+                is_paid: line.lineIsPaid,
+                customer_id: selectedCustomer.id,
+                customer_name: selectedCustomer.name,
+              });
+              updatedShop = [res, ...updatedShop];
+            }
+          }
+        }
+
+        setBulkSales(updatedBulk);
+        setSales(updatedSales);
+        setShopSales(updatedShop);
       } else {
+        const groupId = `sale-${Date.now()}`;
         const newBulk: BulkSale[] = [];
         const newSales: Sale[] = [];
         const newShop: ShopSale[] = [];
-        for (const line of saleLines) {
+
+        for (const line of linesWithPaid) {
           const meta = SALE_TYPES.find(t => t.id === line.type)!;
-          const lineTotal = line.quantity * line.unit_price;
-          const linePaid = paid;
+          const common = {
+            sale_date: saleDate,
+            amount_paid: line.linePaid,
+            notes,
+          };
+
           if (meta.table === 'bulk') {
             const created = await api.bulkSalesService.create({
-              ...common, quantity_kg: line.quantity, price_per_kg: line.unit_price,
-              total_amount: lineTotal, customer_id: selectedCustomer.id, customer_name: selectedCustomer.name,
+              ...common,
+              quantity_kg: line.quantity,
+              price_per_kg: line.unit_price,
+              total_amount: line.lineTotal,
+              customer_id: selectedCustomer.id,
+              customer_name: selectedCustomer.name,
             });
             newBulk.push(created);
           } else if (meta.table === 'sales') {
             const boxSize = line.type === 'boite20' ? 20 : line.type === 'boite10' ? 10 : 6;
             const created = await api.salesService.create({
-              ...common, box_size: boxSize, quantity: line.quantity, unit_price: line.unit_price,
-              total_amount: lineTotal, is_paid: linePaid >= lineTotal,
-              customer_id: selectedCustomer.id, customer_name: selectedCustomer.name,
+              ...common,
+              box_size: boxSize,
+              quantity: line.quantity,
+              unit_price: line.unit_price,
+              total_amount: line.lineTotal,
+              is_paid: line.lineIsPaid,
+              customer_id: selectedCustomer.id,
+              customer_name: selectedCustomer.name,
               sale_group_id: groupId,
             });
             newSales.push(created);
           } else {
             const created = await api.shopSalesService.create({
-              ...common, quantity: line.quantity, price_per_piece: line.unit_price,
-              total_amount: lineTotal, is_paid: linePaid >= lineTotal,
-              customer_id: selectedCustomer.id, customer_name: selectedCustomer.name,
+              ...common,
+              quantity: line.quantity,
+              price_per_piece: line.unit_price,
+              total_amount: line.lineTotal,
+              is_paid: line.lineIsPaid,
+              customer_id: selectedCustomer.id,
+              customer_name: selectedCustomer.name,
             });
             newShop.push(created);
           }
         }
+
         if (newBulk.length) setBulkSales([...newBulk, ...bulkSales]);
         if (newSales.length) setSales([...newSales, ...sales]);
         if (newShop.length) setShopSales([...newShop, ...shopSales]);
       }
       setShowSaleModal(false);
-    } catch (err) { console.error(err); }
-    finally { setSavingSale(false); }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSavingSale(false);
+    }
   };
 
-  const handleDeleteSale = async (s: UnifiedSale) => {
-    if (!confirm('Supprimer cette vente ?')) return;
-    const meta = SALE_TYPES.find(t => t.id === s.type)!;
-    try {
-      if (meta.table === 'bulk') { await api.bulkSalesService.delete(s.id); setBulkSales(bulkSales.filter(x => x.id !== s.id)); }
-      else if (meta.table === 'sales') { await api.salesService.delete(s.id); setSales(sales.filter(x => x.id !== s.id)); }
-      else { await api.shopSalesService.delete(s.id); setShopSales(shopSales.filter(x => x.id !== s.id)); }
-    } catch (err) { console.error(err); }
-  };
+  const handleDeleteGroup = async (group: GroupedSale) => {
+    const count = group.items.length;
+    const confirmMsg = count > 1
+      ? `Supprimer cette vente de ${count} produits ?`
+      : 'Supprimer cette vente ?';
+    if (!confirm(confirmMsg)) return;
 
-  const handleVersement = async (s: UnifiedSale) => {
-    const amountStr = prompt(`Versement pour "${s.label}"\nReste à payer: ${(s.total_amount - s.amount_paid).toLocaleString()} DA\nMontant du versement:`);
-    if (!amountStr) return;
-    const amount = parseFloat(amountStr) || 0;
-    if (amount <= 0) return;
-    const newPaid = s.amount_paid + amount;
-    const meta = SALE_TYPES.find(t => t.id === s.type)!;
     try {
-      if (meta.table === 'bulk') {
-        const updated = await api.bulkSalesService.update(s.id, { amount_paid: newPaid });
-        setBulkSales(bulkSales.map(x => x.id === s.id ? updated : x));
-      } else if (meta.table === 'sales') {
-        const updated = await api.salesService.update(s.id, { amount_paid: newPaid, is_paid: newPaid >= s.total_amount });
-        setSales(sales.map(x => x.id === s.id ? updated : x));
-      } else {
-        const updated = await api.shopSalesService.update(s.id, { amount_paid: newPaid, is_paid: newPaid >= s.total_amount });
-        setShopSales(shopSales.map(x => x.id === s.id ? updated : x));
+      for (const s of group.items) {
+        const meta = SALE_TYPES.find(t => t.id === s.type)!;
+        if (meta.table === 'bulk') {
+          await api.bulkSalesService.delete(s.id);
+        } else if (meta.table === 'sales') {
+          await api.salesService.delete(s.id);
+        } else {
+          await api.shopSalesService.delete(s.id);
+        }
       }
-    } catch (err) { console.error(err); }
+      const itemIds = new Set(group.items.map(i => i.id));
+      setBulkSales(bulkSales.filter(x => !itemIds.has(x.id)));
+      setSales(sales.filter(x => !itemIds.has(x.id)));
+      setShopSales(shopSales.filter(x => !itemIds.has(x.id)));
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const buildDocHTML = (docType: 'bon' | 'facture', items: { label: string; quantity: number; unit_price: number; total: number }[], totalGeneral: number, verse: number) => {
@@ -519,41 +722,154 @@ export default function BulkSalesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {customerSales.map(s => {
-                    const reste = s.total_amount - s.amount_paid;
-                    const meta = SALE_TYPES.find(t => t.id === s.type)!;
-                    const c = colorMap[meta.color];
+                  {groupedSales.map(group => {
+                    const isExpanded = !!expandedDates[group.sale_date];
                     return (
-                      <tr key={s.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-gray-600 text-sm">{format(new Date(s.sale_date), 'dd/MM/yyyy')}</td>
-                        <td className="px-4 py-3 text-sm">
-                          <div className="flex items-center gap-2">
-                            <span className={`w-7 h-7 rounded-lg ${c.solid} flex items-center justify-center flex-shrink-0`}>{meta.icon}</span>
-                            <span className="font-medium text-gray-900">{s.label}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-right text-gray-600 text-sm">{s.type === 'vrac' ? `${s.quantity} kg` : s.type === 'magasin' ? `${s.quantity} pcs` : `${s.quantity}`}</td>
-                        <td className="px-4 py-3 text-right text-gray-600 text-sm">{s.unit_price.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right font-bold text-gray-900 text-sm">{s.total_amount.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right text-emerald-600 text-sm">{s.amount_paid.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-right text-red-600 text-sm">{reste.toLocaleString()}</td>
-                        <td className="px-4 py-3 text-center">
-                          {reste <= 0
-                            ? <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium"><Check size={12} /> Payé</span>
-                            : <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium"><Clock size={12} /> Non payé</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex justify-end gap-1">
-                            <button onClick={() => handleVersement(s)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg" title="Versement"><Wallet size={15} /></button>
-                            <button onClick={() => openEditSale(s)} className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg" title="Modifier"><Edit2 size={15} /></button>
-                            <button onClick={() => handleDeleteSale(s)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Supprimer"><Trash2 size={15} /></button>
-                          </div>
-                        </td>
-                      </tr>
+                      <React.Fragment key={group.id}>
+                        <tr
+                          onClick={() => toggleExpand(group.sale_date)}
+                          className="hover:bg-gray-50 cursor-pointer select-none transition-colors"
+                        >
+                          <td className="px-4 py-3 text-gray-700 text-sm whitespace-nowrap">
+                            <div className="flex items-center gap-1.5 font-medium">
+                              <span className="text-gray-400">
+                                {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                              </span>
+                              {format(new Date(group.sale_date), 'dd/MM/yyyy')}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className="font-medium text-gray-900" title={group.productSummary}>
+                              {group.productSummary}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-gray-700 text-sm whitespace-nowrap">
+                            {group.items.length === 1 && group.items[0].type === 'vrac'
+                              ? `${group.total_quantity} kg`
+                              : group.items.length === 1 && group.items[0].type === 'magasin'
+                              ? `${group.total_quantity} pcs`
+                              : `${group.total_quantity}`}
+                          </td>
+                          <td className="px-4 py-3 text-right text-gray-600 text-sm whitespace-nowrap">
+                            {group.items.length === 1 ? group.items[0].unit_price.toLocaleString() : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-right font-bold text-gray-900 text-sm whitespace-nowrap">
+                            {group.total_amount.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-right text-emerald-600 text-sm whitespace-nowrap">
+                            {group.amount_paid.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-right text-red-600 text-sm whitespace-nowrap">
+                            {group.reste.toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-center whitespace-nowrap">
+                            {group.status === 'paid' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-medium">
+                                <Check size={12} /> Payé
+                              </span>
+                            ) : group.status === 'unpaid' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-medium">
+                                <Clock size={12} /> Non payé
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-medium">
+                                <Clock size={12} /> Versement
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="flex justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEditGroup(group);
+                                }}
+                                className="p-1.5 text-amber-500 hover:bg-amber-50 rounded-lg transition-colors"
+                                title="Modifier"
+                              >
+                                <Edit2 size={15} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteGroup(group);
+                                }}
+                                className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Supprimer"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Unfolded product detail */}
+                        {isExpanded && (
+                          <tr className="bg-gray-50/70">
+                            <td colSpan={9} className="px-6 py-3">
+                              <div className="bg-white rounded-xl border border-gray-200 p-3 shadow-inner">
+                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                                  Détail des produits ({group.items.length})
+                                </p>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-xs">
+                                    <thead>
+                                      <tr className="text-gray-500 border-b border-gray-100 pb-1">
+                                        <th className="text-left font-medium pb-1.5">Produit</th>
+                                        <th className="text-right font-medium pb-1.5">Quantité</th>
+                                        <th className="text-right font-medium pb-1.5">Prix unitaire</th>
+                                        <th className="text-right font-medium pb-1.5">Total</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                      {group.items.map((item, itemIdx) => {
+                                        const meta = SALE_TYPES.find(t => t.id === item.type)!;
+                                        const c = colorMap[meta.color];
+                                        return (
+                                          <tr key={itemIdx} className="hover:bg-gray-50/50">
+                                            <td className="py-1.5">
+                                              <div className="flex items-center gap-2">
+                                                <span className={`w-5 h-5 rounded ${c.solid} flex items-center justify-center flex-shrink-0`}>
+                                                  {meta.icon}
+                                                </span>
+                                                <span className="font-medium text-gray-800">{item.label}</span>
+                                              </div>
+                                            </td>
+                                            <td className="py-1.5 text-right text-gray-600">
+                                              {item.type === 'vrac'
+                                                ? `${item.quantity} kg`
+                                                : item.type === 'magasin'
+                                                ? `${item.quantity} pcs`
+                                                : `${item.quantity} boîte${item.quantity > 1 ? 's' : ''}`}
+                                            </td>
+                                            <td className="py-1.5 text-right text-gray-600">
+                                              {item.unit_price.toLocaleString()} DA
+                                            </td>
+                                            <td className="py-1.5 text-right font-semibold text-gray-900">
+                                              {item.total_amount.toLocaleString()} DA
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                                {group.items.some(i => i.notes) && (
+                                  <div className="mt-2 pt-2 border-t border-gray-100 text-xs text-gray-500 italic">
+                                    <strong>Notes :</strong> {group.items.map(i => i.notes).filter(Boolean).join(' | ')}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
-                {customerSales.length > 0 && (
+                {groupedSales.length > 0 && (
                   <tfoot className="bg-gray-50">
                     <tr>
                       <td colSpan={4} className="px-4 py-3 font-bold text-right">Total</td>
@@ -566,7 +882,7 @@ export default function BulkSalesPage() {
                 )}
               </table>
             </div>
-            {customerSales.length === 0 && (
+            {groupedSales.length === 0 && (
               <div className="p-12 text-center text-gray-400">
                 <ShoppingBag size={48} className="mx-auto mb-3 text-gray-300" />
                 <p>Aucune vente enregistrée pour ce client</p>
@@ -669,7 +985,7 @@ export default function BulkSalesPage() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
-                <h2 className="text-lg font-semibold">{editSale && saleLines.length === 1 ? 'Modifier Vente' : 'Nouvelle Vente'}</h2>
+                <h2 className="text-lg font-semibold">{editGroup ? "Modifier l'opération" : 'Nouvelle Vente'}</h2>
                 <button onClick={() => setShowSaleModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
               </div>
               <form onSubmit={handleSaleSubmit} className="p-4 space-y-3">
@@ -689,12 +1005,10 @@ export default function BulkSalesPage() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-sm font-medium text-gray-700">Produits</label>
-                    {editSale && saleLines.length === 1 ? null : (
-                      <button type="button" onClick={addSaleLine}
-                        className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700 font-medium">
-                        <Plus size={16} /> Ajouter une ligne
-                      </button>
-                    )}
+                    <button type="button" onClick={addSaleLine}
+                      className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700 font-medium">
+                      <Plus size={16} /> Ajouter une ligne
+                    </button>
                   </div>
                   <div className="border border-gray-200 rounded-xl overflow-hidden">
                     <table className="w-full">
@@ -704,13 +1018,11 @@ export default function BulkSalesPage() {
                           <th className="px-2 py-2 text-right text-xs font-medium text-gray-600 w-20">Qté</th>
                           <th className="px-2 py-2 text-right text-xs font-medium text-gray-600 w-24">Prix U.</th>
                           <th className="px-2 py-2 text-right text-xs font-medium text-gray-600 w-24">Total</th>
-                          {editSale && saleLines.length === 1 ? null : <th className="w-8" />}
+                          <th className="w-8" />
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {saleLines.map((line, idx) => {
-                          const meta = SALE_TYPES.find(t => t.id === line.type)!;
-                          const c = colorMap[meta.color];
                           return (
                             <tr key={idx}>
                               <td className="px-2 py-1.5">
@@ -734,14 +1046,14 @@ export default function BulkSalesPage() {
                               <td className="px-2 py-1.5 text-right text-sm font-bold text-gray-900">
                                 {(line.quantity * line.unit_price).toLocaleString()}
                               </td>
-                              {editSale && saleLines.length === 1 ? null : (
-                                <td className="px-1 py-1.5">
-                                  <button type="button" onClick={() => removeSaleLine(idx)}
-                                    className="p-1 text-red-500 hover:bg-red-50 rounded-lg" title="Supprimer">
-                                    <Trash2 size={14} />
-                                  </button>
-                                </td>
-                              )}
+                              <td className="px-1 py-1.5">
+                                <button type="button" onClick={() => removeSaleLine(idx)}
+                                  disabled={saleLines.length <= 1}
+                                  className="p-1 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent"
+                                  title="Supprimer la ligne">
+                                  <Trash2 size={14} />
+                                </button>
+                              </td>
                             </tr>
                           );
                         })}
@@ -750,7 +1062,7 @@ export default function BulkSalesPage() {
                         <tr>
                           <td colSpan={3} className="px-2 py-2 text-right text-sm font-semibold text-gray-700">Total Général</td>
                           <td className="px-2 py-2 text-right text-base font-bold text-emerald-700">{saleTotal.toLocaleString()} DA</td>
-                          {editSale && saleLines.length === 1 ? null : <td />}
+                          <td />
                         </tr>
                       </tfoot>
                     </table>
@@ -759,7 +1071,7 @@ export default function BulkSalesPage() {
 
                 {/* Payment status buttons */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Statut de paiement</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Situation de paiement</label>
                   <div className="flex gap-2">
                     {(['paid', 'unpaid', 'partial'] as const).map(s => (
                       <button key={s} type="button"
@@ -767,6 +1079,9 @@ export default function BulkSalesPage() {
                           setPaymentStatus(s);
                           if (s === 'paid') setAmountPaid(saleTotal);
                           else if (s === 'unpaid') setAmountPaid(0);
+                          else if (amountPaid <= 0 || amountPaid >= saleTotal) {
+                            setAmountPaid(Math.max(1, Math.round(saleTotal / 2)));
+                          }
                         }}
                         className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                           paymentStatus === s
@@ -788,13 +1103,25 @@ export default function BulkSalesPage() {
                 {paymentStatus === 'partial' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Montant versé (DA)</label>
-                    <input type="number" min="0" max={saleTotal}
-                      value={amountPaid}
+                    <input type="number" min="1" max={Math.max(1, saleTotal - 1)}
+                      value={amountPaid || ''}
                       onChange={e => setAmountPaid(parseFloat(e.target.value) || 0)}
+                      required
+                      placeholder="Saisir le montant versé"
                       className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 text-sm" />
                     <p className="text-sm text-orange-600 mt-1">
-                      Reste à payer: <strong>{saleReste.toLocaleString()} DA</strong>
+                      Reste à payer : <strong>{saleReste.toLocaleString()} DA</strong>
                     </p>
+                    {amountPaid >= saleTotal && saleTotal > 0 && (
+                      <p className="text-xs text-red-500 mt-1">
+                        Le montant versé doit être inférieur au total ({saleTotal.toLocaleString()} DA). Sinon, choisissez « Payé ».
+                      </p>
+                    )}
+                    {amountPaid <= 0 && (
+                      <p className="text-xs text-red-500 mt-1">
+                        Le montant versé doit être supérieur à 0 DA. Sinon, choisissez « Non payé ».
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -806,13 +1133,16 @@ export default function BulkSalesPage() {
                 </div>
 
                 {/* Summary */}
-                <div className="bg-emerald-50 p-3 rounded-xl flex justify-between items-center">
-                  <span className="text-sm text-emerald-800">Total: <strong>{saleTotal.toLocaleString()} DA</strong></span>
+                <div className="bg-emerald-50 p-3 rounded-xl flex justify-between items-center text-sm">
+                  <span className="text-emerald-800">Total : <strong>{saleTotal.toLocaleString()} DA</strong></span>
+                  {paymentStatus === 'paid' && (
+                    <span className="text-emerald-700 font-medium">Payé intégralement</span>
+                  )}
                   {paymentStatus === 'partial' && (
-                    <span className="text-sm text-orange-600">Reste: {saleReste.toLocaleString()} DA</span>
+                    <span className="text-orange-600 font-medium">Versé : {amountPaid.toLocaleString()} DA · Reste : {saleReste.toLocaleString()} DA</span>
                   )}
                   {paymentStatus === 'unpaid' && (
-                    <span className="text-sm text-red-600">Non payé: {saleTotal.toLocaleString()} DA</span>
+                    <span className="text-red-600 font-medium">Non payé : {saleTotal.toLocaleString()} DA</span>
                   )}
                 </div>
 
@@ -820,7 +1150,7 @@ export default function BulkSalesPage() {
                   <button type="button" onClick={() => setShowSaleModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm">Annuler</button>
                   <button type="submit" disabled={savingSale || saleLines.length === 0}
                     className="px-5 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium disabled:opacity-60">
-                    {savingSale ? 'Enregistrement...' : editSale && saleLines.length === 1 ? 'Modifier' : 'Enregistrer la vente'}
+                    {savingSale ? 'Enregistrement...' : editGroup ? 'Modifier' : 'Enregistrer la vente'}
                   </button>
                 </div>
               </form>
