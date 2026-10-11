@@ -130,11 +130,10 @@ export default function AdminPage() {
     try {
       const headers = await getAuthHeaders();
 
-      const noCache = { headers: { ...headers, 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' } };
       const [usersRes, histRes, logsRes] = await Promise.all([
-        fetch(EDGE_URL, noCache),
-        fetch(`${EDGE_URL}?action=login_history`, noCache),
-        fetch(`${EDGE_URL}?action=action_logs`, noCache),
+        fetch(EDGE_URL, { headers }),
+        fetch(`${EDGE_URL}?action=login_history`, { headers }),
+        fetch(`${EDGE_URL}?action=action_logs`, { headers }),
       ]);
 
       const usersData = await usersRes.json().catch(() => ({}));
