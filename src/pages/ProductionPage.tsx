@@ -3,6 +3,7 @@ import { Plus, Trash2, ChefHat, AlertTriangle, Package, X, Calculator, Edit2, Se
 import { format } from 'date-fns';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
+import { formatKg, formatLoss } from '../lib/formatters';
 import type { ProductionMaterial } from '../types';
 
 // Default coque recipe (g per batch)
@@ -42,16 +43,17 @@ export default function ProductionPage() {
   const [showUnsoldModal, setShowUnsoldModal] = useState(false);
   const [editBatch, setEditBatch] = useState<string | null>(null);
   const [materialSearch, setMaterialSearch] = useState('');
+  const [isSavingBatch, setIsSavingBatch] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const [batchForm, setBatchForm] = useState({
-    batch_date: format(new Date(), 'yyyy-MM-dd'),
-    planned_quantity: 0,
-    produced_quantity: 0,
-    lost_quantity: 0,
-    notes: '',
-    quantity_produced: 0 as number | undefined,
-    selling_price_per_unit: 0,
-  });
+  // Form inputs as strings to allow typing both comma and dot (e.g. 1,5 or 1.5)
+  const [batchDate, setBatchDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [plannedInput, setPlannedInput] = useState('');
+  const [producedInput, setProducedInput] = useState('');
+  const [lostInput, setLostInput] = useState('0');
+  const [lostUnit, setLostUnit] = useState<'kg' | 'g'>('g');
+  const [sellingPriceInput, setSellingPriceInput] = useState('0');
+  const [notesInput, setNotesInput] = useState('');
 
   const [batchMaterials, setBatchMaterials] = useState<BatchMaterialLine[]>([]);
 
@@ -133,10 +135,72 @@ export default function ProductionPage() {
   const costPerMacaron = macaronsCount > 0 ? totalCost / macaronsCount : 0;
   const costPerKg = totalCoqueWeightG > 0 ? (totalCost / (totalCoqueWeightG / 1000)) : 0;
 
-  // Batch materials calculations
-  const batchMaterialsCost = batchMaterials.reduce((s, m) => s + m.quantity * m.unit_cost, 0);
-  const batchProductionValue = batchForm.produced_quantity * batchForm.selling_price_per_unit;
-  const batchProfit = batchProductionValue - batchMaterialsCost;
+  // Live calculations for batch modal
+  const parsedProducedLive = useMemo(() => {
+    const val = Number(producedInput.trim().replace(',', '.'));
+    return !isNaN(val) && val >= 0 ? val : 0;
+  }, [producedInput]);
+
+  const parsedSellingPriceLive = useMemo(() => {
+    const val = Number(sellingPriceInput.trim().replace(',', '.'));
+    return !isNaN(val) && val >= 0 ? val : 0;
+  }, [sellingPriceInput]);
+
+  const batchMaterialsCost = useMemo(() => {
+    return batchMaterials.reduce((s, m) => s + m.quantity * m.unit_cost, 0);
+  }, [batchMaterials]);
+
+  const batchProductionValue = useMemo(() => {
+    return parsedProducedLive * parsedSellingPriceLive;
+  }, [parsedProducedLive, parsedSellingPriceLive]);
+
+  const batchProfit = useMemo(() => {
+    return batchProductionValue - batchMaterialsCost;
+  }, [batchProductionValue, batchMaterialsCost]);
+
+  const handleLostUnitChange = (newUnit: 'kg' | 'g') => {
+    if (newUnit === lostUnit) return;
+    setLostUnit(newUnit);
+    const trimmed = lostInput.trim().replace(',', '.');
+    if (trimmed !== '' && !isNaN(Number(trimmed))) {
+      const num = Number(trimmed);
+      if (newUnit === 'g') {
+        const inG = Math.round(num * 1000);
+        setLostInput(String(inG));
+      } else {
+        const inKg = parseFloat((num / 1000).toFixed(3));
+        setLostInput(String(inKg).replace('.', ','));
+      }
+    }
+  };
+
+  // Validation function: accepts comma and dot, rejects negative or empty, checks decimal places
+  const validateDecimalField = (
+    raw: string,
+    fieldName: string,
+    maxDecimals = 3
+  ): { valid: true; value: number } | { valid: false; error: string } => {
+    const trimmed = raw.trim();
+    if (trimmed === '') {
+      return { valid: false, error: `Le champ « ${fieldName} » ne peut pas être vide.` };
+    }
+    const normalized = trimmed.replace(',', '.');
+    const num = Number(normalized);
+    if (isNaN(num) || !/^-?\d+(\.\d+)?$/.test(normalized)) {
+      return { valid: false, error: `Le champ « ${fieldName} » doit être un nombre valide (ex: 1,5 ou 1.5).` };
+    }
+    if (num < 0) {
+      return { valid: false, error: `Le champ « ${fieldName} » ne peut pas être négatif.` };
+    }
+    const parts = normalized.split('.');
+    if (parts.length > 1 && parts[1].length > maxDecimals) {
+      return {
+        valid: false,
+        error: `Le champ « ${fieldName} » ne peut pas dépasser ${maxDecimals} décimales (ex: 1,234).`
+      };
+    }
+    return { valid: true, value: num };
+  };
 
   const filteredRawMaterials = rawMaterials.filter(m =>
     m.name.toLowerCase().includes(materialSearch.toLowerCase())
@@ -166,18 +230,24 @@ export default function ProductionPage() {
 
   // --- Batch handlers ---
   const openBatchModal = (batch?: typeof productionBatches[0]) => {
+    setFormError(null);
     if (batch) {
       setEditBatch(batch.id);
-      setBatchForm({
-        batch_date: batch.batch_date,
-        planned_quantity: batch.planned_quantity,
-        produced_quantity: batch.produced_quantity,
-        lost_quantity: batch.lost_quantity,
-        notes: batch.notes || '',
-        quantity_produced: batch.quantity_produced,
-        selling_price_per_unit: batch.production_value && batch.produced_quantity
-          ? batch.production_value / batch.produced_quantity : 0,
-      });
+      setBatchDate(batch.batch_date);
+      setPlannedInput(String(batch.planned_quantity).replace('.', ','));
+      setProducedInput(String(batch.produced_quantity).replace('.', ','));
+      if (batch.lost_quantity > 0 && batch.lost_quantity < 1) {
+        setLostUnit('g');
+        setLostInput(String(Math.round(batch.lost_quantity * 1000)));
+      } else {
+        setLostUnit('kg');
+        setLostInput(String(batch.lost_quantity).replace('.', ','));
+      }
+      const unitPrice = batch.production_value && batch.produced_quantity
+        ? batch.production_value / batch.produced_quantity : 0;
+      setSellingPriceInput(unitPrice > 0 ? String(parseFloat(unitPrice.toFixed(3))).replace('.', ',') : '0');
+      setNotesInput(batch.notes || '');
+
       // Load existing materials if any
       if (batch.materials && batch.materials.length > 0) {
         setBatchMaterials(batch.materials.map(m => ({
@@ -192,7 +262,13 @@ export default function ProductionPage() {
       }
     } else {
       setEditBatch(null);
-      setBatchForm({ batch_date: format(new Date(), 'yyyy-MM-dd'), planned_quantity: 0, produced_quantity: 0, lost_quantity: 0, notes: '', quantity_produced: undefined, selling_price_per_unit: 0 });
+      setBatchDate(format(new Date(), 'yyyy-MM-dd'));
+      setPlannedInput('');
+      setProducedInput('');
+      setLostInput('0');
+      setLostUnit('g');
+      setSellingPriceInput('0');
+      setNotesInput('');
       setBatchMaterials([]);
     }
     setMaterialSearch('');
@@ -201,19 +277,68 @@ export default function ProductionPage() {
 
   const handleBatchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+
+    if (!batchDate) {
+      setFormError('Veuillez sélectionner une date.');
+      return;
+    }
+
+    const plannedCheck = validateDecimalField(plannedInput, 'Planifié (kg)', 3);
+    if (!plannedCheck.valid) {
+      setFormError(plannedCheck.error);
+      return;
+    }
+
+    const producedCheck = validateDecimalField(producedInput, 'Quantité produite (kg)', 3);
+    if (!producedCheck.valid) {
+      setFormError(producedCheck.error);
+      return;
+    }
+
+    let finalLostKg = 0;
+    if (lostUnit === 'g') {
+      const lostCheck = validateDecimalField(lostInput, 'Perte', 2);
+      if (!lostCheck.valid) {
+        setFormError(lostCheck.error);
+        return;
+      }
+      finalLostKg = parseFloat((lostCheck.value / 1000).toFixed(3));
+    } else {
+      const lostCheck = validateDecimalField(lostInput, 'Perte', 3);
+      if (!lostCheck.valid) {
+        setFormError(lostCheck.error);
+        return;
+      }
+      finalLostKg = parseFloat(lostCheck.value.toFixed(3));
+    }
+
+    const priceCheck = validateDecimalField(sellingPriceInput, 'Prix de vente au kg', 3);
+    if (!priceCheck.valid) {
+      setFormError(priceCheck.error);
+      return;
+    }
+
+    setIsSavingBatch(true);
     try {
       const production_cost = batchMaterialsCost;
-      const production_value = batchProductionValue;
-      const profit = batchProfit;
+      const production_value = producedCheck.value * priceCheck.value;
+      const profit = production_value - production_cost;
+
+      // Exclude selling_price_per_unit and duplicate quantity_produced - do not send them to the DB
+      const batchData = {
+        batch_date: batchDate,
+        planned_quantity: plannedCheck.value,
+        produced_quantity: producedCheck.value,
+        lost_quantity: finalLostKg,
+        notes: notesInput.trim(),
+        production_cost,
+        production_value,
+        profit,
+      };
 
       if (editBatch) {
-        const updated = await api.productionBatchService.update(editBatch, {
-          ...batchForm,
-          quantity_produced: batchForm.quantity_produced,
-          production_cost,
-          production_value,
-          profit,
-        });
+        const updated = await api.productionBatchService.update(editBatch, batchData);
         // Replace materials
         await api.productionMaterialsService.deleteByBatch(editBatch);
         for (const m of batchMaterials) {
@@ -225,18 +350,21 @@ export default function ProductionPage() {
             total_cost: m.quantity * m.unit_cost,
           });
         }
-        setProductionBatches(productionBatches.map(b => b.id === editBatch ? { ...updated, materials: batchMaterials.map((m, i) => ({
-          id: `temp-${i}`, batch_id: editBatch, material_id: m.material_id, quantity: m.quantity, unit_cost: m.unit_cost, total_cost: m.quantity * m.unit_cost, created_at: new Date().toISOString(),
-          material: rawMaterials.find(r => r.id === m.material_id)
-        })) } : b));
+        setProductionBatches(productionBatches.map(b => b.id === editBatch ? {
+          ...updated,
+          materials: batchMaterials.map((m, i) => ({
+            id: `temp-${i}`,
+            batch_id: editBatch,
+            material_id: m.material_id,
+            quantity: m.quantity,
+            unit_cost: m.unit_cost,
+            total_cost: m.quantity * m.unit_cost,
+            created_at: new Date().toISOString(),
+            material: rawMaterials.find(r => r.id === m.material_id)
+          }))
+        } : b));
       } else {
-        const newBatch = await api.productionBatchService.create({
-          ...batchForm,
-          quantity_produced: batchForm.quantity_produced,
-          production_cost,
-          production_value,
-          profit,
-        });
+        const newBatch = await api.productionBatchService.create(batchData);
         for (const m of batchMaterials) {
           await api.productionMaterialsService.create({
             batch_id: newBatch.id,
@@ -246,14 +374,27 @@ export default function ProductionPage() {
             total_cost: m.quantity * m.unit_cost,
           });
         }
-        setProductionBatches([{ ...newBatch, materials: batchMaterials.map((m, i) => ({
-          id: `temp-${i}`, batch_id: newBatch.id, material_id: m.material_id, quantity: m.quantity, unit_cost: m.unit_cost, total_cost: m.quantity * m.unit_cost, created_at: new Date().toISOString(),
-          material: rawMaterials.find(r => r.id === m.material_id)
-        })) }, ...productionBatches]);
+        setProductionBatches([{
+          ...newBatch,
+          materials: batchMaterials.map((m, i) => ({
+            id: `temp-${i}`,
+            batch_id: newBatch.id,
+            material_id: m.material_id,
+            quantity: m.quantity,
+            unit_cost: m.unit_cost,
+            total_cost: m.quantity * m.unit_cost,
+            created_at: new Date().toISOString(),
+            material: rawMaterials.find(r => r.id === m.material_id)
+          }))
+        }, ...productionBatches]);
       }
       setShowBatchModal(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving batch:', error);
+      const errorMsg = error?.message || error?.error_description || (typeof error === 'string' ? error : JSON.stringify(error));
+      alert(`Erreur lors de l'enregistrement du lot :\n${errorMsg}`);
+    } finally {
+      setIsSavingBatch(false);
     }
   };
 
@@ -330,9 +471,9 @@ export default function ProductionPage() {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         {[
-          { label: 'Planifié ce mois', value: totalPlanned, icon: <Package size={20} className="text-blue-600" />, bg: 'bg-blue-100' },
-          { label: 'Produit ce mois', value: totalProduced, icon: <ChefHat size={20} className="text-emerald-600" />, bg: 'bg-emerald-100' },
-          { label: 'Pertes production', value: totalLost, icon: <AlertTriangle size={20} className="text-orange-600" />, bg: 'bg-orange-100' },
+          { label: 'Planifié ce mois', value: formatKg(totalPlanned), icon: <Package size={20} className="text-blue-600" />, bg: 'bg-blue-100' },
+          { label: 'Produit ce mois', value: formatKg(totalProduced), icon: <ChefHat size={20} className="text-emerald-600" />, bg: 'bg-emerald-100' },
+          { label: 'Pertes production', value: formatLoss(totalLost), icon: <AlertTriangle size={20} className="text-orange-600" />, bg: 'bg-orange-100' },
           { label: 'Non vendu', value: totalUnsold, icon: <AlertTriangle size={20} className="text-rose-600" />, bg: 'bg-rose-100' },
           { label: 'Bénéfice ce mois', value: `${totalProfitThisMonth.toLocaleString()} DA`, icon: <TrendingUp size={20} className="text-emerald-600" />, bg: 'bg-emerald-100' },
         ].map((s, i) => (
@@ -357,7 +498,7 @@ export default function ProductionPage() {
           </div>
           <div className="text-right">
             <p className="text-white/80 text-sm">Pertes totales</p>
-            <p className="text-xl font-bold">{totalLost + totalUnsold} unités</p>
+            <p className="text-xl font-bold">{formatLoss(totalLost + totalUnsold)}</p>
           </div>
         </div>
         <div className="bg-white/20 rounded-full h-2">
@@ -411,11 +552,11 @@ export default function ProductionPage() {
                   return (
                     <tr key={batch.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-600">{format(new Date(batch.batch_date), 'dd/MM/yyyy')}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{batch.planned_quantity}</td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-900">{batch.produced_quantity}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{formatKg(batch.planned_quantity)}</td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900">{formatKg(batch.produced_quantity)}</td>
                       <td className="px-4 py-3 text-right">
                         <span className={batch.lost_quantity > 0 ? 'text-red-600 font-medium' : 'text-gray-400'}>
-                          {batch.lost_quantity}
+                          {batch.lost_quantity > 0 ? formatLoss(batch.lost_quantity) : '0 kg'}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -640,44 +781,81 @@ export default function ProductionPage() {
             <form onSubmit={handleBatchSubmit} className="p-4 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                <input type="date" required value={batchForm.batch_date}
-                  onChange={e => setBatchForm({ ...batchForm, batch_date: e.target.value })}
+                <input type="date" required value={batchDate}
+                  onChange={e => { setBatchDate(e.target.value); setFormError(null); }}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" />
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: 'Planifié', key: 'planned_quantity' as const },
-                  { label: 'Produit', key: 'produced_quantity' as const },
-                  { label: 'Pertes', key: 'lost_quantity' as const },
-                ].map(f => (
-                  <div key={f.key}>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{f.label}</label>
-                    <input type="number" min="0" required={f.key !== 'lost_quantity'}
-                      value={batchForm[f.key]}
-                      onChange={e => setBatchForm({ ...batchForm, [f.key]: parseInt(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" />
-                  </div>
-                ))}
-              </div>
 
-              {/* Selling price per unit */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Prix de vente par unité (DA)</label>
-                  <input type="number" min="0" step="0.01"
-                    value={batchForm.selling_price_per_unit}
-                    onChange={e => setBatchForm({ ...batchForm, selling_price_per_unit: parseFloat(e.target.value) || 0 })}
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Planifié (kg)</label>
+                  <input type="text" inputMode="decimal"
+                    placeholder="ex: 10 ou 10,5"
+                    value={plannedInput}
+                    onChange={e => { setPlannedInput(e.target.value); setFormError(null); }}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Quantité produite (kg)</label>
-                  <input type="number" min="0" step="0.01"
-                    value={batchForm.quantity_produced ?? ''}
-                    onChange={e => setBatchForm({ ...batchForm, quantity_produced: parseFloat(e.target.value) || undefined })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500"
-                    placeholder="Optionnel" />
+                  <input type="text" inputMode="decimal"
+                    placeholder="ex: 9,8"
+                    value={producedInput}
+                    onChange={e => { setProducedInput(e.target.value); setFormError(null); }}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Perte</label>
+                  <div className="flex border rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-amber-500">
+                    <input type="text" inputMode="decimal"
+                      placeholder={lostUnit === 'g' ? 'ex: 150' : 'ex: 0,15'}
+                      value={lostInput}
+                      onChange={e => { setLostInput(e.target.value); setFormError(null); }}
+                      className="w-full px-3 py-2 outline-none" />
+                    <select value={lostUnit}
+                      onChange={e => handleLostUnitChange(e.target.value as 'kg' | 'g')}
+                      className="bg-gray-100 border-l px-3 py-2 text-sm font-semibold text-gray-700 outline-none hover:bg-gray-200 transition-colors cursor-pointer">
+                      <option value="g">g</option>
+                      <option value="kg">kg</option>
+                    </select>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {lostUnit === 'g'
+                      ? (!isNaN(Number(lostInput.trim().replace(',', '.'))) && Number(lostInput.trim().replace(',', '.')) > 0
+                        ? `= ${(Number(lostInput.trim().replace(',', '.')) / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 3 })} kg`
+                        : '150 g = 0,15 kg')
+                      : (!isNaN(Number(lostInput.trim().replace(',', '.'))) && Number(lostInput.trim().replace(',', '.')) > 0
+                        ? `= ${Math.round(Number(lostInput.trim().replace(',', '.')) * 1000)} g`
+                        : '0,15 kg = 150 g')}
+                  </p>
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Prix de vente au kg (DA)</label>
+                  <input type="text" inputMode="decimal"
+                    placeholder="ex: 1200 ou 1200,50"
+                    value={sellingPriceInput}
+                    onChange={e => { setSellingPriceInput(e.target.value); setFormError(null); }}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optionnel)</label>
+                  <input type="text"
+                    placeholder="Notes éventuelles..."
+                    value={notesInput}
+                    onChange={e => setNotesInput(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" />
+                </div>
+              </div>
+
+              {/* Form Error Banner */}
+              {formError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg flex items-center gap-2">
+                  <AlertTriangle size={16} className="shrink-0 text-red-600" />
+                  <span>{formError}</span>
+                </div>
+              )}
 
               {/* Materials Section */}
               <div className="border-t pt-4">
@@ -759,7 +937,7 @@ export default function ProductionPage() {
                 )}
 
                 {/* Profit summary */}
-                {batchMaterials.length > 0 && batchForm.produced_quantity > 0 && (
+                {(batchMaterials.length > 0 || parsedProducedLive > 0) && (
                   <div className="mt-3 grid grid-cols-3 gap-3">
                     <div className="bg-amber-50 rounded-lg p-3 border border-amber-100">
                       <p className="text-xs text-amber-600 font-medium">Coût Production</p>
@@ -779,18 +957,12 @@ export default function ProductionPage() {
                 )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optionnel)</label>
-                <textarea value={batchForm.notes}
-                  onChange={e => setBatchForm({ ...batchForm, notes: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg" rows={2} />
-              </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setShowBatchModal(false)}
                   className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Annuler</button>
-                <button type="submit"
-                  className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600">
-                  {editBatch ? 'Modifier' : 'Enregistrer'}
+                <button type="submit" disabled={isSavingBatch}
+                  className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50">
+                  {isSavingBatch ? 'Enregistrement...' : (editBatch ? 'Modifier' : 'Enregistrer')}
                 </button>
               </div>
             </form>

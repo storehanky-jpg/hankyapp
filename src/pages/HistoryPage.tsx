@@ -3,6 +3,7 @@ import { History, ShoppingCart, Package, Filter, Printer, Calendar, DollarSign }
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
+import { formatKg, formatLoss } from '../lib/formatters';
 
 export default function HistoryPage() {
   const { sales, materialPurchases, variableExpenses, productionBatches } = useApp();
@@ -172,7 +173,7 @@ export default function HistoryPage() {
             </div>
             <p className="text-xl font-bold text-gray-900">
               {tab.id === 'production'
-                ? tab.total.toLocaleString()
+                ? formatKg(tab.total)
                 : `${tab.total.toLocaleString()} DZD`}
             </p>
           </div>
@@ -306,13 +307,13 @@ export default function HistoryPage() {
                 {filteredProduction.map(batch => {
                   const efficiency = batch.planned_quantity > 0
                     ? (batch.produced_quantity / batch.planned_quantity * 100).toFixed(1)
-                    : 0;
+                    : '0';
                   return (
                     <tr key={batch.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-600">{format(new Date(batch.batch_date), 'dd/MM/yyyy')}</td>
-                      <td className="px-4 py-3 text-right text-gray-600">{batch.planned_quantity}</td>
-                      <td className="px-4 py-3 text-right font-medium text-gray-900">{batch.produced_quantity}</td>
-                      <td className="px-4 py-3 text-right text-red-600">{batch.lost_quantity}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{formatKg(batch.planned_quantity)}</td>
+                      <td className="px-4 py-3 text-right font-medium text-gray-900">{formatKg(batch.produced_quantity)}</td>
+                      <td className="px-4 py-3 text-right text-red-600">{formatLoss(batch.lost_quantity)}</td>
                       <td className="px-4 py-3 text-right">
                         <span className={`px-2 py-1 rounded-full text-xs ${
                           parseFloat(efficiency) >= 95 ? 'bg-green-100 text-green-700' :
@@ -330,11 +331,11 @@ export default function HistoryPage() {
                 <tr>
                   <td className="px-4 py-3 font-bold text-gray-900">Total</td>
                   <td className="px-4 py-3 text-right text-gray-600">
-                    {filteredProduction.reduce((sum, b) => sum + b.planned_quantity, 0)}
+                    {formatKg(filteredProduction.reduce((sum, b) => sum + b.planned_quantity, 0))}
                   </td>
-                  <td className="px-4 py-3 text-right font-bold text-gray-900">{totals.production}</td>
+                  <td className="px-4 py-3 text-right font-bold text-gray-900">{formatKg(totals.production)}</td>
                   <td className="px-4 py-3 text-right text-red-600">
-                    {filteredProduction.reduce((sum, b) => sum + b.lost_quantity, 0)}
+                    {formatLoss(filteredProduction.reduce((sum, b) => sum + b.lost_quantity, 0))}
                   </td>
                   <td></td>
                 </tr>

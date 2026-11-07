@@ -10,6 +10,7 @@ import {
 import { format, subDays, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
+import { formatKg, formatLoss } from '../lib/formatters';
 
 const COLORS = ['#f59e0b', '#ea580c', '#10b981', '#3b82f6', '#8b5cf6'];
 
@@ -166,11 +167,11 @@ export default function Dashboard() {
     },
     {
       title: 'Production ce Mois',
-      value: `${totalProduced.toLocaleString()}`,
-      subtitle: `Pertes: ${totalLost} unités`,
+      value: formatKg(totalProduced),
+      subtitle: `Pertes: ${formatLoss(totalLost)}`,
       icon: <ChefHat size={24} />,
       trend: totalLost < totalProduced * 0.05,
-      trendValue: `${((totalLost / (totalProduced || 1)) * 100).toFixed(1)}% perte`,
+      trendValue: `${totalProduced > 0 ? ((totalLost / totalProduced) * 100).toFixed(1) : '0'}% perte`,
       color: 'from-amber-500 to-orange-600',
       bgColor: 'bg-amber-50'
     },
@@ -280,10 +281,14 @@ export default function Dashboard() {
                     border: '1px solid #e5e7eb',
                     borderRadius: '8px'
                   }}
+                  formatter={(value: any, name: any) => [
+                    name === 'Production (kg)' || name === 'production' ? formatKg(Number(value)) : `${value} boîtes`,
+                    name === 'Production (kg)' || name === 'production' ? 'Production' : 'Ventes'
+                  ]}
                 />
                 <Legend />
-                <Bar dataKey="production" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="ventes" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="production" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Production (kg)" />
+                <Bar dataKey="ventes" fill="#10b981" radius={[4, 4, 0, 0]} name="Ventes (boîtes)" />
               </BarChart>
             </ResponsiveContainer>
           </div>
