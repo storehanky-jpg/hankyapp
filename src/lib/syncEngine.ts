@@ -37,6 +37,7 @@ const SYNCABLE_TABLES: { table: string; storageKey: string; select?: string }[] 
   { table: 'labor_costs', storageKey: 'labor_costs' },
   { table: 'packaging', storageKey: 'packaging' },
   { table: 'production_batches', storageKey: 'production_batches' },
+  { table: 'production_materials', storageKey: 'production_materials' },
   { table: 'sales', storageKey: 'sales' },
   { table: 'unsold_products', storageKey: 'unsold_products' },
   { table: 'bulk_sales', storageKey: 'bulk_sales' },
@@ -95,7 +96,7 @@ export async function syncPendingOperations(): Promise<SyncResult> {
           failed++;
           continue;
         }
-        if (data && data.id && data.id !== localId) {
+        if (data && data.id) {
           idMap[localId] = data.id;
         }
         pushed++;
