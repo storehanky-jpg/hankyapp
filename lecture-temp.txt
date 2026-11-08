@@ -1,32 +1,188 @@
-20260615125821_002_bulk_sales_and_recipe.sql:2: CREATE TABLE bulk_sales (
-20260615125821_002_bulk_sales_and_recipe.sql:31: ALTER TABLE bulk_sales ENABLE ROW LEVEL SECURITY;
-20260615125821_002_bulk_sales_and_recipe.sql:36: CREATE POLICY "public_access_bulk_sales" ON bulk_sales FOR ALL USING (true);
-20260617215015_006_fix_rls_policies.sql:3: DROP POLICY IF EXISTS "public_access_bulk_sales" ON bulk_sales;
-20260617215015_006_fix_rls_policies.sql:28: -- bulk_sales
-20260617215015_006_fix_rls_policies.sql:29: CREATE POLICY "select_bulk_sales" ON bulk_sales FOR SELECT TO anon, authenticated USING (true);
-20260617215015_006_fix_rls_policies.sql:30: CREATE POLICY "insert_bulk_sales" ON bulk_sales FOR INSERT TO anon, authenticated WITH CHECK (true);
-20260617215015_006_fix_rls_policies.sql:31: CREATE POLICY "update_bulk_sales" ON bulk_sales FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
-20260617215015_006_fix_rls_policies.sql:32: CREATE POLICY "delete_bulk_sales" ON bulk_sales FOR DELETE TO anon, authenticated USING (true);
-20260617222453_007_authenticated_only_rls.sql:19: -- bulk_sales
-20260617222453_007_authenticated_only_rls.sql:20: CREATE POLICY "select_bulk_sales" ON bulk_sales FOR SELECT TO authenticated USING (true);
-20260617222453_007_authenticated_only_rls.sql:21: CREATE POLICY "insert_bulk_sales" ON bulk_sales FOR INSERT TO authenticated WITH CHECK (true);
-20260617222453_007_authenticated_only_rls.sql:22: CREATE POLICY "update_bulk_sales" ON bulk_sales FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
-20260617222453_007_authenticated_only_rls.sql:23: CREATE POLICY "delete_bulk_sales" ON bulk_sales FOR DELETE TO authenticated USING (true);
-20260617224457_008_restore_public_access.sql:20:     'bulk_sales','chocolate_config','chocolate_ingredients','company_settings',
-20260618203609_009_fix_rls_authenticated_only.sql:21:     'bulk_sales','chocolate_config','chocolate_ingredients','company_settings',
-20260620093315_010_sales_add_payment_and_docs.sql:4:   ADD COLUMN IF NOT EXISTS bon_livraison_number text,
-20260711065707_fix_insecure_rls_policies_on_customers_and_customer_prices.sql:15:    other table in the database (bulk_sales, chocolate_config, etc.).
-20260721094859_add_sales_payments_suppliers_fiscal.sql:2: ALTER TABLE bulk_sales ADD COLUMN IF NOT EXISTS amount_paid numeric DEFAULT 0;
-20260721094859_add_sales_payments_suppliers_fiscal.sql:3: ALTER TABLE bulk_sales ADD COLUMN IF NOT EXISTS customer_id uuid REFERENCES customers(id) ON DELETE SET NULL;
-20260721094859_add_sales_payments_suppliers_fiscal.sql:4: ALTER TABLE bulk_sales ADD COLUMN IF NOT EXISTS invoice_number text;
-20260721094859_add_sales_payments_suppliers_fiscal.sql:5: ALTER TABLE bulk_sales ADD COLUMN IF NOT EXISTS order_number text;
-20260721094859_add_sales_payments_suppliers_fiscal.sql:11: ALTER TABLE shop_sales ADD COLUMN IF NOT EXISTS order_number text;
-20260805113542_restore_public_access_all_tables.sql.sql:16: -- bulk_sales
-20260805113542_restore_public_access_all_tables.sql.sql:17: DROP POLICY IF EXISTS select_bulk_sales ON bulk_sales;
-20260805113542_restore_public_access_all_tables.sql.sql:18: DROP POLICY IF EXISTS insert_bulk_sales ON bulk_sales;
-20260805113542_restore_public_access_all_tables.sql.sql:19: DROP POLICY IF EXISTS update_bulk_sales ON bulk_sales;
-20260805113542_restore_public_access_all_tables.sql.sql:20: DROP POLICY IF EXISTS delete_bulk_sales ON bulk_sales;
-20260805113542_restore_public_access_all_tables.sql.sql:21: CREATE POLICY select_bulk_sales ON bulk_sales FOR SELECT TO anon, authenticated USING (true);
-20260805113542_restore_public_access_all_tables.sql.sql:22: CREATE POLICY insert_bulk_sales ON bulk_sales FOR INSERT TO anon, authenticated WITH CHECK (true);
-20260805113542_restore_public_access_all_tables.sql.sql:23: CREATE POLICY update_bulk_sales ON bulk_sales FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
-20260805113542_restore_public_access_all_tables.sql.sql:24: CREATE POLICY delete_bulk_sales ON bulk_sales FOR DELETE TO anon, authenticated USING (true);
+=== src/pages/ChocolatPage.tsx (589 lignes) ===
+6: // Ganache defaults per 1 kg of coques
+17: interface ChocolatConfig {
+23: interface ChocolatIngredient {
+32:   const { recipeItems, rawMaterials } = useApp();
+34:   const [config, setConfig] = useState<ChocolatConfig | null>(null);
+35:   const [ingredients, setIngredients] = useState<ChocolatIngredient[]>([]);
+36:   const [loading, setLoading] = useState(true);
+37:   const [saving, setSaving] = useState(false);
+40:   const [showAdd, setShowAdd] = useState(false);
+41:   const [newIng, setNewIng] = useState({ name: '', quantity_g: 0, unit_cost_per_kg: 0 });
+44:   const [editId, setEditId] = useState<string | null>(null);
+45:   const [editIng, setEditIng] = useState({ name: '', quantity_g: 0, unit_cost_per_kg: 0 });
+48:   const [editYield, setEditYield] = useState(false);
+49:   const [yieldValue, setYieldValue] = useState(1000);
+52:   const [coqueKg, setCoqueKg] = useState(1);
+59:   async function loadData() {
+94:   async function handleAddIngredient(e: React.FormEvent) {
+113:   async function handleDeleteIngredient(id: string) {
+119:   function startEdit(ing: ChocolatIngredient) {
+124:   async function handleSaveEdit(id: string) {
+141:   async function handleSaveYield() {
+156:   const totalIngCost = useMemo(() =>
+160:   const yieldKg = (config?.yield_g || 1000) / 1000;
+161:   const costPerKg = yieldKg > 0 && totalIngCost > 0 ? totalIngCost / yieldKg : 0;
+163:   // Ganache recipe items from context (ganache type)
+164:   const ganacheItems = useMemo(() =>
+165:     recipeItems.filter(i => i.recipe_type === 'ganache'),
+168:   // Ganache lines scaled to coqueKg
+169:   const ganacheLines = useMemo(() => {
+170:     if (ganacheItems.length > 0) {
+171:       return ganacheItems.map(item => {
+194:   }, [ganacheItems, rawMaterials, costPerKg, coqueKg]);
+196:   const totalGanacheCost = ganacheLines.reduce((s, l) => s + l.cost, 0);
+197:   const totalGanacheG = ganacheLines.reduce((s, l) => s + l.qtyG, 0);
+211:         <h1 className="text-2xl font-bold text-gray-900">Chocolat Maison</h1>
+212:         <p className="text-gray-500">Calculez le prix de revient de votre chocolat fait maison et son utilisation en ganache</p>
+220:             <h2 className="font-bold text-lg">Recette Chocolat Maison</h2>
+395:       {/* Calcul ganache pour la production */}
+400:             <h2 className="font-bold text-lg">Calcul Ganache par Production</h2>
+401:             <p className="text-xs text-rose-100">Quantité de ganache utilisée en fonction des coques produites</p>
+409:             <p className="text-xs text-rose-600">Saisissez la quantité en kg pour calculer la ganache nécessaire</p>
+436:         {/* Ganache breakdown table */}
+441:                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Ingrédient ganache</th>
+449:               {ganacheLines.map((line, i) => (
+479:                   Total ganache pour {coqueKg} kg de coques:
+482:                   {totalGanacheG.toFixed(0)} g
+485:                   {(totalGanacheG / 1000).toFixed(2)} kg
+488:                   {totalGanacheCost.toFixed(0)} DA
+504:               <p className="text-xs text-gray-500">Ganache totale</p>
+505:               <p className="text-xl font-bold text-rose-700">{totalGanacheG.toFixed(0)} g</p>
+506:               <p className="text-xs text-gray-400">{(totalGanacheG / 1000).toFixed(2)} kg</p>
+509:               <p className="text-xs text-amber-600">Coût ganache</p>
+510:               <p className="text-xl font-bold text-amber-700">{totalGanacheCost.toFixed(0)} DA</p>
+514:               <p className="text-xs text-rose-600">Ganache / macaron</p>
+516:                 {coqueKg > 0 ? (totalGanacheG / (coqueKg * 55)).toFixed(1) : '—'} g
+529:               <h2 className="text-lg font-semibold">Ajouter un ingrédient</h2>
+=== src/pages/RecipePage.tsx (674 lignes) ===
+23: type RecipeType = 'coque' | 'ganache';
+26: interface RecipeLine {
+35: interface ChocolatConfig { id: string; yield_g: number; notes: string | null; }
+36: interface ChocolatIngredient { id: string; config_id: string; name: string; quantity_g: number; unit_cost_per_kg: number; }
+39:   const { rawMaterials, recipeConfig, recipeItems, setRecipeItems, setRawMaterials } = useApp();
+41:   const [mainTab, setMainTab] = useState<MainTab>('macaron');
+44:   const [activeTab, setActiveTab] = useState<RecipeType>('coque');
+45:   const [multiplier, setMultiplier] = useState(1);
+46:   const [ganacheDailyQty, setGanacheDailyQty] = useState(0);
+47:   const [showAddIngredient, setShowAddIngredient] = useState(false);
+48:   const [showPriceModal, setShowPriceModal] = useState(false);
+49:   const [selectedIngredient, setSelectedIngredient] = useState('');
+50:   const [newPrice, setNewPrice] = useState(0);
+51:   const [newIngredient, setNewIngredient] = useState({ material_id: '', quantity_per_batch: 0 });
+54:   const [chocConfig, setChocConfig] = useState<ChocolatConfig | null>(null);
+55:   const [chocIngredients, setChocIngredients] = useState<ChocolatIngredient[]>([]);
+56:   const [chocLoading, setChocLoading] = useState(true);
+57:   const [chocSaving, setChocSaving] = useState(false);
+58:   const [showAddChoc, setShowAddChoc] = useState(false);
+59:   const [newChocIng, setNewChocIng] = useState({ name: '', quantity_g: 0, unit_cost_per_kg: 0 });
+60:   const [editChocId, setEditChocId] = useState<string | null>(null);
+61:   const [editChocIng, setEditChocIng] = useState({ name: '', quantity_g: 0, unit_cost_per_kg: 0 });
+62:   const [editYield, setEditYield] = useState(false);
+63:   const [yieldValue, setYieldValue] = useState(1000);
+64:   const [coqueKg, setCoqueKg] = useState(1);
+65:   const [chocMultiplier, setChocMultiplier] = useState(1);
+72:   async function loadChocolatData() {
+93:   async function handleAddChocIngredient(e: React.FormEvent) {
+108:   async function handleDeleteChocIngredient(id: string) {
+114:   function startEditChoc(ing: ChocolatIngredient) {
+119:   async function handleSaveChocEdit(id: string) {
+131:   async function handleSaveYield() {
+138:   const coqueItems = useMemo(() => recipeItems.filter(i => !i.recipe_type || i.recipe_type === 'coque'), [recipeItems]);
+139:   const ganacheItems = useMemo(() => recipeItems.filter(i => i.recipe_type === 'ganache'), [recipeItems]);
+141:   const defaultCoqueLines: RecipeLine[] = useMemo(() => [
+158:   const defaultGanacheLines: RecipeLine[] = useMemo(() => [
+171:   const customCoqueLines: RecipeLine[] = useMemo(() => coqueItems.map(item => {
+176:   const customGanacheLines: RecipeLine[] = useMemo(() => ganacheItems.map(item => {
+179:   }), [ganacheItems, rawMaterials]);
+181:   const activeCoqueLines = customCoqueLines.length > 0 ? customCoqueLines : defaultCoqueLines;
+182:   const activeGanacheLines = customGanacheLines.length > 0 ? customGanacheLines : defaultGanacheLines;
+183:   const activeLines = activeTab === 'coque' ? activeCoqueLines : activeGanacheLines;
+184:   const activeCustomItems = activeTab === 'coque' ? coqueItems : ganacheItems;
+185:   const defaultPrices = activeTab === 'coque' ? DEFAULT_COQUE_PRICES : DEFAULT_GANACHE_PRICES;
+187:   const multipliedLines = useMemo(() => activeLines.map(line => {
+189:     return { ...line, multipliedQuantity: line.quantity * multiplier, effectiveCost, totalCost: (line.quantity * multiplier / 1000) * effectiveCost };
+190:   }), [activeLines, multiplier]);
+192:   const totalCost = multipliedLines.reduce((s, l) => s + l.totalCost, 0);
+193:   const totalWeight = multipliedLines.reduce((s, l) => s + l.multipliedQuantity, 0);
+195:   const coqueTotalCost = useMemo(() => activeCoqueLines.reduce((s, l) => {
+197:     return s + (l.quantity * multiplier / 1000) * cost;
+198:   }, 0), [activeCoqueLines, multiplier]);
+200:   const ganacheTotalCost = useMemo(() => activeGanacheLines.reduce((s, l) => {
+202:     return s + (l.quantity * multiplier / 1000) * cost;
+203:   }, 0), [activeGanacheLines, multiplier]);
+205:   const handleUpdatePrice = async (ingredientName: string, price: number) => {
+217:   const openPriceModal = (ingredientName: string) => {
+224:   const handleAddIngredient = async (e: React.FormEvent) => {
+237:   const handleDeleteIngredient = async (id: string) => {
+245:   const availableMaterials = rawMaterials.filter(m => !activeCustomItems.some(item => item.material_id === m.id));
+246:   const isCustom = activeCustomItems.length > 0;
+248:   const ganacheCostPerGram = useMemo(() => {
+249:     const baseWeight = activeGanacheLines.reduce((s, l) => s + l.quantity, 0);
+250:     const baseCost = activeGanacheLines.reduce((s, l) => {
+255:   }, [activeGanacheLines]);
+257:   const todayGanacheCost = ganacheDailyQty * ganacheCostPerGram;
+258:   const todayTotalCost = coqueTotalCost + todayGanacheCost;
+259:   const macaronsCount = Math.round((activeCoqueLines.reduce((s, l) => s + l.quantity * multiplier, 0)) / 1000 * 55);
+262:   const totalIngCost = useMemo(() => chocIngredients.reduce((s, i) => s + (i.quantity_g / 1000) * i.unit_cost_per_kg, 0), [chocIngredients]);
+263:   const yieldKg = (chocConfig?.yield_g || 1000) / 1000;
+264:   const costPerKg = yieldKg > 0 && totalIngCost > 0 ? totalIngCost / yieldKg : 0;
+266:   // Scaled by chocolat multiplier
+267:   const scaledChocIngredients = useMemo(() => chocIngredients.map(i => ({
+272:   const scaledTotalIngCost = scaledChocIngredients.reduce((s, i) => s + i.scaledCost, 0);
+273:   const scaledYieldG = (chocConfig?.yield_g || 1000) * chocMultiplier;
+274:   const scaledYieldKg = scaledYieldG / 1000;
+275:   const scaledCostPerKg = scaledYieldKg > 0 && scaledTotalIngCost > 0 ? scaledTotalIngCost / scaledYieldKg : costPerKg;
+277:   const chocGanacheItems = useMemo(() => recipeItems.filter(i => i.recipe_type === 'ganache'), [recipeItems]);
+279:   const chocGanacheLines = useMemo(() => {
+280:     if (chocGanacheItems.length > 0) {
+281:       return chocGanacheItems.map(item => {
+295:   }, [chocGanacheItems, rawMaterials, costPerKg, coqueKg]);
+297:   const totalGanacheCost = chocGanacheLines.reduce((s, l) => s + l.cost, 0);
+298:   const totalGanacheG = chocGanacheLines.reduce((s, l) => s + l.qtyG, 0);
+304:         <h1 className="text-2xl font-bold text-gray-900">Recettes & Chocolat Maison</h1>
+335:               <h2 className="text-lg font-semibold text-gray-900">Multiplicateur de Production</h2>
+338:               <button onClick={() => setMultiplier(Math.max(0.5, multiplier - 0.5))} className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 fle
+340:                 <input type="number" min="0.5" step="0.5" value={multiplier} onChange={e => setMultiplier(Math.max(0.5, parseFloat(e.target.value) || 
+343:               <button onClick={() => setMultiplier(multiplier + 0.5)} className="w-12 h-12 rounded-xl bg-amber-100 hover:bg-amber-200 flex items-cente
+347:           {/* Sub-tabs Coque/Ganache */}
+354:               <button onClick={() => setActiveTab('ganache')} className={`flex-1 flex items-center justify-center gap-2 py-4 text-sm font-semibold tra
+355:                 <Layers size={18} /> Recette Ganache
+356:                 <span className={`text-xs px-2 py-0.5 rounded-full ${activeTab === 'ganache' ? 'bg-rose-200 text-rose-800' : 'bg-gray-100 text-gray-50
+364:                 <p className="font-bold text-base">{activeTab === 'coque' ? 'Coque Macaron' : 'Ganache Macaron'}</p>
+365:                 <p className="text-xs text-white/80">Recette de base par lot · multiplicateur x{multiplier}</p>
+380:                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Quantité x{multiplier}</th>
+387:                   {multipliedLines.map((line, i) => (
+391:                       <td className={`px-4 py-3 text-right font-bold ${activeTab === 'coque' ? 'text-amber-600' : 'text-rose-600'}`}>{line.multipliedQ
+411:                     <td colSpan={4} className="px-4 py-3 text-right font-bold text-gray-800">Coût total {activeTab === 'coque' ? 'coque' : 'ganache'}:
+422:               <Plus size={18} /> Personnaliser {activeTab === 'coque' ? 'la coque' : 'la ganache'}
+428:             <div className="bg-amber-50 rounded-xl p-4"><p className="text-sm text-amber-600 font-medium">Coût Coque</p><p className="text-2xl font-bo
+429:             <div className="bg-rose-50 rounded-xl p-4"><p className="text-sm text-rose-600 font-medium">Coût Ganache</p><p className="text-2xl font-bo
+430:             <div className="bg-emerald-50 rounded-xl p-4"><p className="text-sm text-emerald-600 font-medium">Coût Total</p><p className="text-2xl fon
+438:               <div><p className="font-bold text-base">Calcul du Prix de Revient du Jour</p><p className="text-xs text-white/80">Coques calculées par l
+443:                   <div className="flex items-center gap-2 mb-3"><ChefHat size={16} className="text-amber-600" /><span className="text-sm font-semibold
+445:                   <p className="text-xs text-amber-500 mt-2">Ajustez le multiplicateur ci-dessus</p>
+448:                   <label className="block text-sm font-semibold text-rose-700 flex items-center gap-2"><Layers size={15} /> Ganache utilisée aujourd'h
+450:                     <button onClick={() => setGanacheDailyQty(q => Math.max(0, q - 50))} className="w-10 h-10 rounded-xl bg-rose-50 hover:bg-rose-100 
+452:                       <input type="number" min="0" step="50" value={ganacheDailyQty || ''} placeholder="0" onChange={e => setGanacheDailyQty(Math.max(
+455:                     <button onClick={() => setGanacheDailyQty(q => q + 50)} className="w-10 h-10 rounded-xl bg-rose-100 hover:bg-rose-200 flex items-c
+457:                   <div className="flex justify-between text-xs text-gray-400 px-1"><span>{ganacheCostPerGram > 0 ? `${(ganacheCostPerGram * 1000).toFi
+461:                 <div className="flex items-center gap-2 mb-4"><Calculator size={18} className="text-emerald-600" /><h3 className="font-semibold text-e
+463:                   <div className="flex justify-between items-center py-2 border-b border-emerald-200"><span className="text-sm text-gray-600 flex item
+464:                   <div className="flex justify-between items-center py-2 border-b border-emerald-200"><span className="text-sm text-gray-600 flex item
+487:                   <h2 className="text-lg font-semibold text-gray-900">Multiplicateur de Production Chocolat</h2>
+503:                   <div className="flex-1"><h2 className="font-bold text-lg">Recette Chocolat Maison</h2><p className="text-xs text-amber-200">Ingrédie
+560:                 {/* Rendement multiplié */}
+563:                     <span className="text-sm font-medium text-amber-800">Rendement avec multiplicateur x{chocMultiplier}:</span>
+580:               {/* Calcul ganache pour la production */}
+584:                   <div className="flex-1"><h2 className="font-bold text-lg">Calcul Ganache par Production</h2><p className="text-xs text-rose-100">Qua
+587:                   <div className="flex-1"><p className="text-sm font-semibold text-rose-800">Quantité de coques produites</p><p className="text-xs tex
+596:                     <thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Ingrédient ganache</th><th
+598:                       {chocGanacheLines.map((line, i) => (
+608:                     <tfoot className="bg-rose-50"><tr><td colSpan={2} className="px-4 py-3 text-right font-bold text-gray-800">Total ganache pour {coq
+614:                     <div className="bg-white rounded-xl p-3 border border-gray-200"><p className="text-xs text-gray-500">Ganache totale</p><p classNam
+615:                     <div className="bg-white rounded-xl p-3 border border-amber-200"><p className="text-xs text-amber-600">Coût ganache</p><p classNam
+616:                     <div className="bg-white rounded-xl p-3 border border-rose-200"><p className="text-xs text-rose-600">Ganache / macaron</p><p class
+630:             <div className="flex items-center justify-between p-4 border-b"><h2 className="text-lg font-semibold">{activeTab === 'coque' ? 'Personnali
+644:             <div className="flex items-center justify-between p-4 border-b"><h2 className="text-lg font-semibold">Prix — {selectedIngredient}</h2><but
+658:             <div className="flex items-center justify-between p-4 border-b"><h2 className="text-lg font-semibold">Ajouter un ingrédient</h2><button on
