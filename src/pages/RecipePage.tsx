@@ -43,6 +43,7 @@ export default function RecipePage() {
   // ── Macaron state ──
   const [activeTab, setActiveTab] = useState<RecipeType>('coque');
   const [multiplier, setMultiplier] = useState(1);
+  const [ganacheMultiplier, setGanacheMultiplier] = useState(1);
   const [ganacheDailyQty, setGanacheDailyQty] = useState(0);
   const [showAddIngredient, setShowAddIngredient] = useState(false);
   const [showPriceModal, setShowPriceModal] = useState(false);
@@ -185,9 +186,10 @@ export default function RecipePage() {
   const defaultPrices = activeTab === 'coque' ? DEFAULT_COQUE_PRICES : DEFAULT_GANACHE_PRICES;
 
   const multipliedLines = useMemo(() => activeLines.map(line => {
+    const mult = activeTab === 'coque' ? multiplier : ganacheMultiplier;
     const effectiveCost = line.unitCost ?? line.defaultCost ?? 0;
-    return { ...line, multipliedQuantity: line.quantity * multiplier, effectiveCost, totalCost: (line.quantity * multiplier / 1000) * effectiveCost };
-  }), [activeLines, multiplier]);
+    return { ...line, multipliedQuantity: line.quantity * mult, effectiveCost, totalCost: (line.quantity * mult / 1000) * effectiveCost };
+  }), [activeLines, multiplier, ganacheMultiplier, activeTab]);
 
   const totalCost = multipliedLines.reduce((s, l) => s + l.totalCost, 0);
   const totalWeight = multipliedLines.reduce((s, l) => s + l.multipliedQuantity, 0);
@@ -199,8 +201,8 @@ export default function RecipePage() {
 
   const ganacheTotalCost = useMemo(() => activeGanacheLines.reduce((s, l) => {
     const cost = l.unitCost ?? l.defaultCost ?? 0;
-    return s + (l.quantity * multiplier / 1000) * cost;
-  }, 0), [activeGanacheLines, multiplier]);
+    return s + (l.quantity * ganacheMultiplier / 1000) * cost;
+  }, 0), [activeGanacheLines, ganacheMultiplier]);
 
   const handleUpdatePrice = async (ingredientName: string, price: number) => {
     const existing = rawMaterials.find(m => m.name.toLowerCase().includes(ingredientName.toLowerCase().split(' ')[0]));
@@ -332,7 +334,7 @@ export default function RecipePage() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex items-center gap-3 mb-4">
               <Scale size={24} className="text-amber-500" />
-              <h2 className="text-lg font-semibold text-gray-900">Multiplicateur de Production</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Multiplicateur Coques</h2>
             </div>
             <div className="flex items-center gap-4">
               <button onClick={() => setMultiplier(Math.max(0.5, multiplier - 0.5))} className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-2xl font-bold text-gray-600 transition-colors">-</button>
@@ -362,7 +364,7 @@ export default function RecipePage() {
               {activeTab === 'coque' ? <ChefHat size={22} /> : <Layers size={22} />}
               <div>
                 <p className="font-bold text-base">{activeTab === 'coque' ? 'Coque Macaron' : 'Ganache Macaron'}</p>
-                <p className="text-xs text-white/80">Recette de base par lot · multiplicateur x{multiplier}</p>
+                <p className="text-xs text-white/80">Recette de base par lot · multiplicateur x{activeTab === 'coque' ? multiplier : ganacheMultiplier}</p>
               </div>
               <div className="ml-auto text-right">
                 <p className="text-xl font-bold">{totalWeight.toLocaleString()}g</p>
@@ -377,7 +379,7 @@ export default function RecipePage() {
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Ingrédient</th>
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Base (g)</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Quantité x{multiplier}</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Quantité x{activeTab === 'coque' ? multiplier : ganacheMultiplier}</th>
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Prix/kg</th>
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Coût</th>
                     {isCustom && <th className="px-4 py-3"></th>}
