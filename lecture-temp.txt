@@ -1,179 +1,194 @@
-=== BON ===
-79:   const [showFactureModal, setShowFactureModal] = useState(false);
-80:   const [factureItems, setFactureItems] = useState<{ label: string; quantity: number; unit_price: number }[]>([]);
-81:   const [factureItemForm, setFactureItemForm] = useState({ label: '', quantity: 1, unit_price: 0 });
-538:       <p style="margin-top:40px;font-size:12px;color:#999;text-align:center">${docType === 'facture' ? 'Facture émise conformément à la réglementation fiscale en vigueur.
-570:   const openFactureModal = () => {
-571:     setFactureItems([]);
-572:     setFactureItemForm({ label: '', quantity: 1, unit_price: 0 });
-573:     setShowFactureModal(true);
-576:   const addFactureItem = () => {
-578:     setFactureItems([...factureItems, { ...factureItemForm }]);
-579:     setFactureItemForm({ label: '', quantity: 1, unit_price: 0 });
-582:   const removeFactureItem = (idx: number) => {
-583:     setFactureItems(factureItems.filter((_, i) => i !== idx));
-586:   const printFactureFromModal = () => {
-592:     setShowFactureModal(false);
+=== IMPRESSION 440-569 ===
+440:               customer_id: selectedCustomer.id,
+441:               customer_name: selectedCustomer.name,
+442:               sale_group_id: groupId,
+443:             });
+444:             newSales.push(created);
+445:           } else {
+446:             const created = await api.shopSalesService.create({
+447:               ...common,
+448:               quantity: line.quantity,
+449:               price_per_piece: line.unit_price,
+450:               total_amount: line.lineTotal,
+451:               is_paid: line.lineIsPaid,
+452:               customer_id: selectedCustomer.id,
+453:               customer_name: selectedCustomer.name,
+454:             });
+455:             newShop.push(created);
+456:           }
+457:         }
+458: 
+459:         if (newBulk.length) setBulkSales([...newBulk, ...bulkSales]);
+460:         if (newSales.length) setSales([...newSales, ...sales]);
+461:         if (newShop.length) setShopSales([...newShop, ...shopSales]);
+462:       }
+463:       setShowSaleModal(false);
+464:     } catch (err) {
+465:       console.error(err);
+466:     } finally {
+467:       setSavingSale(false);
+468:     }
+469:   };
+470: 
+471:   const handleDeleteGroup = async (group: GroupedSale) => {
+472:     const count = group.items.length;
+473:     const confirmMsg = count > 1
+474:       ? `Supprimer cette vente de ${count} produits ?`
+475:       : 'Supprimer cette vente ?';
+476:     if (!confirm(confirmMsg)) return;
+477: 
+478:     try {
+479:       for (const s of group.items) {
+480:         const meta = SALE_TYPES.find(t => t.id === s.type)!;
+481:         if (meta.table === 'bulk') {
+482:           await api.bulkSalesService.delete(s.id);
+483:         } else if (meta.table === 'sales') {
+484:           await api.salesService.delete(s.id);
+485:         } else {
+486:           await api.shopSalesService.delete(s.id);
+487:         }
+488:       }
+489:       const itemIds = new Set(group.items.map(i => i.id));
+490:       setBulkSales(bulkSales.filter(x => !itemIds.has(x.id)));
+491:       setSales(sales.filter(x => !itemIds.has(x.id)));
+492:       setShopSales(shopSales.filter(x => !itemIds.has(x.id)));
+493:     } catch (err) {
+494:       console.error(err);
+495:     }
+496:   };
+497: 
+498:   const buildDocHTML = (docType: 'bon' | 'facture', items: { label: string; quantity: number; unit_price: number; total: number }[], totalGeneral: number, verse: number) => {
+499:     if (!selectedCustomer) return '';
+500:     const docNum = docType === 'bon'
+501:       ? `BC-${format(new Date(), 'yyyyMMdd')}-${Date.now().toString().slice(-4)}`
+502:       : `FAC-${format(new Date(), 'yyyyMMdd')}-${Date.now().toString().slice(-4)}`;
+503:     const title = docType === 'bon' ? 'BON DE COMMANDE' : 'FACTURE';
+504:     const rows = items.map(s => {
+505:       return `<tr><td style="padding:8px;border:1px solid #ddd">${s.label}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">${s.quantity}</td><td style="padding:8px;border:1px solid #ddd;text-align:right">${s.unit_price.toLocaleString()} DA</td><td style="padding:8px;border:1px solid #ddd;text-align:right;font-weight:bold">${s.total.toLocaleString()} DA</td></tr>`;
+506:     }).join('');
+507:     const reste = totalGeneral - verse;
+508:     const fi = fiscalInfo;
+509:     const fiscalBlock = fi ? `
+510:       <div style="margin-bottom:20px;font-size:13px;color:#555">
+511:         ${fi.company_name || ''}<br/>${fi.address || ''} ${fi.city || ''}<br/>
+512:         ${fi.phone ? 'Tel: ' + fi.phone : ''} ${fi.email ? ' | Email: ' + fi.email : ''}<br/>
+513:         ${fi.rc ? 'RC: ' + fi.rc : ''} ${fi.nif ? ' | NIF: ' + fi.nif : ''}<br/>
+514:         ${fi.ai ? 'AI: ' + fi.ai : ''} ${fi.nis ? ' | NIS: ' + fi.nis : ''}<br/>
+515:         ${fi.rib ? 'RIB: ' + fi.rib : ''}
+516:       </div>` : '';
+517:     return `<html><head><title>${title} ${docNum}</title>
+518:       <style>body{font-family:Arial,sans-serif;padding:30px;max-width:800px;margin:0 auto}
+519:       h1{color:#d97706;margin:0}h2{color:#333;margin:5px 0}
+520:       table{width:100%;border-collapse:collapse;margin-top:20px}
+521:       th{background:#fef3c7;padding:8px;border:1px solid #ddd;text-align:left}
+522:       .total-row{font-weight:bold;background:#f0fdf4}
+523:       .header{display:flex;justify-content:space-between;margin-bottom:30px}
+524:       .info-box{background:#f9fafb;padding:15px;border-radius:8px;margin-bottom:20px}
+525:       </style></head><body>
+526:       <div class="header">
+527:         <div><h1>${fi?.company_name || 'Hanky Macarons'}</h1>${fiscalBlock}</div>
+528:         <div style="text-align:right"><h2>${title}</h2><p>N° ${docNum}</p><p>${format(new Date(), 'dd MMMM yyyy', { locale: fr })}</p></div>
+529:       </div>
+530:       <div class="info-box"><strong>Client:</strong> ${selectedCustomer.name}<br/>
+531:       ${selectedCustomer.phone ? 'Tel: ' + selectedCustomer.phone + '<br/>' : ''}
+532:       ${selectedCustomer.address ? 'Adresse: ' + selectedCustomer.address : ''}</div>
+533:       <table><thead><tr><th>Désignation</th><th style="text-align:right">Qté</th><th style="text-align:right">Prix Unit.</th><th style="text-align:right">Total</th></tr></thead>
+534:       <tbody>${rows}</tbody>
+535:       <tfoot><tr class="total-row"><td colspan="3" style="padding:10px;border:1px solid #ddd;text-align:right">Total Général</td><td style="padding:10px;border:1px solid #ddd;text-align:right;font-size:18px">${totalGeneral.toLocaleString()} DA</td></tr>
+536:       <tr><td colspan="3" style="padding:8px;border:1px solid #ddd;text-align:right">Versé</td><td style="padding:8px;border:1px solid #ddd;text-align:right;color:#16a34a">${verse.toLocaleString()} DA</td></tr>
+537:       <tr><td colspan="3" style="padding:8px;border:1px solid #ddd;text-align:right">Reste à Payer</td><td style="padding:8px;border:1px solid #ddd;text-align:right;color:#dc2626">${reste.toLocaleString()} DA</td></tr></tfoot></table>
+538:       <p style="margin-top:40px;font-size:12px;color:#999;text-align:center">${docType === 'facture' ? 'Facture émise conformément à la réglementation fiscale en vigueur.' : 'Bon de commande à valider par les deux parties.'}</p>
+539:       </body></html>`;
+540:   };
+541: 
+542:   const printHTML = (html: string) => {
+543:     const iframe = document.createElement('iframe');
+544:     iframe.style.position = 'fixed';
+545:     iframe.style.right = '0';
+546:     iframe.style.bottom = '0';
+547:     iframe.style.width = '0';
+548:     iframe.style.height = '0';
+549:     iframe.style.border = '0';
+550:     document.body.appendChild(iframe);
+551:     const doc = iframe.contentWindow?.document;
+552:     if (!doc) return;
+553:     doc.open();
+554:     doc.write(html);
+555:     doc.close();
+556:     iframe.contentWindow?.focus();
+557:     setTimeout(() => {
+558:       try { iframe.contentWindow?.print(); } catch (e) { console.error(e); }
+559:       setTimeout(() => document.body.removeChild(iframe), 1000);
+560:     }, 250);
+561:   };
+562: 
+563:   const printDocument = (docType: 'bon' | 'facture') => {
+564:     if (!selectedCustomer || customerSales.length === 0) return;
+565:     const items = customerSales.map(s => ({ label: s.label, quantity: s.quantity, unit_price: s.unit_price, total: s.total_amount }));
+566:     const html = buildDocHTML(docType, items, customerStats.totalAchats, customerStats.totalPaye);
+567:     printHTML(html);
+568:   };
+569: 
+=== BOUTON BON 612-632 ===
+612:               </div>
+613:               <div>
+614:                 <h1 className="text-2xl font-bold">{selectedCustomer.name}</h1>
+615:                 <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-white/90 text-sm">
+616:                   {selectedCustomer.phone && <span className="flex items-center gap-1"><Phone size={12} /> {selectedCustomer.phone}</span>}
+617:                   {selectedCustomer.email && <span className="flex items-center gap-1"><Mail size={12} /> {selectedCustomer.email}</span>}
+618:                 </div>
+619:               </div>
+620:             </div>
+621:             <div className="flex gap-2 flex-shrink-0">
+622:               <button onClick={() => printDocument('bon')}
+623:                 className="flex items-center gap-2 px-3 py-2 bg-white/20 text-white rounded-xl hover:bg-white/30 transition-colors text-sm font-medium">
 624:                 <FileText size={16} /> Bon
+625:               </button>
 626:               <button onClick={openFactureModal}
+627:                 className="flex items-center gap-2 px-3 py-2 bg-white text-emerald-700 rounded-xl hover:bg-emerald-50 transition-colors text-sm font-medium shadow-sm">
 628:                 <FileCheck size={16} /> Facture
-895:         {/* Facture Modal */}
-896:         {showFactureModal && (
-900:                 <h2 className="text-lg font-semibold flex items-center gap-2"><FileCheck size={20} className="text-emerald-600" /> Créer une Facture</h2>
-901:                 <button onClick={() => setShowFactureModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
-912:                         onChange={e => setFactureItemForm({ ...factureItemForm, label: e.target.value })}
-917:                         onChange={e => setFactureItemForm({ ...factureItemForm, quantity: parseFloat(e.target.value) || 0 })}
-922:                         onChange={e => setFactureItemForm({ ...factureItemForm, unit_price: parseFloat(e.target.value) || 0 })}
-926:                       <button type="button" onClick={addFactureItem}
-938:                           onClick={() => setFactureItemForm({ label: t.label, quantity: 1, unit_price: price })}
-957:                         <button onClick={() => removeFactureItem(idx)} className="p-1 text-red-500 hover:bg-red-50 rounded"><Trash2 size={14} /></button>
-972:                   <button onClick={() => setShowFactureModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Annuler</button>
-973:                   <button onClick={printFactureFromModal} disabled={factureItems.length === 0}
-975:                     <Printer size={16} /> Imprimer la Facture
-
-=== TYPES ===
-export interface BulkSale {
-  id: string;
-  sale_date: string;
-  quantity_kg: number;
-  price_per_kg: number;
-  total_amount: number;
-  amount_paid?: number;
-  customer_name?: string;
-  customer_id?: string;
-  invoice_number?: string;
-  order_number?: string;
-  notes?: string;
-  created_at: string;
-}
-
-export interface RecipeConfig {
-  id: string;
-  name: string;
-  batch_size_kg: number;
-  created_at: string;
-}
-
-export interface RecipeItem {
-  id: string;
-  recipe_id: string;
-  material_id: string;
-  quantity_per_batch: number;
-  recipe_type: 'coque' | 'ganache';
------
-export interface Customer {
-  id: string;
-  name: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  notes?: string;
-  legal_name?: string;
-  fiscal_address?: string;
-  rc?: string;
-  nif?: string;
-  nis?: string;
-  ai?: string;
-  fiscal_phone?: string;
-  created_at: string;
-  prices?: CustomerPrice[];
-  products?: CustomerProduct[];
-}
-
-export interface CustomerPrice {
-  id: string;
-  customer_id: string;
-  box_size?: number;
-  product_type?: string;
-  unit_label?: string;
-  unit_price: number;
-  created_at: string;
-}
------
-export interface CustomerPrice {
-  id: string;
-  customer_id: string;
-  box_size?: number;
-  product_type?: string;
-  unit_label?: string;
-  unit_price: number;
-  created_at: string;
-}
-
-export interface CustomerProduct {
-  id: string;
-  customer_id: string;
-  product_type: 'vrac' | 'boite' | 'magasin';
-  label: string;
-  unit_label: string;
-  unit_price: number;
-  is_paid: boolean;
-  notes?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Sale {
-  id: string;
-  sale_date: string;
-  box_size: number;
-  quantity: number;
------
-export interface CustomerProduct {
-  id: string;
-  customer_id: string;
-  product_type: 'vrac' | 'boite' | 'magasin';
-  label: string;
-  unit_label: string;
-  unit_price: number;
-  is_paid: boolean;
-  notes?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Sale {
-  id: string;
-  sale_date: string;
-  box_size: number;
-  quantity: number;
-  unit_price: number;
-  total_amount: number;
-  amount_paid?: number;
-  customer_name?: string;
-  customer_phone?: string;
-  customer_id?: string;
-  notes?: string;
-  is_paid: boolean;
-  payment_status?: 'paid' | 'unpaid' | 'partial';
-  bon_livraison_number?: string;
------
-export interface CompanySettings {
-  id: string;
-  company_name: string;
-  currency: string;
-  profit_margin: number;
-  default_recipe_cost_per_kg?: number;
-  created_at: string;
-}
-
-export interface DashboardStats {
-  totalSalesToday: number;
-  totalSalesMonth: number;
-  totalPurchasesMonth: number;
-  profitToday: number;
-  profitMonth: number;
-  productionCostPerKg: number;
-  boxesSold: { size: number; count: number }[];
-  recentSales: Sale[];
-}
-
-export interface CostBreakdown {
-  rawMaterials: number;
-  labor: number;
-  packaging: number;
-  fixedCharges: number;
-  variableExpenses: number;
-  utilities: number;
-  total: number;
------
+629:               </button>
+630:               <button onClick={openAddSale}
+631:                 className="flex items-center gap-2 px-3 py-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-colors text-sm font-medium shadow-sm">
+632:                 <Plus size={16} /> Vente
+=== NUMEROS ===
+src/pages/BulkSalesPage.tsx:498:   const buildDocHTML = (docType: 'bon' | 'facture', items: { label: string; quantity: number; unit_price: number; total: number }[], totalGeneral: number, verse
+src/pages/BulkSalesPage.tsx:500:     const docNum = docType === 'bon'
+src/pages/BulkSalesPage.tsx:503:     const title = docType === 'bon' ? 'BON DE COMMANDE' : 'FACTURE';
+src/pages/BulkSalesPage.tsx:538:       <p style="margin-top:40px;font-size:12px;color:#999;text-align:center">${docType === 'facture' ? 'Facture émise conformément à la réglementation fiscale e
+src/pages/BulkSalesPage.tsx:563:   const printDocument = (docType: 'bon' | 'facture') => {
+src/pages/BulkSalesPage.tsx:566:     const html = buildDocHTML(docType, items, customerStats.totalAchats, customerStats.totalPaye);
+src/pages/HistoryPage.tsx:246:                     <td className="px-4 py-3 text-gray-400">{purchase.invoice_number || '-'}</td>
+src/pages/MaterialsPage.tsx:65:     purchase_date: format(new Date(), 'yyyy-MM-dd'), amount_paid: 0, invoice_number: '', notes: ''
+src/pages/MaterialsPage.tsx:87:     invoice_number: string;
+src/pages/MaterialsPage.tsx:94:     invoice_number: '',
+src/pages/MaterialsPage.tsx:176:           invoice_number: purchaseForm.invoice_number || undefined,
+src/pages/MaterialsPage.tsx:195:         invoice_number: '', notes: '', payment_status: 'unpaid', amount_paid: 0,
+src/pages/MaterialsPage.tsx:265:       invoice_number: '', notes: '', payment_status: 'unpaid', amount_paid: 0,
+src/pages/MaterialsPage.tsx:346:           invoice_number: supplierPurchaseForm.invoice_number || undefined,
+src/pages/MaterialsPage.tsx:352:           notes: supplierPurchaseForm.notes || undefined, invoice_number: supplierPurchaseForm.invoice_number || undefined,
+src/pages/MaterialsPage.tsx:358:       setSupplierPurchaseForm({ item_name: '', quantity: 1, unit: 'kg', unit_cost: 0, purchase_date: format(new Date(), 'yyyy-MM-dd'), amount_paid: 0, invoice_n
+src/pages/MaterialsPage.tsx:387:     p.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase())
+src/pages/MaterialsPage.tsx:627:                     {(group.purchases[0]?.invoice_number || group.purchases[0]?.notes) && (
+src/pages/MaterialsPage.tsx:629:                         {group.purchases[0]?.invoice_number && (
+src/pages/MaterialsPage.tsx:630:                           <div><p className="text-xs text-gray-500 font-medium mb-1">N° Facture</p><p className="font-semibold text-gray-800">{group.purchases[0
+src/pages/MaterialsPage.tsx:749:                   <button onClick={() => { setSupplierPurchaseForm({ item_name: '', quantity: 1, unit: 'kg', unit_cost: 0, purchase_date: format(new Date(), 'yy
+src/pages/MaterialsPage.tsx:787:                             <button onClick={() => { setEditingSupplierPurchase(p); setSupplierPurchaseForm({ item_name: p.item_name, quantity: p.quantity, unit
+src/pages/MaterialsPage.tsx:906:                 <input type="text" value={supplierPurchaseForm.invoice_number} onChange={e => setSupplierPurchaseForm({ ...supplierPurchaseForm, invoice_number:
+src/pages/MaterialsPage.tsx:977:                     <input type="text" value={purchaseForm.invoice_number}
+src/pages/MaterialsPage.tsx:978:                       onChange={e => setPurchaseForm({ ...purchaseForm, invoice_number: e.target.value })}
+src/pages/SalesPage.tsx:54:   bon_livraison_number: '',
+src/pages/SalesPage.tsx:132:       bon_livraison_number: sale.bon_livraison_number || '',
+src/pages/SalesPage.tsx:202:           bon_livraison_number: saleForm.bon_livraison_number || undefined,
+src/pages/SalesPage.tsx:227:             bon_livraison_number: saleForm.bon_livraison_number || undefined,
+src/pages/SalesPage.tsx:307:       (s.bon_livraison_number || '').toLowerCase().includes(q) ||
+src/pages/SalesPage.tsx:574:                       <p className="font-semibold text-blue-700">{group.sales[0]?.bon_livraison_number || '—'}</p>
+src/pages/SalesPage.tsx:784:                     <input type="text" value={saleForm.bon_livraison_number}
+src/pages/SalesPage.tsx:785:                       onChange={e => setSaleForm({ ...saleForm, bon_livraison_number: e.target.value })}
+src/types/index.ts:12:   invoice_number?: string;
+src/types/index.ts:13:   order_number?: string;
+src/types/index.ts:53:   invoice_number?: string;
+src/types/index.ts:204:   bon_livraison_number?: string;
+src/types/index.ts:230:   invoice_number?: string;
+src/types/index.ts:231:   order_number?: string;
+src/types/index.ts:312:   invoice_number?: string;
