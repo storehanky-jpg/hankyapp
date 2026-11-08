@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
+import { buildBonLivraisonHTML, buildBonLines, nextBonNumber, readBonNumber } from '../lib/deliveryNote';
 import type { BulkSale, Sale, ShopSale, Customer, FiscalInfo } from '../types';
 
 type SaleType = 'vrac' | 'boite20' | 'boite10' | 'boite6' | 'magasin';
@@ -560,6 +561,54 @@ export default function BulkSalesPage() {
     }, 250);
   };
 
+  const printBonLivraison = async (group: GroupedSale) => {
+    if (!selectedCustomer) return;
+    const lines = group.items.filter(i => i.type !== 'magasin');
+    if (lines.length === 0) {
+      alert("Aucun produit à livrer ce jour-là.");
+      return;
+    }
+    let num: number | null = null;
+    for (const it of lines) {
+      const stored = it.type === 'vrac'
+        ? (it.raw as BulkSale).order_number
+        : (it.raw as Sale).bon_livraison_number;
+      const n = readBonNumber(stored);
+      if (n !== null) { num = n; break; }
+    }
+    if (num === null) {
+      num = nextBonNumber([
+        ...bulkSales.map(s => s.order_number),
+        ...sales.map(s => s.bon_livraison_number),
+      ]);
+      const numStr = String(num).padStart(3, '0');
+      try {
+        for (const it of lines) {
+          if (it.type === 'vrac') {
+            await api.bulkSalesService.update(it.id, { order_number: numStr });
+          } else {
+            await api.salesService.update(it.id, { bon_livraison_number: numStr });
+          }
+        }
+        const ids = new Set(lines.map(i => i.id));
+        setBulkSales(bulkSales.map(x => (ids.has(x.id) ? { ...x, order_number: numStr } : x)));
+        setSales(sales.map(x => (ids.has(x.id) ? { ...x, bon_livraison_number: numStr } : x)));
+      } catch (err) {
+        console.error(err);
+        alert("Impossible d'enregistrer le numéro du bon : " + (err instanceof Error ? err.message : 'erreur'));
+        return;
+      }
+    }
+    const html = buildBonLivraisonHTML({
+      number: num,
+      dateISO: group.sale_date,
+      clientName: selectedCustomer.legal_name || selectedCustomer.name,
+      clientCity: selectedCustomer.address || selectedCustomer.fiscal_address || '',
+      lines: buildBonLines(lines.map(i => ({ type: i.type, quantity: i.quantity, unit_price: i.unit_price }))),
+    });
+    printHTML(html);
+  };
+
   const printDocument = (docType: 'bon' | 'facture') => {
     if (!selectedCustomer || customerSales.length === 0) return;
     const items = customerSales.map(s => ({ label: s.label, quantity: s.quantity, unit_price: s.unit_price, total: s.total_amount }));
@@ -619,7 +668,7 @@ export default function BulkSalesPage() {
               </div>
             </div>
             <div className="flex gap-2 flex-shrink-0">
-              <button onClick={() => printDocument('bon')}
+              <button onClick={() => { if (groupedSales[0]) printBonLivraison(groupedSales[0]); else printDocument('bon'); }}
                 className="flex items-center gap-2 px-3 py-2 bg-white/20 text-white rounded-xl hover:bg-white/30 transition-colors text-sm font-medium">
                 <FileText size={16} /> Bon
               </button>
@@ -789,6 +838,17 @@ export default function BulkSalesPage() {
                                 title="Modifier"
                               >
                                 <Edit2 size={15} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  printBonLivraison(group);
+                                }}
+                                className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Bon de livraison"
+                              >
+                                <FileText size={15} />
                               </button>
                               <button
                                 type="button"
