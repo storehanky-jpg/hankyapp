@@ -7,7 +7,7 @@ import {
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
-import * as api from '../services/api';
+import * as a pi from '../services/api';
 import type { Sale } from '../types';
 
 type PaymentStatus = 'paid' | 'unpaid' | 'partial';
