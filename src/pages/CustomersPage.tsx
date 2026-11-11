@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+impor t React, { useState, useMemo } from 'react';
 import {
   Plus, Trash2, Edit2, X, Phone, Mail, MapPin,
   Users, ShoppingBag, Tag, Save, Search, ChevronRight,
