@@ -1,159 +1,261 @@
-=== src/pages/Dashboard.tsx lignes 102-160 ===
-102:     const date = new Date(b.batch_date);
-103:     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-104:   });
-105:   const totalProduced = productionThisMonth.reduce((sum, b) => sum + b.produced_quantity, 0);
-106:   const totalLost = productionThisMonth.reduce((sum, b) => sum + b.lost_quantity, 0);
-107: 
-108:   // Sales chart data - last 7 days (box + bulk)
-109:   const last7Days = eachDayOfInterval({
-110:     start: subDays(today, 6),
-111:     end: today
-112:   });
-113:   const salesChartData = last7Days.map(day => {
-114:     const dayStr = format(day, 'yyyy-MM-dd');
-115:     const boxAmt = sales.filter(s => s.sale_date === dayStr).reduce((sum, s) => sum + s.total_amount, 0);
-116:     const bulkAmt = bulkSales.filter(s => s.sale_date === dayStr).reduce((sum, s) => sum + s.total_amount, 0);
-117:     return {
-118:       date: format(day, 'dd/MM', { locale: fr }),
-119:       dayName: format(day, 'EEE', { locale: fr }),
-120:       boites: boxAmt,
-121:       vrac: bulkAmt,
-122:       ventes: boxAmt + bulkAmt
-123:     };
-124:   });
-125: 
-126:   // Box sizes sold this month
-127:   const boxSizesData: { size: number; count: number }[] = [];
-128:   const sizeMap: Record<number, number> = {};
-129:   salesThisMonth.forEach(s => {
-130:     sizeMap[s.box_size] = (sizeMap[s.box_size] || 0) + s.quantity;
-131:   });
-132:   Object.entries(sizeMap).forEach(([size, count]) => {
-133:     boxSizesData.push({ size: parseInt(size), count });
-134:   });
-135: 
-136:   // Production vs Sales comparison
-137:   const productionComparisonData = last7Days.map(day => {
-138:     const dayStr = format(day, 'yyyy-MM-dd');
-139:     const dayProduction = productionBatches
-140:       .filter(b => b.batch_date === dayStr)
-141:       .reduce((sum, b) => sum + b.produced_quantity, 0);
-142:     const daySalesCount = sales
-143:       .filter(s => s.sale_date === dayStr)
-144:       .reduce((sum, s) => sum + s.quantity, 0);
-145:     return {
-146:       date: format(day, 'dd/MM'),
-147:       production: dayProduction,
-148:       ventes: daySalesCount
-149:     };
-150:   });
-151: 
-152:   const statsCards = [
-153:     {
-154:       title: "Chiffre d'Affaires Aujourd'hui",
-155:       value: `${totalSalesToday.toLocaleString()} DZD`,
-156:       subtitle: `${boxesSoldToday} boîtes + ${bulkAmountToday > 0 ? bulkSalesToday.reduce((s, b) => s + b.quantity_kg, 0).toFixed(1) + 'kg vrac' : '0kg vrac'}`,
-157:       icon: <ShoppingCart size={24} />,
-158:       trend: profitToday >= 0,
-159:       trendValue: `${Math.abs(profitToday).toLocaleString()} DZD ${profitToday >= 0 ? 'bénéfice' : 'perte estimée'}`,
-160:       color: 'from-emerald-500 to-teal-600',
-=== src/pages/Dashboard.tsx lignes 345-385 ===
-345:                 <tr className="text-left text-sm text-gray-500 border-b">
-346:                   <th className="pb-3 font-medium">Date</th>
-347:                   <th className="pb-3 font-medium">Type</th>
-348:                   <th className="pb-3 font-medium">Détail</th>
-349:                   <th className="pb-3 font-medium text-right">Montant</th>
-350:                 </tr>
-351:               </thead>
-352:               <tbody>
-353:                 {[
-354:                   ...sales.slice(0, 4).map(s => ({ date: s.sale_date, type: 'boite' as const, detail: `${s.quantity} boîte(s) × ${s.box_size} pcs`, amount: s.total_amount })),
-355:                   ...bulkSales.slice(0, 3).map(s => ({ date: s.sale_date, type: 'vrac' as const, detail: `${s.quantity_kg} kg × ${s.price_per_kg.toLocaleString()} DZD/kg`, amount: s.total_amount }))
-356:                 ]
-357:                   .sort((a, b) => b.date.localeCompare(a.date))
-358:                   .slice(0, 6)
-359:                   .map((item, i) => (
-360:                     <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-361:                       <td className="py-3 text-sm text-gray-600">
-362:                         {format(new Date(item.date), 'dd MMM', { locale: fr })}
-363:                       </td>
-364:                       <td className="py-3">
-365:                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${item.type === 'boite' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-366:                           {item.type === 'boite' ? 'Boîte' : 'Vrac'}
-367:                         </span>
-368:                       </td>
-369:                       <td className="py-3 text-sm text-gray-600">{item.detail}</td>
-370:                       <td className="py-3 text-sm text-gray-900 font-medium text-right">
-371:                         {item.amount.toLocaleString()} DZD
-372:                       </td>
-373:                     </tr>
-374:                   ))}
-375:                 {sales.length === 0 && bulkSales.length === 0 && (
-376:                   <tr>
-377:                     <td colSpan={4} className="py-8 text-center text-gray-400">
-378:                       Aucune vente enregistrée
-379:                     </td>
-380:                   </tr>
-381:                 )}
-382:               </tbody>
-383:             </table>
-384:           </div>
-385:         </div>
-=== src/pages/ReportsPage.tsx lignes 70-125 ===
-70:   // Daily sales chart (current month) — box + bulk
-71:   const dailySalesData = useMemo(() => {
-72:     const days = eachDayOfInterval({
-73:       start: startOfMonth(today),
-74:       end: today
-75:     });
-76: 
-77:     return days.map(day => {
-78:       const dayStr = format(day, 'yyyy-MM-dd');
-79:       const daySales = sales.filter(s => s.sale_date === dayStr);
-80:       const dayBulk = bulkSales.filter(s => s.sale_date === dayStr);
-81:       return {
-82:         date: format(day, 'dd'),
-83:         dayName: format(day, 'EEE', { locale: fr }),
-84:         ventes: daySales.reduce((sum, s) => sum + s.total_amount, 0),
-85:         vrac: dayBulk.reduce((sum, s) => sum + s.total_amount, 0),
-86:         transactions: daySales.length + dayBulk.length
-87:       };
-88:     });
-89:   }, [sales, bulkSales]);
-90: 
-91:   // Box size distribution
-92:   const boxSizeDistribution = useMemo(() => {
-93:     const sizeMap: Record<number, { count: number; amount: number }> = {};
-94:     const monthSales = sales.filter(s => {
-95:       const date = new Date(s.sale_date);
-96:       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-97:     });
+=== src/pages/MaterialsPage.tsx lignes 28-40 ===
+28:   unpaid: 'bg-red-500',
+29:   partial: 'bg-orange-500',
+30: };
+31: 
+32: interface PurchaseLine {
+33:   material_id: string;
+34:   quantity: number;
+35:   unit_cost: number;
+36: }
+37: 
+38: const emptyPurchaseLine = (materialId: string): PurchaseLine => ({ material_id: materialId, quantity: 1, unit_cost: 0 });
+39: 
+40: export default function MaterialsPage() {
+=== src/pages/MaterialsPage.tsx lignes 200-232 ===
+200:         lines: [],
+201:       });
+202:     } catch (error) {
+203:       console.error('Error saving purchase:', error);
+204:       alert('Erreur lors de l\'enregistrement de l\'achat.');
+205:     }
+206:   };
+207: 
+208:   const handleUpdateGroupPaymentStatus = async (groupKey: string, status: PaymentStatus, amountPaid?: number) => {
+209:     const groupPurchases = groupedPurchases.find(g => g.key === groupKey)?.purchases || [];
+210:     try {
+211:       for (const p of groupPurchases) {
+212:         const updated = await api.materialPurchasesService.update(p.id, {
+213:           payment_status: status,
+214:           amount_paid: status === 'paid' ? p.total_cost : status === 'partial' ? (amountPaid ?? p.amount_paid ?? 0) : 0,
+215:         });
+216:         setMaterialPurchases(prev => prev.map(x => x.id === p.id ? updated : x));
+217:       }
+218:     } catch (error) {
+219:       console.error('Error updating payment status:', error);
+220:     }
+221:   };
+222: 
+223:   const handleDeleteMaterial = async (id: string) => {
+224:     if (!confirm('Supprimer cette matière première?')) return;
+225:     try {
+226:       await api.rawMaterialsService.delete(id);
+227:       setRawMaterials(rawMaterials.filter(m => m.id !== id));
+228:     } catch (error) {
+229:       console.error('Error deleting material:', error);
+230:     }
+231:   };
+232: 
+=== src/pages/MaterialsPage.tsx lignes 385-440 ===
+385:     m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+386:     m.supplier?.toLowerCase().includes(searchTerm.toLowerCase())
+387:   );
+388: 
+389:   const filteredPurchases = materialPurchases.filter(p =>
+390:     p.material?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+391:     p.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase())
+392:   );
+393: 
+394:   // Group purchases by purchase_date (all purchases on same day = one row)
+395:   const groupedPurchases = useMemo(() => {
+396:     const groups: {
+397:       key: string; purchases: MaterialPurchase[]; purchase_date: string;
+398:       total: number; amount_paid: number; reste: number; count: number;
+399:       payment_status: PaymentStatus;
+400:     }[] = [];
+401:     const groupMap: Record<string, number> = {};
+402: 
+403:     for (const p of filteredPurchases) {
+404:       const key = p.purchase_date;
+405:       if (groupMap[key] === undefined) {
+406:         groupMap[key] = groups.length;
+407:         groups.push({
+408:           key, purchases: [], purchase_date: p.purchase_date,
+409:           total: 0, amount_paid: 0, reste: 0, count: 0, payment_status: 'paid',
+410:         });
+411:       }
+412:       const g = groups[groupMap[key]];
+413:       g.purchases.push(p);
+414:       g.total += p.total_cost;
+415:       g.amount_paid += p.amount_paid || 0;
+416:       g.count++;
+417:     }
+418: 
+419:     for (const g of groups) {
+420:       g.reste = g.total - g.amount_paid;
+421:       if (g.reste <= 0) g.payment_status = 'paid';
+422:       else if (g.amount_paid > 0) g.payment_status = 'partial';
+423:       else g.payment_status = 'unpaid';
+424:     }
+425: 
+426:     return groups.sort((a, b) => b.purchase_date.localeCompare(a.purchase_date));
+427:   }, [filteredPurchases]);
+428: 
+429:   function renderPurchasePaymentBadge(group: typeof groupedPurchases[number]) {
+430:     const status = group.payment_status;
+431:     const colorClass = status === 'paid' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+432:       : status === 'partial' ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+433:       : 'bg-red-100 text-red-700 hover:bg-red-200';
+434:     return (
+435:       <button
+436:         onClick={() => {
+437:           if (status === 'paid') handleUpdateGroupPaymentStatus(group.key, 'unpaid');
+438:           else if (status === 'unpaid') handleUpdateGroupPaymentStatus(group.key, 'paid');
+439:           else {
+440:             const amt = prompt('Montant versé (DA):', String(group.amount_paid));
+=== src/pages/MaterialsPage.tsx lignes 545-640 ===
+545:                     </td>
+546:                   </tr>
+547:                 ))}
+548:               </tbody>
+549:             </table>
+550:           </div>
+551:           {filteredMaterials.length === 0 && <div className="p-8 text-center text-gray-400">Aucune matière première trouvée</div>}
+552:         </div>
+553:       )}
+554: 
+555:       {/* Purchases — grouped by date with expand/collapse */}
+556:       {activeTab === 'purchases' && (
+557:         <div className="space-y-3">
+558:           {groupedPurchases.length === 0 && (
+559:             <div className="bg-white rounded-2xl p-10 text-center text-gray-400 shadow-sm border border-gray-100">
+560:               <ShoppingCart size={48} className="mx-auto mb-3 text-gray-200" />
+561:               <p className="font-medium">Aucun achat enregistré</p>
+562:             </div>
+563:           )}
+564:           {groupedPurchases.map(group => {
+565:             const isExpanded = expandedPurchaseRow === group.key;
+566:             const isMulti = group.purchases.length > 1;
+567:             return (
+568:               <div key={group.key} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+569:                 {/* Collapsed header */}
+570:                 <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+571:                   <button onClick={() => setExpandedPurchaseRow(isExpanded ? null : group.key)}
+572:                     className="p-0.5 text-gray-400 hover:text-gray-600" title="Voir détails">
+573:                     {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+574:                   </button>
+575:                   <div className="flex-1 min-w-0">
+576:                     <div className="flex items-center gap-2">
+577:                       <p className="font-medium text-gray-900 text-sm">{format(new Date(group.purchase_date), 'dd/MM/yyyy', { locale: fr })}</p>
+578:                       {isMulti && (
+579:                         <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
+580:                           <Layers size={10} /> {group.count} produits
+581:                         </span>
+582:                       )}
+583:                     </div>
+584:                     {!isMulti && (
+585:                       <p className="text-xs text-gray-400 mt-0.5">{group.purchases[0].material?.name || '-'} — {group.purchases[0].quantity} {group.purchases[0].material?.unit}</p>
+586:                     )}
+587:                   </div>
+588:                   <div className="text-right flex-shrink-0">
+589:                     <p className="font-bold text-gray-900">{group.total.toLocaleString()} DZD</p>
+590:                     {group.payment_status === 'partial' && (
+591:                       <p className="text-xs text-orange-600">Reste: {group.reste.toLocaleString()} DZD</p>
+592:                     )}
+593:                   </div>
+594:                   {renderPurchasePaymentBadge(group)}
+595:                   <div className="flex items-center gap-1 flex-shrink-0">
+596:                     <button onClick={() => handleDeletePurchaseGroup(group.key)}
+597:                       className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Supprimer">
+598:                       <Trash2 size={14} />
+599:                     </button>
+600:                   </div>
+601:                 </div>
+602: 
+603:                 {/* Expanded details */}
+604:                 {isExpanded && (
+605:                   <div className="bg-amber-50/60 border-t border-gray-100 px-6 py-4">
+606:                     {isMulti && (
+607:                       <div className="space-y-2 mb-3">
+608:                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Produits de l'achat</p>
+609:                         {group.purchases.map(p => (
+610:                           <div key={p.id} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 border border-gray-100">
+611:                             <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-amber-100 text-amber-600">
+612:                               <Package size={14} />
+613:                             </div>
+614:                             <div className="flex-1">
+615:                               <span className="text-sm font-medium text-gray-900">{p.material?.name || 'Inconnu'}</span>
+616:                               <span className="text-xs text-gray-500 ml-2">× {p.quantity} {p.material?.unit}</span>
+617:                             </div>
+618:                             <span className="text-sm text-gray-600">{p.unit_cost.toLocaleString()} DZD/{p.material?.unit}</span>
+619:                             <span className="text-sm font-bold text-gray-900">{p.total_cost.toLocaleString()} DZD</span>
+620:                           </div>
+621:                         ))}
+622:                       </div>
+623:                     )}
+624:                     {group.payment_status === 'partial' && (
+625:                       <div className="flex gap-4 bg-white rounded-lg p-3 border border-orange-100 mb-3">
+626:                         <div><p className="text-xs text-gray-500">Total</p><p className="font-bold text-gray-900">{group.total.toLocaleString()} DZD</p></div>
+627:                         <div><p className="text-xs text-gray-500">Versé</p><p className="font-bold text-emerald-600">{group.amount_paid.toLocaleString()} DZD</p></div>
+628:                         <div><p className="text-xs text-gray-500">Reste à payer</p><p className="font-bold text-orange-600">{group.reste.toLocaleString()} DZD</p></div>
+629:                       </div>
+630:                     )}
+631:                     {(group.purchases[0]?.invoice_number || group.purchases[0]?.notes) && (
+632:                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+633:                         {group.purchases[0]?.invoice_number && (
+634:                           <div><p className="text-xs text-gray-500 font-medium mb-1">N° Facture</p><p className="font-semibold text-gray-800">{group.purchases[0].invoice_number}</p></div>
+635:                         )}
+636:                         {group.purchases[0]?.notes && (
+637:                           <div><p className="text-xs text-gray-500 font-medium mb-1">Notes</p><p className="text-gray-700">{group.purchases[0].notes}</p></div>
+638:                         )}
+639:                       </div>
+640:                     )}
+=== src/services/api.ts lignes 78-135 ===
+78: 
+79: // Material Purchases
+80: export const materialPurchasesService = {
+81:   async getAll(): Promise<MaterialPurchase[]> {
+82:     if (!isOnline()) {
+83:       return offlineStorage.get<MaterialPurchase[]>('material_purchases') || [];
+84:     }
+85:     try {
+86:       const { data, error } = await supabase
+87:         .from('material_purchases')
+88:         .select('*, material:raw_materials(*)')
+89:         .order('purchase_date', { ascending: false });
+90:       if (error) throw error;
+91:       const merged = mergeWithLocal<MaterialPurchase>('material_purchases', data);
+92:       offlineStorage.set('material_purchases', merged);
+93:       return merged;
+94:     } catch {
+95:       return offlineStorage.get<MaterialPurchase[]>('material_purchases') || [];
+96:     }
+97:   },
 98: 
-99:     monthSales.forEach(s => {
-100:       if (!sizeMap[s.box_size]) {
-101:         sizeMap[s.box_size] = { count: 0, amount: 0 };
-102:       }
-103:       sizeMap[s.box_size].count += s.quantity;
-104:       sizeMap[s.box_size].amount += s.total_amount;
-105:     });
-106: 
-107:     return Object.entries(sizeMap).map(([size, data]) => ({
-108:       name: `${size} pcs`,
-109:       value: data.count,
-110:       amount: data.amount
-111:     }));
-112:   }, [sales]);
-113: 
-114:   // Revenue vs Expenses
-115:   const monthStart = format(startOfMonth(today), 'yyyy-MM-dd');
-116:   const monthEnd = format(endOfMonth(today), 'yyyy-MM-dd');
-117: 
-118:   const monthBoxSales = sales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
-119:   const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
-120:   const boxRevenue = monthBoxSales.reduce((sum, s) => sum + s.total_amount, 0);
-121:   const bulkRevenue = monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0);
-122:   const shopRevenue = shopSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd).reduce((sum, s) => sum + s.total_amount, 0);
-123:   const totalRevenue = boxRevenue + bulkRevenue + shopRevenue;
-124: 
-125:   // keep alias for table below
+99:   async create(purchase: Omit<MaterialPurchase, 'id' | 'created_at'>): Promise<MaterialPurchase> {
+100:     if (!isOnline()) {
+101:       return offlineCreate<MaterialPurchase>('material_purchases', purchase);
+102:     }
+103:     const { data, error } = await supabase.from('material_purchases').insert(purchase).select().single();
+104:     if (error) throw error;
+105:     return data;
+106:   },
+107: 
+108:   async update(id: string, purchase: Partial<MaterialPurchase>): Promise<MaterialPurchase> {
+109:     if (!isOnline()) {
+110:       return offlineUpdate<MaterialPurchase>('material_purchases', id, purchase);
+111:     }
+112:     const { data, error } = await supabase.from('material_purchases').update(purchase).eq('id', id).select().single();
+113:     if (error) throw error;
+114:     return data;
+115:   },
+116: 
+117:   async delete(id: string): Promise<void> {
+118:     if (!isOnline()) {
+119:       offlineDelete<MaterialPurchase>('material_purchases', id);
+120:       addToTombstone('material_purchases', id);
+121:       return;
+122:     }
+123:     const { error } = await supabase.from('material_purchases').delete().eq('id', id);
+124:     if (error) throw error;
+125:     purgeFromLocal<MaterialPurchase>('material_purchases', id);
+126:     addToTombstone('material_purchases', id);
+127:   }
+128: };
+129: 
+130: // Fixed Charges
+131: export const fixedChargesService = {
+132:   async getAll(): Promise<FixedCharge[]> {
+133:     if (!isOnline()) {
+134:       return offlineStorage.get<FixedCharge[]>('fixed_charges') || [];
+135:     }
