@@ -16,7 +16,7 @@ export default function ReportsPage() {
 
   const today = new Date();
   const currentMonth = today.getMonth();
-  cons t currentYear = today.getFullYear();
+  const currentYear = today.getFullYear();
 
   // Calculate date range based on period
   const dateRange = useMemo(() => {
