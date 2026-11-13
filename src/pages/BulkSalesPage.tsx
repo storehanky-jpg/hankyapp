@@ -3,7 +3,7 @@ import {
   Plus, Trash2, Edit2, X, Printer, Store, Package, Scale,
   Check, Clock, ArrowLeft, Search, FileText, FileCheck,
   Users, Phone, Mail, TrendingUp, ShoppingBag, Tag,
-  ChevronRight, ChevronDown, Sparkles, Receipt
+  ChevronRight, ChevronDo wn, Sparkles, Receipt
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
