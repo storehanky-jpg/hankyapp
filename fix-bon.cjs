@@ -1,64 +1,38 @@
 const fs = require('fs');
 console.log('DEBUT');
-const cibles = [
-  ['src/pages/BulkSalesPage.tsx', 976, 'factureItemForm.quantity'],
-  ['src/pages/BulkSalesPage.tsx', 981, 'factureItemForm.unit_price'],
-  ['src/pages/BulkSalesPage.tsx', 1097, 'line.quantity'],
-  ['src/pages/BulkSalesPage.tsx', 1102, 'line.unit_price'],
-  ['src/pages/SalesPage.tsx', 721, 'sel.quantity'],
-  ['src/pages/SalesPage.tsx', 727, 'sel.unit_price'],
-  ['src/pages/SalesPage.tsx', 773, 'saleForm.amount_paid'],
-  ['src/pages/MaterialsPage.tsx', 890, 'supplierPurchaseForm.quantity'],
-  ['src/pages/MaterialsPage.tsx', 896, 'supplierPurchaseForm.unit_cost'],
-  ['src/pages/MaterialsPage.tsx', 903, 'supplierPurchaseForm.amount_paid'],
-  ['src/pages/MaterialsPage.tsx', 944, 'materialForm.unit_cost'],
-  ['src/pages/MaterialsPage.tsx', 1031, 'line.quantity'],
-  ['src/pages/MaterialsPage.tsx', 1037, 'line.unit_cost'],
-  ['src/pages/MaterialsPage.tsx', 1089, 'purchaseForm.amount_paid'],
-  ['src/pages/CustomerDetailPage.tsx', 388, 'form.unit_price'],
-  ['src/pages/CustomersPage.tsx', 433, 'p.unit_price']
-];
-const BS = 'src/pages/BulkSalesPage.tsx';
-const fichiers = {};
-for (const [f] of cibles) {
-  if (!fichiers[f]) fichiers[f] = fs.readFileSync(f, 'utf8').split('\n');
+function lignes(f) { return fs.readFileSync(f, 'utf8').split('\n'); }
+function cut(f, a, b) {
+  const l = lignes(f);
+  return '=== ' + f + ' lignes ' + a + '-' + b + ' ===\n' + l.slice(a - 1, Math.min(b, l.length)).map((x, i) => (a + i) + ': ' + x).join('\n') + '\n';
 }
-for (const [f, n, marque] of cibles) {
-  const l = fichiers[f][n - 1];
-  if (l === undefined || !l.includes('type="number"') || !l.includes(marque)) {
-    console.log('ARRET : ligne inattendue ' + f + ' ' + n);
-    process.exit(1);
+function find(f, re, max) {
+  const l = lignes(f);
+  const o = ['=== ' + f + ' recherche ' + re + ' ==='];
+  l.forEach((x, i) => { if (re.test(x) && o.length <= max) o.push((i + 1) + ': ' + x.trim().slice(0, 170)); });
+  return o.join('\n') + '\n';
+}
+function compter(dossier, mots) {
+  const o = ['=== utilisation de ' + mots.join(' / ') + ' dans ' + dossier + ' ==='];
+  for (const nom of fs.readdirSync(dossier)) {
+    const p = dossier + '/' + nom;
+    if (fs.statSync(p).isDirectory() || !/\.(tsx|ts)$/.test(nom)) continue;
+    const t = fs.readFileSync(p, 'utf8');
+    const n = mots.map(m => t.split(m).length - 1);
+    if (n.some(x => x > 0)) o.push(p + ' : ' + n.join(' / '));
   }
+  return o.join('\n') + '\n';
 }
-for (const f of Object.keys(fichiers)) {
-  fs.writeFileSync('backup-' + f.split('/').pop() + '.txt', fs.readFileSync(f, 'utf8'));
-}
-function remplacer(needle, de, vers) {
-  const L = fichiers[BS];
-  const idx = L.findIndex(l => l.includes(needle));
-  if (idx < 0) { console.log('info : deja fait ou introuvable : ' + needle.slice(0, 45)); return 0; }
-  L[idx] = L[idx].split(de).join(vers);
-  return 1;
-}
-let defauts = 0;
-defauts += remplacer("setSaleLines([{ type: 'boite20', quantity: 1", "'boite20'", "'vrac'");
-defauts += remplacer("const lastType = saleLines[saleLines.length - 1]?.type || 'boite20';", "'boite20'", "'vrac'");
-let total = 0;
-for (const [f, n] of cibles) {
-  let l = fichiers[f][n - 1];
-  if (l.includes("step={line.type === 'vrac' ? '0.1' : '1'}")) {
-    l = l.replace("'0.1'", "'any'");
-  } else if (l.includes("step={product.unit === 'kg' ? '0.5' : '1'}")) {
-    l = l.replace("'0.5'", "'any'");
-  } else if (/step="[^"]*"/.test(l)) {
-    l = l.replace(/step="[^"]*"/, 'step="any"');
-  } else {
-    l = l.replace('type="number"', 'type="number" step="any"');
-  }
-  fichiers[f][n - 1] = l;
-  total++;
-}
-for (const f of Object.keys(fichiers)) {
-  fs.writeFileSync(f, fichiers[f].join('\n'));
-}
-console.log('OK : ' + defauts + ' defauts vrac, ' + total + ' champs decimaux, ' + Object.keys(fichiers).length + ' fichiers');
+const M = 'src/pages/MaterialsPage.tsx';
+const B = 'src/pages/BulkSalesPage.tsx';
+let s = '';
+s += find(M, /function |const handle|useState|showPurchase|purchaseLines|PurchaseLine/, 90);
+s += cut(M, 985, 1135);
+s += find(M, /[dD]elete|remove/, 40);
+s += cut(B, 1055, 1230);
+s += cut(B, 470, 500);
+s += find('src/services/api.ts', /[dD]elete/, 40);
+s += compter('src/pages', ['purchases', 'bulkSales', 'bulk_sales', 'shopSales']);
+s += compter('src/context', ['purchases', 'bulkSales', 'bulk_sales', 'shopSales']);
+s += compter('src/lib', ['purchases', 'bulkSales', 'bulk_sales', 'shopSales']);
+fs.writeFileSync('lecture-temp.txt', s);
+console.log('OK', s.length, 'caracteres');
