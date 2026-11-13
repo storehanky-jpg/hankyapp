@@ -12,7 +12,7 @@ import * as api from '../services/api';
 import { buildBonLivraisonHTML, buildBonLines, nextBonNumber, readBonNumber } from '../lib/deliveryNote';
 import type { BulkSale, Sale, ShopSale, Customer, FiscalInfo } from '../types';
 
-type SaleType = 'vrac' | 'boite20' | 'boite10' | 'boite6' | 'magasin';
+type SaleType = 'vrac' | 'boite20'  | 'boite10' | 'boite6' | 'magasin';
 
 const SALE_TYPES: { id: SaleType; label: string; shortLabel: string; icon: React.ReactNode; table: 'bulk' | 'sales' | 'shop'; color: string }[] = [
   { id: 'vrac', label: 'Macaron en Vrac (kg)', shortLabel: 'Vrac', icon: <Scale size={16} />, table: 'bulk', color: 'amber' },
