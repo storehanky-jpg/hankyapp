@@ -4,7 +4,7 @@ import {
   Printer, Edit2, Phone, CheckCircle, XCircle, Truck,
   Receipt, ChevronDown, ChevronUp, Search, Users, Layers, Scale, Package, Wallet
 } from 'lucide-react';
-import { format, startOfMonth,  endOfMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
