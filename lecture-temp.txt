@@ -1,58 +1,116 @@
-src/pages/BulkSalesPage.tsx ligne 976 : <input type="number" min="0" step="0.5" placeholder="Qté" value={factureItemForm.quantity}
-src/pages/BulkSalesPage.tsx ligne 981 : <input type="number" min="0" step="10" placeholder="Prix" value={factureItemForm.unit_price}
-src/pages/BulkSalesPage.tsx ligne 1097 : <input type="number" step={line.type === 'vrac' ? '0.1' : '1'} min="0" value={line.quantity}
-src/pages/BulkSalesPage.tsx ligne 1102 : <input type="number" min="0" step="10" value={line.unit_price}
-src/pages/BulkSalesPage.tsx ligne 1166 : <input type="number" min="1" max={Math.max(1, saleTotal - 1)}
-src/pages/ChargesPage.tsx ligne 511 : type="number"
-src/pages/ChargesPage.tsx ligne 572 : type="number"
-src/pages/ChargesPage.tsx ligne 661 : type="number"
-src/pages/ChargesPage.tsx ligne 681 : type="number"
-src/pages/ChargesPage.tsx ligne 708 : type="number"
-src/pages/ChargesPage.tsx ligne 719 : type="number"
-src/pages/ChargesPage.tsx ligne 747 : type="number"
-src/pages/ChocolatPage.tsx ligne 264 : type="number" min="0" step="1"
-src/pages/ChocolatPage.tsx ligne 272 : type="number" min="0" step="1"
-src/pages/ChocolatPage.tsx ligne 340 : type="number" min="1" step="50"
-src/pages/ChocolatPage.tsx ligne 420 : type="number" min="0.5" step="0.5"
-src/pages/ChocolatPage.tsx ligne 549 : type="number" min="0" step="1" required
-src/pages/ChocolatPage.tsx ligne 558 : type="number" min="0" step="1" required
-src/pages/CustomerDetailPage.tsx ligne 293 : type="number"
-src/pages/CustomerDetailPage.tsx ligne 388 : <input type="number" min="0" step="10" required value={form.unit_price}
-src/pages/CustomersPage.tsx ligne 433 : <input type="number" min="0" step="10" value={p.unit_price}
-src/pages/MaterialsPage.tsx ligne 890 : <input type="number" step="0.01" min="0" required value={supplierPurchaseForm.quantity} onChange={e => setSupplierPurchaseForm({ ...supplierPurchaseForm, quantity: parseFloat(e.target.value) || 0 })}
-src/pages/MaterialsPage.tsx ligne 896 : <input type="number" min="0" step="0.01" required value={supplierPurchaseForm.unit_cost} onChange={e => setSupplierPurchaseForm({ ...supplierPurchaseForm, unit_cost: parseFloat(e.target.value) || 0 })}
-src/pages/MaterialsPage.tsx ligne 903 : <input type="number" min="0" value={supplierPurchaseForm.amount_paid} onChange={e => setSupplierPurchaseForm({ ...supplierPurchaseForm, amount_paid: parseFloat(e.target.value) || 0 })}
-src/pages/MaterialsPage.tsx ligne 944 : <input type="number" step="0.01" min="0" required value={materialForm.unit_cost} onChange={e => setMaterialForm({ ...materialForm, unit_cost: parseFloat(e.target.value) || 0 })}
-src/pages/MaterialsPage.tsx ligne 1031 : <input type="number" step="0.01" min="0" required value={line.quantity}
-src/pages/MaterialsPage.tsx ligne 1037 : <input type="number" step="0.01" min="0" required value={line.unit_cost}
-src/pages/MaterialsPage.tsx ligne 1089 : <input type="number" step="0.01" min="0" max={purchaseFormTotal} value={purchaseForm.amount_paid}
-src/pages/PricingPage.tsx ligne 183 : type="number"
-src/pages/PricingPage.tsx ligne 298 : type="number"
-src/pages/PricingPage.tsx ligne 308 : type="number"
-src/pages/ProductionPage.tsx ligne 656 : <input type="number" min="0.5" step="0.5" value={costMultiplier}
-src/pages/ProductionPage.tsx ligne 687 : <input type="number" min="0" step="1" value={line.qtyG}
-src/pages/ProductionPage.tsx ligne 692 : <input type="number" min="0" step="1" value={line.pricePerKg}
-src/pages/ProductionPage.tsx ligne 719 : <input type="number" min="0" step="0.01" value={ganacheKg}
-src/pages/ProductionPage.tsx ligne 726 : <input type="number" min="0" step="1" value={ganachePricePerKg}
-src/pages/ProductionPage.tsx ligne 907 : <input type="number" min="0" step="0.01" value={m.quantity}
-src/pages/ProductionPage.tsx ligne 912 : <input type="number" min="0" step="0.01" value={m.unit_cost}
-src/pages/ProductionPage.tsx ligne 990 : <input type="number" min="0" required value={unsoldForm.quantity}
-src/pages/RecipePage.tsx ligne 342 : <input type="number" min="0.5" step="0.5" value={multiplier} onChange={e => setMultiplier(Math.max(0.5, parseFloat(e.target.value) || 1))} className="w-32 text-center text-4xl font-bold text-amber-600 bg-transparent border-b-2 border-amber-300 foc
-src/pages/RecipePage.tsx ligne 358 : <input type="number" min="0.5" step="0.5" value={ganacheMultiplier} onChange={e => setGanacheMultiplier(Math.max(0.5, parseFloat(e.target.value) || 1))} className="w-32 text-center text-4xl font-bold text-rose-600 bg-transparent border-b-2 border-
-src/pages/RecipePage.tsx ligne 485 : <input type="number" min="0" step="50" value={ganacheDailyQty || ''} placeholder="0" onChange={e => setGanacheDailyQty(Math.max(0, parseFloat(e.target.value) || 0))} className="w-full text-center text-2xl font-bold text-rose-700 px-4 py-3 border-2
-src/pages/RecipePage.tsx ligne 525 : <input type="number" min="0.5" step="0.5" value={chocMultiplier} onChange={e => setChocMultiplier(Math.max(0.5, parseFloat(e.target.value) || 1))} className="w-32 text-center text-4xl font-bold text-amber-700 bg-transparent border-b-2 border-amber
-src/pages/RecipePage.tsx ligne 560 : <td className="px-4 py-2"><input type="number" min="0" step="1" value={editChocIng.quantity_g} onChange={e => setEditChocIng({ ...editChocIng, quantity_g: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1 border rounded text-sm text-right focus:ring-1 focus:r
-src/pages/RecipePage.tsx ligne 562 : <td className="px-4 py-2"><input type="number" min="0" step="1" value={editChocIng.unit_cost_per_kg} onChange={e => setEditChocIng({ ...editChocIng, unit_cost_per_kg: parseFloat(e.target.value) || 0 })} className="w-full px-2 py-1 border rounded text-sm text-right focus:ri
-src/pages/RecipePage.tsx ligne 588 : <div className="flex items-center gap-2"><input type="number" min="1" step="50" value={yieldValue} onChange={e => setYieldValue(parseFloat(e.target.value) || 1000)} className="w-32 px-3 py-1.5 border rounded-lg text-center font-bold focus:ring-2 focus:ring-amber-500" /><span className="t
-src/pages/RecipePage.tsx ligne 623 : <div className="text-center"><input type="number" min="0.5" step="0.5" value={coqueKg} onChange={e => setCoqueKg(Math.max(0.5, parseFloat(e.target.value) || 1))} className="w-24 text-center text-3xl font-bold text-rose-700 bg-transparent border-b-2 border-rose-300 focus:borde
-src/pages/RecipePage.tsx ligne 666 : t-gray-700 mb-1">Quantité par lot de base (g)</label><input type="number" min="0" step="1" required value={newIngredient.quantity_per_batch} onChange={e => setNewIngredient({ ...newIngredient, quantity_per_batch: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border rounded-lg focus
-src/pages/RecipePage.tsx ligne 680 : nt-medium text-gray-700 mb-1">Prix au kg (DA)</label><input type="number" min="0" step="1" value={newPrice} onChange={e => setNewPrice(parseFloat(e.target.value) || 0)} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" /></div>
-src/pages/RecipePage.tsx ligne 695 :  font-medium text-gray-700 mb-1">Quantité (g)</label><input type="number" min="0" step="1" required value={newChocIng.quantity_g} onChange={e => setNewChocIng({ ...newChocIng, quantity_g: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-
-src/pages/RecipePage.tsx ligne 696 :  font-medium text-gray-700 mb-1">Prix (DA/kg)</label><input type="number" min="0" step="1" required value={newChocIng.unit_cost_per_kg} onChange={e => setNewChocIng({ ...newChocIng, unit_cost_per_kg: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus
-src/pages/SalesPage.tsx ligne 721 : <input type="number" min="0.5" step={product.unit === 'kg' ? '0.5' : '1'} value={sel.quantity}
-src/pages/SalesPage.tsx ligne 727 : <input type="number" min="0" value={sel.unit_price}
-src/pages/SalesPage.tsx ligne 773 : <input type="number" min="0" max={formTotal} value={saleForm.amount_paid}
-src/pages/SettingsPage.tsx ligne 161 : type="number"
-src/pages/SettingsPage.tsx ligne 441 : type="number"
-src/pages/SettingsPage.tsx ligne 452 : type="number"
-src/pages/SettingsPage.tsx ligne 466 : type="number"
+14: 
+15: type SaleType = 'vrac' | 'boite20' | 'boite10' | 'boite6' | 'magasin';
+16: 
+-----
+17: const SALE_TYPES: { id: SaleType; label: string; shortLabel: string; icon: React.ReactNode; table: 'bulk' | 'sales' | 'shop'; color: string }[] = [
+18: { id: 'vrac', label: 'Macaron en Vrac (kg)', shortLabel: 'Vrac', icon: <Scale size={16} />, table: 'bulk', color: 'amber' },
+-----
+19: { id: 'boite20', label: 'Boîte 20 pcs', shortLabel: 'Boîte 20', icon: <Package size={16} />, table: 'sales', color: 'emerald' },
+20: { id: 'boite10', label: 'Boîte 10 pcs', shortLabel: 'Boîte 10', icon: <Package size={16} />, table: 'sales', color: 'teal' },
+-----
+25: const DEFAULT_PRICES: Record<SaleType, number> = {
+26: vrac: 1800, boite20: 1100, boite10: 600, boite6: 400, magasin: 40,
+27: };
+-----
+40: if (found) return found.unit_price;
+41: if (type === 'boite20') { const f = customer.prices.find(p => p.box_size === 20); if (f) return f.unit_price; }
+42: if (type === 'boite10') { const f = customer.prices.find(p => p.box_size === 10); if (f) return f.unit_price; }
+-----
+102: sales.filter(s => s.customer_id === selectedCustomerId || s.customer_name === selectedCustomer?.name).forEach(s => {
+103: const st: SaleType = s.box_size === 20 ? 'boite20' : s.box_size === 10 ? 'boite10' : 'boite6';
+104: result.push({
+-----
+199: const [editGroup, setEditGroup] = useState<GroupedSale | null>(null);
+200: const [saleLines, setSaleLines] = useState<SaleLineForm[]>([]);
+201: const [saleDate, setSaleDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+-----
+212: setSaleNotes('');
+213: setSaleLines([{ type: 'boite20', quantity: 1, unit_price: getCustomerPrice(selectedCustomer, 'boite20') }]);
+214: setShowSaleModal(true);
+-----
+234: function addSaleLine() {
+235: const lastType = saleLines[saleLines.length - 1]?.type || 'boite20';
+236: setSaleLines([...saleLines, { type: lastType, quantity: 1, unit_price: getCustomerPrice(selectedCustomer, lastType) }]);
+-----
+237: }
+-----
+251: function removeSaleLine(idx: number) {
+252: if (saleLines.length <= 1) return;
+253: setSaleLines(lines => lines.filter((_, i) => i !== idx));
+-----
+255: 
+256: const saleTotal = saleLines.reduce((sum, l) => sum + l.quantity * l.unit_price, 0);
+257: const saleReste = paymentStatus === 'paid' ? 0 : paymentStatus === 'partial' ? Math.max(0, saleTotal - amountPaid) : saleTotal;
+-----
+260: e.preventDefault();
+261: if (!selectedCustomer || saleLines.length === 0) return;
+262: const total = saleTotal;
+-----
+277: let remainingPaid = paid;
+278: const linesWithPaid = saleLines.map(line => {
+279: const lineTotal = line.quantity * line.unit_price;
+-----
+292: if (editGroup) {
+293: const activeIds = new Set(saleLines.map(l => l.id).filter(Boolean));
+294: // Delete removed lines from DB
+-----
+296: if (!activeIds.has(orig.id)) {
+297: const meta = SALE_TYPES.find(t => t.id === orig.type)!;
+298: if (meta.table === 'bulk') await api.bulkSalesService.delete(orig.id);
+-----
+311: for (const line of linesWithPaid) {
+312: const meta = SALE_TYPES.find(t => t.id === line.type)!;
+313: const common = {
+-----
+328: } else if (meta.table === 'sales') {
+329: const boxSize = line.type === 'boite20' ? 20 : line.type === 'boite10' ? 10 : 6;
+330: const res = await api.salesService.update(line.id, {
+-----
+351: if (line.id && line.originalType && line.originalType !== line.type) {
+352: const oldMeta = SALE_TYPES.find(t => t.id === line.originalType)!;
+353: if (oldMeta.table === 'bulk') {
+-----
+376: } else if (meta.table === 'sales') {
+377: const boxSize = line.type === 'boite20' ? 20 : line.type === 'boite10' ? 10 : 6;
+378: const res = await api.salesService.create({
+-----
+414: for (const line of linesWithPaid) {
+415: const meta = SALE_TYPES.find(t => t.id === line.type)!;
+416: const common = {
+-----
+432: } else if (meta.table === 'sales') {
+433: const boxSize = line.type === 'boite20' ? 20 : line.type === 'boite10' ? 10 : 6;
+434: const created = await api.salesService.create({
+-----
+480: for (const s of group.items) {
+481: const meta = SALE_TYPES.find(t => t.id === s.type)!;
+482: if (meta.table === 'bulk') {
+-----
+728: <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4">
+729: {SALE_TYPES.map(t => {
+730: const cp = selectedCustomer.prices?.find(p => p.product_type === t.id);
+-----
+887: {group.items.map((item, itemIdx) => {
+888: const meta = SALE_TYPES.find(t => t.id === item.type)!;
+889: const c = colorMap[meta.color];
+-----
+993: <div className="flex flex-wrap gap-1.5 pt-1">
+994: {SALE_TYPES.map(t => {
+995: const price = getCustomerPrice(selectedCustomer, t.id);
+-----
+1084: <tbody className="divide-y divide-gray-100">
+1085: {saleLines.map((line, idx) => {
+1086: return (
+-----
+1090: className="w-full px-2 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500">
+1091: {SALE_TYPES.map(t => (
+1092: <option key={t.id} value={t.id}>{t.label}</option>
+-----
+1110: <button type="button" onClick={() => removeSaleLine(idx)}
+1111: disabled={saleLines.length <= 1}
+1112: className="p-1 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent"
+-----
+1210: <button type="button" onClick={() => setShowSaleModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm">Annuler</button>
+1211: <button type="submit" disabled={savingSale || saleLines.length === 0}
+1212: className="px-5 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium disabled:opacity-60">
+-----
