@@ -11,7 +11,7 @@ import { useApp } from '../context/AppContext';
 const COLORS = ['#f59e0b', '#ea580c', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444'];
 
 export default function ReportsPage() {
-  const { sales, bulkSales, materialPurchases, fixedCharges, variableExpenses, utilities, laborCosts } = useApp();
+  const { sales, bulkSales, shopSales, materialPurchases, fixedCharges, variableExpenses, utilities, laborCosts } = useApp();
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year'>('month');
 
   const today = new Date();
@@ -50,7 +50,8 @@ export default function ReportsPage() {
       const monthBoxSales = sales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
       const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
       const revenue = monthBoxSales.reduce((sum, s) => sum + s.total_amount, 0)
-                    + monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0);
+                    + monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0)
+                    + shopSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd).reduce((sum, s) => sum + s.total_amount, 0);
 
       const monthPurchases = materialPurchases.filter(p => p.purchase_date >= monthStart && p.purchase_date <= monthEnd);
       const expenses = monthPurchases.reduce((sum, p) => sum + p.total_cost, 0);
@@ -64,7 +65,7 @@ export default function ReportsPage() {
       });
     }
     return data;
-  }, [sales, bulkSales, materialPurchases]);
+  }, [sales, bulkSales, shopSales, materialPurchases]);
 
   // Daily sales chart (current month) — box + bulk
   const dailySalesData = useMemo(() => {
@@ -118,7 +119,8 @@ export default function ReportsPage() {
   const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
   const boxRevenue = monthBoxSales.reduce((sum, s) => sum + s.total_amount, 0);
   const bulkRevenue = monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0);
-  const totalRevenue = boxRevenue + bulkRevenue;
+  const shopRevenue = shopSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd).reduce((sum, s) => sum + s.total_amount, 0);
+  const totalRevenue = boxRevenue + bulkRevenue + shopRevenue;
 
   // keep alias for table below
   const monthSales = monthBoxSales;

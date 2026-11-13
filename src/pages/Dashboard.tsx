@@ -15,7 +15,7 @@ import { formatKg, formatLoss } from '../lib/formatters';
 const COLORS = ['#f59e0b', '#ea580c', '#10b981', '#3b82f6', '#8b5cf6'];
 
 export default function Dashboard() {
-  const { sales, bulkSales, productionBatches, materialPurchases, fixedCharges, variableExpenses, utilities, laborCosts, isLoading } = useApp();
+  const { sales, bulkSales, shopSales, productionBatches, materialPurchases, fixedCharges, variableExpenses, utilities, laborCosts, isLoading } = useApp();
 
   if (isLoading) {
     return (
@@ -35,7 +35,8 @@ export default function Dashboard() {
   const bulkSalesToday = bulkSales.filter(s => s.sale_date === todayStr);
   const boxAmountToday = salesToday.reduce((sum, s) => sum + s.total_amount, 0);
   const bulkAmountToday = bulkSalesToday.reduce((sum, s) => sum + s.total_amount, 0);
-  const totalSalesToday = boxAmountToday + bulkAmountToday;
+  const shopAmountToday = shopSales.filter(s => s.sale_date === todayStr).reduce((sum, s) => sum + s.total_amount, 0);
+  const totalSalesToday = boxAmountToday + bulkAmountToday + shopAmountToday;
   const boxesSoldToday = salesToday.reduce((sum, s) => sum + s.quantity, 0);
 
   // Monthly stats
@@ -49,7 +50,11 @@ export default function Dashboard() {
   });
   const boxAmountMonth = salesThisMonth.reduce((sum, s) => sum + s.total_amount, 0);
   const bulkAmountMonth = bulkSalesThisMonth.reduce((sum, s) => sum + s.total_amount, 0);
-  const totalSalesMonth = boxAmountMonth + bulkAmountMonth;
+  const shopAmountMonth = shopSales.filter(s => {
+    const date = new Date(s.sale_date);
+    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+  }).reduce((sum, s) => sum + s.total_amount, 0);
+  const totalSalesMonth = boxAmountMonth + bulkAmountMonth + shopAmountMonth;
 
   const purchasesThisMonth = materialPurchases.filter(p => {
     const date = new Date(p.purchase_date);
