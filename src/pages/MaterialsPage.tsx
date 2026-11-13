@@ -47,6 +47,9 @@ export default function MaterialsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showMaterialModal, setShowMaterialModal] = useState(false);
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [editPurchaseId, setEditPurchaseId] = useState<string | null>(null);
+  const [editPurchaseQty, setEditPurchaseQty] = useState(0);
+  const [editPurchaseCost, setEditPurchaseCost] = useState(0);
   const [editingMaterial, setEditingMaterial] = useState<RawMaterial | null>(null);
   const [materialSearch, setMaterialSearch] = useState('');
   const [expandedPurchaseRow, setExpandedPurchaseRow] = useState<string | null>(null);
@@ -217,6 +220,28 @@ export default function MaterialsPage() {
       }
     } catch (error) {
       console.error('Error updating payment status:', error);
+    }
+  };
+
+  const startEditPurchaseItem = (p: MaterialPurchase) => {
+    setEditPurchaseId(p.id);
+    setEditPurchaseQty(p.quantity);
+    setEditPurchaseCost(p.unit_cost);
+  };
+
+  const handleSavePurchaseItem = async (p: MaterialPurchase) => {
+    try {
+      const total = editPurchaseQty * editPurchaseCost;
+      const paid = p.payment_status === 'paid' ? total : p.payment_status === 'partial' ? Math.min(p.amount_paid || 0, total) : 0;
+      const updated = await api.materialPurchasesService.update(p.id, { quantity: editPurchaseQty, unit_cost: editPurchaseCost, total_cost: total, amount_paid: paid });
+      if (editPurchaseCost !== p.unit_cost) {
+        await api.rawMaterialsService.update(p.material_id, { unit_cost: editPurchaseCost, last_purchase_date: p.purchase_date });
+      }
+      setMaterialPurchases(materialPurchases.map(x => x.id === p.id ? { ...updated, material: p.material } : x));
+      setEditPurchaseId(null);
+    } catch (error) {
+      console.error('Error saving purchase item:', error);
+      alert('Erreur lors de la modification de cet article.');
     }
   };
 
@@ -603,7 +628,7 @@ export default function MaterialsPage() {
                 {/* Expanded details */}
                 {isExpanded && (
                   <div className="bg-amber-50/60 border-t border-gray-100 px-6 py-4">
-                    {isMulti && (
+                    {(
                       <div className="space-y-2 mb-3">
                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Produits de l'achat</p>
                         {group.purchases.map(p => (
@@ -613,10 +638,21 @@ export default function MaterialsPage() {
                             </div>
                             <div className="flex-1">
                               <span className="text-sm font-medium text-gray-900">{p.material?.name || 'Inconnu'}</span>
-                              <span className="text-xs text-gray-500 ml-2">× {p.quantity} {p.material?.unit}</span>
+                              {editPurchaseId === p.id ? (<input type="number" step="any" min="0" value={editPurchaseQty} onChange={e => setEditPurchaseQty(parseFloat(e.target.value) || 0)} className="ml-2 w-24 px-2 py-1 border rounded text-sm text-right" />) : (<span className="text-xs text-gray-500 ml-2">× {p.quantity} {p.material?.unit}</span>)}
                             </div>
-                            <span className="text-sm text-gray-600">{p.unit_cost.toLocaleString()} DZD/{p.material?.unit}</span>
-                            <span className="text-sm font-bold text-gray-900">{p.total_cost.toLocaleString()} DZD</span>
+                            {editPurchaseId === p.id ? (<input type="number" step="any" min="0" value={editPurchaseCost} onChange={e => setEditPurchaseCost(parseFloat(e.target.value) || 0)} className="w-24 px-2 py-1 border rounded text-sm text-right" />) : (<span className="text-sm text-gray-600">{p.unit_cost.toLocaleString()} DZD/{p.material?.unit}</span>)}
+                            <span className="text-sm font-bold text-gray-900">{editPurchaseId === p.id ? (editPurchaseQty * editPurchaseCost).toLocaleString() : p.total_cost.toLocaleString()} DZD</span>
+                            {editPurchaseId === p.id ? (
+                              <>
+                                <button type="button" onClick={() => handleSavePurchaseItem(p)} className="px-2.5 py-1 text-xs font-medium text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg">Enregistrer</button>
+                                <button type="button" onClick={() => setEditPurchaseId(null)} className="px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded-lg">Annuler</button>
+                              </>
+                            ) : (
+                              <>
+                                <button type="button" onClick={() => startEditPurchaseItem(p)} className="px-2.5 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg">Modifier</button>
+                                <button type="button" onClick={() => handleDeletePurchase(p.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Supprimer"><Trash2 size={14} /></button>
+                              </>
+                            )}
                           </div>
                         ))}
                       </div>
