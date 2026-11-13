@@ -385,7 +385,7 @@ export default function CustomerDetailPage({ customer, onBack }: Props) {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Prix unitaire (DA)</label>
-                  <input type="number" min="0" step="10" required value={form.unit_price}
+                  <input type="number" min="0" step="any" required value={form.unit_price}
                     onChange={e => setForm({ ...form, unit_price: parseFloat(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm font-bold text-amber-700" />
                 </div>

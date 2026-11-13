@@ -887,20 +887,20 @@ export default function MaterialsPage() {
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Ex: Oeufs, Emballage" /></div>
               <div className="grid grid-cols-3 gap-3">
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Qté</label>
-                  <input type="number" step="0.01" min="0" required value={supplierPurchaseForm.quantity} onChange={e => setSupplierPurchaseForm({ ...supplierPurchaseForm, quantity: parseFloat(e.target.value) || 0 })}
+                  <input type="number" step="any" min="0" required value={supplierPurchaseForm.quantity} onChange={e => setSupplierPurchaseForm({ ...supplierPurchaseForm, quantity: parseFloat(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité</label>
                   <input type="text" value={supplierPurchaseForm.unit} onChange={e => setSupplierPurchaseForm({ ...supplierPurchaseForm, unit: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix/U</label>
-                  <input type="number" min="0" step="0.01" required value={supplierPurchaseForm.unit_cost} onChange={e => setSupplierPurchaseForm({ ...supplierPurchaseForm, unit_cost: parseFloat(e.target.value) || 0 })}
+                  <input type="number" min="0" step="any" required value={supplierPurchaseForm.unit_cost} onChange={e => setSupplierPurchaseForm({ ...supplierPurchaseForm, unit_cost: parseFloat(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
               </div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                 <input type="date" required value={supplierPurchaseForm.purchase_date} onChange={e => setSupplierPurchaseForm({ ...supplierPurchaseForm, purchase_date: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Versement (DA)</label>
-                <input type="number" min="0" value={supplierPurchaseForm.amount_paid} onChange={e => setSupplierPurchaseForm({ ...supplierPurchaseForm, amount_paid: parseFloat(e.target.value) || 0 })}
+                <input type="number" step="any" min="0" value={supplierPurchaseForm.amount_paid} onChange={e => setSupplierPurchaseForm({ ...supplierPurchaseForm, amount_paid: parseFloat(e.target.value) || 0 })}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" /></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">N° Facture</label>
                 <input type="text" value={supplierPurchaseForm.invoice_number} onChange={e => setSupplierPurchaseForm({ ...supplierPurchaseForm, invoice_number: e.target.value })}
@@ -941,7 +941,7 @@ export default function MaterialsPage() {
                     <option value="unité">Unité</option>
                   </select></div>
                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix/Unité (DZD)</label>
-                  <input type="number" step="0.01" min="0" required value={materialForm.unit_cost} onChange={e => setMaterialForm({ ...materialForm, unit_cost: parseFloat(e.target.value) || 0 })}
+                  <input type="number" step="any" min="0" required value={materialForm.unit_cost} onChange={e => setMaterialForm({ ...materialForm, unit_cost: parseFloat(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500" /></div>
               </div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur (optionnel)</label>
@@ -1028,13 +1028,13 @@ export default function MaterialsPage() {
                         </div>
                         <div className="w-20 flex-shrink-0">
                           {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Qté</label>}
-                          <input type="number" step="0.01" min="0" required value={line.quantity}
+                          <input type="number" step="any" min="0" required value={line.quantity}
                             onChange={e => updatePurchaseLine(idx, 'quantity', parseFloat(e.target.value) || 0)}
                             className="w-full px-2 py-1.5 border rounded text-sm" />
                         </div>
                         <div className="w-24 flex-shrink-0">
                           {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Prix/U</label>}
-                          <input type="number" step="0.01" min="0" required value={line.unit_cost}
+                          <input type="number" step="any" min="0" required value={line.unit_cost}
                             onChange={e => updatePurchaseLine(idx, 'unit_cost', parseFloat(e.target.value) || 0)}
                             className="w-full px-2 py-1.5 border rounded text-sm" />
                         </div>
@@ -1086,7 +1086,7 @@ export default function MaterialsPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Montant déjà versé (DZD)</label>
-                      <input type="number" step="0.01" min="0" max={purchaseFormTotal} value={purchaseForm.amount_paid}
+                      <input type="number" step="any" min="0" max={purchaseFormTotal} value={purchaseForm.amount_paid}
                         onChange={e => setPurchaseForm({ ...purchaseForm, amount_paid: parseFloat(e.target.value) || 0 })}
                         className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-orange-500" />
                     </div>

@@ -718,13 +718,13 @@ export default function SalesPage() {
                           <div className="flex items-center gap-3 px-4 pb-3 pt-1 bg-white border-t border-emerald-50">
                             <div className="flex-1">
                               <label className="block text-xs text-gray-500 mb-0.5">Quantité ({product.unit})</label>
-                              <input type="number" min="0.5" step={product.unit === 'kg' ? '0.5' : '1'} value={sel.quantity}
+                              <input type="number" min="0.5" step={product.unit === 'kg' ? 'any' : '1'} value={sel.quantity}
                                 onChange={e => updateSelection(product.key, 'quantity', parseFloat(e.target.value) || 0)}
                                 className="w-full px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500" />
                             </div>
                             <div className="flex-1">
                               <label className="block text-xs text-gray-500 mb-0.5">Prix / {product.unit} (DA)</label>
-                              <input type="number" min="0" value={sel.unit_price}
+                              <input type="number" step="any" min="0" value={sel.unit_price}
                                 onChange={e => updateSelection(product.key, 'unit_price', parseFloat(e.target.value) || 0)}
                                 className="w-full px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500" />
                             </div>
@@ -770,7 +770,7 @@ export default function SalesPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">Montant déjà versé (DA)</label>
-                      <input type="number" min="0" max={formTotal} value={saleForm.amount_paid}
+                      <input type="number" step="any" min="0" max={formTotal} value={saleForm.amount_paid}
                         onChange={e => setSaleForm({ ...saleForm, amount_paid: parseFloat(e.target.value) || 0 })}
                         className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-orange-500" />
                     </div>
