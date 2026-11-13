@@ -3,7 +3,7 @@ import {
   Plus, Trash2, Edit2, X, Phone, Mail, MapPin,
   Users, ShoppingBag, Tag, Save, Search, ChevronRight,
   Scale, Package, Store, Sparkles, Building2, FileText
-} from ' lucide-react';
+} from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
 import type { Customer } from '../types';
