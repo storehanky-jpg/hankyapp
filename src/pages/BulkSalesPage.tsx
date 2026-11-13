@@ -9,7 +9,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
-import { buildBonLivraisonHTML, buildBonLines, nextBonNumber,  readBonNumber } from '../lib/deliveryNote';
+import { buildBonLivraisonHTML, buildBonLines, nextBonNumber, readBonNumber } from '../lib/deliveryNote';
 import type { BulkSale, Sale, ShopSale, Customer, FiscalInfo } from '../types';
 
 type SaleType = 'vrac' | 'boite20' | 'boite10' | 'boite6' | 'magasin';
