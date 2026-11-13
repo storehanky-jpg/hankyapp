@@ -6,7 +6,7 @@ import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
 import type { RawMaterial, MaterialPurchase, Supplier, SupplierPurchase } from '../types';
 import {
-  BarChart,  Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 
 type PaymentStatus = 'paid' | 'unpaid' | 'partial';
