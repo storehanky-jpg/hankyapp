@@ -1,292 +1,159 @@
-=== src/pages/Dashboard.tsx lignes 18-100 ===
-18:   const { sales, bulkSales, productionBatches, materialPurchases, fixedCharges, variableExpenses, utilities, laborCosts, isLoading } = useApp();
-19: 
-20:   if (isLoading) {
-21:     return (
-22:       <div className="flex items-center justify-center h-96">
-23:         <div className="animate-spin rounded-full h-12 w-12 border-4 border-amber-500 border-t-transparent" />
-24:       </div>
-25:     );
-26:   }
-27: 
-28:   const today = new Date();
-29:   const todayStr = format(today, 'yyyy-MM-dd');
-30:   const currentMonth = today.getMonth();
-31:   const currentYear = today.getFullYear();
-32: 
-33:   // Today's stats
-34:   const salesToday = sales.filter(s => s.sale_date === todayStr);
-35:   const bulkSalesToday = bulkSales.filter(s => s.sale_date === todayStr);
-36:   const boxAmountToday = salesToday.reduce((sum, s) => sum + s.total_amount, 0);
-37:   const bulkAmountToday = bulkSalesToday.reduce((sum, s) => sum + s.total_amount, 0);
-38:   const totalSalesToday = boxAmountToday + bulkAmountToday;
-39:   const boxesSoldToday = salesToday.reduce((sum, s) => sum + s.quantity, 0);
-40: 
-41:   // Monthly stats
-42:   const salesThisMonth = sales.filter(s => {
-43:     const date = new Date(s.sale_date);
-44:     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-45:   });
-46:   const bulkSalesThisMonth = bulkSales.filter(s => {
-47:     const date = new Date(s.sale_date);
-48:     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-49:   });
-50:   const boxAmountMonth = salesThisMonth.reduce((sum, s) => sum + s.total_amount, 0);
-51:   const bulkAmountMonth = bulkSalesThisMonth.reduce((sum, s) => sum + s.total_amount, 0);
-52:   const totalSalesMonth = boxAmountMonth + bulkAmountMonth;
-53: 
-54:   const purchasesThisMonth = materialPurchases.filter(p => {
-55:     const date = new Date(p.purchase_date);
-56:     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-57:   });
-58:   const totalPurchasesMonth = purchasesThisMonth.reduce((sum, p) => sum + p.total_cost, 0);
-59: 
-60:   // Fixed charges monthly equivalent
-61:   const fixedChargesMonthly = fixedCharges
-62:     .filter(c => c.is_active)
-63:     .reduce((sum, c) => {
-64:       switch (c.frequency) {
-65:         case 'daily': return sum + c.amount * 30;
-66:         case 'weekly': return sum + c.amount * 4;
-67:         case 'monthly': return sum + c.amount;
-68:         case 'yearly': return sum + c.amount / 12;
-69:         default: return sum;
-70:       }
-71:     }, 0);
-72: 
-73:   const variableExpensesMonth = variableExpenses
-74:     .filter(e => {
-75:       const date = new Date(e.date);
-76:       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-77:     })
-78:     .reduce((sum, e) => sum + e.amount, 0);
-79: 
-80:   const utilitiesMonth = utilities
-81:     .filter(u => {
-82:       const start = new Date(u.period_start);
-83:       return start.getMonth() === currentMonth && start.getFullYear() === currentYear;
-84:     })
-85:     .reduce((sum, u) => sum + u.amount, 0);
-86: 
-87:   const laborMonth = laborCosts
-88:     .filter(l => l.period_month === currentMonth + 1 && l.period_year === currentYear)
-89:     .reduce((sum, l) => sum + l.total_cost, 0);
-90: 
-91:   const totalExpensesMonth = fixedChargesMonthly + variableExpensesMonth + utilitiesMonth + laborMonth;
-92:   const profitMonth = totalSalesMonth - (totalExpensesMonth + totalPurchasesMonth);
-93:   const profitToday = totalSalesToday - ((totalExpensesMonth + totalPurchasesMonth) / 30);
-94: 
-95:   // Production stats
-96:   const productionThisMonth = productionBatches.filter(b => {
-97:     const date = new Date(b.batch_date);
-98:     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-99:   });
-100:   const totalProduced = productionThisMonth.reduce((sum, b) => sum + b.produced_quantity, 0);
-=== src/pages/ReportsPage.tsx lignes 45-70 ===
-45:     for (let i = 11; i >= 0; i--) {
-46:       const month = subMonths(today, i);
-47:       const monthStart = format(startOfMonth(month), 'yyyy-MM-dd');
-48:       const monthEnd = format(endOfMonth(month), 'yyyy-MM-dd');
-49: 
-50:       const monthBoxSales = sales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
-51:       const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
-52:       const revenue = monthBoxSales.reduce((sum, s) => sum + s.total_amount, 0)
-53:                     + monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0);
-54: 
-55:       const monthPurchases = materialPurchases.filter(p => p.purchase_date >= monthStart && p.purchase_date <= monthEnd);
-56:       const expenses = monthPurchases.reduce((sum, p) => sum + p.total_cost, 0);
-57: 
-58:       data.push({
-59:         month: format(month, 'MMM', { locale: fr }),
-60:         fullMonth: format(month, 'MMMM yyyy', { locale: fr }),
-61:         revenus: revenue,
-62:         depenses: expenses,
-63:         benefice: revenue - expenses
-64:       });
-65:     }
-66:     return data;
-67:   }, [sales, bulkSales, materialPurchases]);
-68: 
-69:   // Daily sales chart (current month) — box + bulk
-70:   const dailySalesData = useMemo(() => {
-=== src/pages/ReportsPage.tsx lignes 114-165 ===
-114:   const monthStart = format(startOfMonth(today), 'yyyy-MM-dd');
-115:   const monthEnd = format(endOfMonth(today), 'yyyy-MM-dd');
-116: 
-117:   const monthBoxSales = sales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
-118:   const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
-119:   const boxRevenue = monthBoxSales.reduce((sum, s) => sum + s.total_amount, 0);
-120:   const bulkRevenue = monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0);
-121:   const totalRevenue = boxRevenue + bulkRevenue;
-122: 
-123:   // keep alias for table below
-124:   const monthSales = monthBoxSales;
+=== src/pages/Dashboard.tsx lignes 102-160 ===
+102:     const date = new Date(b.batch_date);
+103:     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+104:   });
+105:   const totalProduced = productionThisMonth.reduce((sum, b) => sum + b.produced_quantity, 0);
+106:   const totalLost = productionThisMonth.reduce((sum, b) => sum + b.lost_quantity, 0);
+107: 
+108:   // Sales chart data - last 7 days (box + bulk)
+109:   const last7Days = eachDayOfInterval({
+110:     start: subDays(today, 6),
+111:     end: today
+112:   });
+113:   const salesChartData = last7Days.map(day => {
+114:     const dayStr = format(day, 'yyyy-MM-dd');
+115:     const boxAmt = sales.filter(s => s.sale_date === dayStr).reduce((sum, s) => sum + s.total_amount, 0);
+116:     const bulkAmt = bulkSales.filter(s => s.sale_date === dayStr).reduce((sum, s) => sum + s.total_amount, 0);
+117:     return {
+118:       date: format(day, 'dd/MM', { locale: fr }),
+119:       dayName: format(day, 'EEE', { locale: fr }),
+120:       boites: boxAmt,
+121:       vrac: bulkAmt,
+122:       ventes: boxAmt + bulkAmt
+123:     };
+124:   });
 125: 
-126:   const monthPurchases = materialPurchases.filter(p => p.purchase_date >= monthStart && p.purchase_date <= monthEnd);
-127:   const totalPurchasesExpenses = monthPurchases.reduce((sum, p) => sum + p.total_cost, 0);
-128: 
-129:   const fixedMonthly = fixedCharges.filter(c => c.is_active).reduce((sum, c) => {
-130:     switch (c.frequency) {
-131:       case 'daily': return sum + c.amount * 30;
-132:       case 'weekly': return sum + c.amount * 4;
-133:       case 'monthly': return sum + c.amount;
-134:       case 'yearly': return sum + c.amount / 12;
-135:       default: return sum;
-136:     }
-137:   }, 0);
-138: 
-139:   const variableMonthly = variableExpenses
-140:     .filter(e => {
-141:       const date = new Date(e.date);
-142:       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-143:     })
-144:     .reduce((sum, e) => sum + e.amount, 0);
-145: 
-146:   const utilitiesMonthly = utilities
-147:     .filter(u => {
-148:       const start = new Date(u.period_start);
-149:       return start.getMonth() === currentMonth && start.getFullYear() === currentYear;
-150:     })
-151:     .reduce((sum, u) => sum + u.amount, 0);
-152: 
-153:   const laborMonthly = laborCosts
-154:     .filter(l => l.period_month === currentMonth + 1 && l.period_year === currentYear)
-155:     .reduce((sum, l) => sum + l.total_cost, 0);
-156: 
-157:   const totalExpenses = totalPurchasesExpenses + fixedMonthly + variableMonthly + utilitiesMonthly + laborMonthly;
-158:   const netProfit = totalRevenue - totalExpenses;
-159: 
-160:   // Expense breakdown for pie chart
-161:   const expenseBreakdown = [
-162:     { name: 'Matières Premières', value: totalPurchasesExpenses },
-163:     { name: 'Charges Fixes', value: fixedMonthly },
-164:     { name: 'Dép. Variables', value: variableMonthly },
-165:     { name: 'Énergie', value: utilitiesMonthly },
-=== src/context/AppContext.tsx recherche /shopSales|ShopSales|supplier|Supplier/ ===
-24: shopSales: ShopSale[];
-50: setShopSales: (sales: ShopSale[]) => void;
-75: shopSales: [],
-107: const cachedShopSales = offlineStorage.get<ShopSale[]>('shop_sales') || [];
-130: shopSales: cachedShopSales,
-164: shopSales,
-182: withTimeout(api.shopSalesService.getAll()).catch(() => cachedShopSales),
-202: shopSales,
-373: setShopSales: (shopSales) => setState(s => ({ ...s, shopSales })),
-=== src/services/api.ts recherche /supplierPurchasesService|suppliersService|shopSalesService|async getAll/ ===
-28: async getAll(): Promise<RawMaterial[]> {
-81: async getAll(): Promise<MaterialPurchase[]> {
-132: async getAll(): Promise<FixedCharge[]> {
-180: async getAll(): Promise<VariableExpense[]> {
-219: async getAll(): Promise<Utility[]> {
-258: async getAll(): Promise<LaborCost[]> {
-297: async getAll(): Promise<Packaging[]> {
-345: async getAll(): Promise<ProductionBatch[]> {
-396: async getAll(): Promise<Sale[]> {
-459: async getAll(): Promise<UnsoldProduct[]> {
-563: async getAll(): Promise<BulkSale[]> {
-670: async getAll(): Promise<RecipeItem[]> {
-720: export const shopSalesService = {
-721: async getAll(): Promise<ShopSale[]> {
-769: async getAll(): Promise<Customer[]> {
-1034: export const suppliersService = {
-1035: async getAll(): Promise<Supplier[]> {
-1081: export const supplierPurchasesService = {
-1172: async getAll(): Promise<Order[]> {
-=== src/types/index.ts lignes 301-324 ===
-301: 
-302: export interface SupplierPurchase {
-303:   id: string;
-304:   supplier_id: string;
-305:   purchase_date: string;
-306:   item_name: string;
-307:   quantity: number;
-308:   unit: string;
-309:   unit_cost: number;
-310:   total_amount: number;
-311:   amount_paid: number;
-312:   invoice_number?: string;
-313:   notes?: string;
-314:   created_at: string;
-315: }
-316: 
-317: export interface Order {
-318:   id: string;
-319:   customer_name: string;
-320:   customer_phone?: string;
-321:   product_description: string;
-322:   expected_date: string;
-323:   notes?: string;
-324:   status: 'pending' | 'delivered' | 'cancelled';
-=== src/types/index.ts lignes 219-236 ===
-219: 
-220: export interface ShopSale {
-221:   id: string;
-222:   sale_date: string;
-223:   quantity: number;
-224:   price_per_piece: number;
-225:   total_amount: number;
-226:   amount_paid?: number;
-227:   is_paid: boolean;
-228:   customer_name?: string;
-229:   customer_id?: string;
-230:   invoice_number?: string;
-231:   order_number?: string;
-232:   notes?: string;
-233:   created_at: string;
-234: }
-235: 
-236: export interface CompanySettings {
-=== src/pages/MaterialsPage.tsx lignes 338-372 ===
-338:     setSupplierForm({ name: s.name, category: s.category || '', phone: s.phone || '', address: s.address || '', notes: s.notes || '' });
-339:     setShowSupplierModal(true);
-340:   };
-341: 
-342:   const handleSupplierPurchaseSubmit = async (e: React.FormEvent) => {
-343:     e.preventDefault();
-344:     if (!selectedSupplier) return;
-345:     const total = supplierPurchaseForm.quantity * supplierPurchaseForm.unit_cost;
-346:     try {
-347:       if (editingSupplierPurchase) {
-348:         const updated = await api.supplierPurchasesService.update(editingSupplierPurchase.id, {
-349:           ...supplierPurchaseForm, total_amount: total, notes: supplierPurchaseForm.notes || undefined,
-350:           invoice_number: supplierPurchaseForm.invoice_number || undefined,
-351:         });
-352:         setSupplierPurchases(supplierPurchases.map(p => p.id === updated.id ? updated : p));
-353:       } else {
-354:         const created = await api.supplierPurchasesService.create({
-355:           ...supplierPurchaseForm, supplier_id: selectedSupplier.id, total_amount: total,
-356:           notes: supplierPurchaseForm.notes || undefined, invoice_number: supplierPurchaseForm.invoice_number || undefined,
-357:         });
-358:         setSupplierPurchases([created, ...supplierPurchases]);
-359:       }
-360:       setShowSupplierPurchaseModal(false);
-361:       setEditingSupplierPurchase(null);
-362:       setSupplierPurchaseForm({ item_name: '', quantity: 1, unit: 'kg', unit_cost: 0, purchase_date: format(new Date(), 'yyyy-MM-dd'), amount_paid: 0, invoice_number: '', notes: '' });
-363:     } catch (err) { console.error(err); }
-364:   };
-365: 
-366:   const handleDeleteSupplierPurchase = async (id: string) => {
-367:     if (!confirm('Supprimer cet achat ?')) return;
-368:     try { await api.supplierPurchasesService.delete(id); setSupplierPurchases(supplierPurchases.filter(p => p.id !== id)); }
-369:     catch (err) { console.error(err); }
-370:   };
-371: 
-372:   const handleSupplierVersement = async (p: SupplierPurchase) => {
-=== src/pages/MaterialsPage.tsx recherche /supplierPurchases|setSupplierPurchases|getBySupplier/ ===
-56: const [supplierPurchases, setSupplierPurchases] = useState<SupplierPurchase[]>([]);
-76: api.supplierPurchasesService.getBySupplier(selectedSupplier.id).then(setSupplierPurchases).catch(() => {});
-77: } else { setSupplierPurchases([]); }
-309: const total = supplierPurchases.reduce((s, p) => s + p.total_amount, 0);
-310: const paid = supplierPurchases.reduce((s, p) => s + p.amount_paid, 0);
-311: return { total, paid, reste: total - paid, count: supplierPurchases.length };
-312: }, [supplierPurchases]);
-348: const updated = await api.supplierPurchasesService.update(editingSupplierPurchase.id, {
-352: setSupplierPurchases(supplierPurchases.map(p => p.id === updated.id ? updated : p));
-354: const created = await api.supplierPurchasesService.create({
-358: setSupplierPurchases([created, ...supplierPurchases]);
-368: try { await api.supplierPurchasesService.delete(id); setSupplierPurchases(supplierPurchases.filter(p => p.id !== id)); }
-379: const updated = await api.supplierPurchasesService.update(p.id, { amount_paid: p.amount_paid + amount });
-380: setSupplierPurchases(supplierPurchases.map(x => x.id === p.id ? updated : x));
-778: {supplierPurchases.map(p => {
-798: {supplierPurchases.length > 0 && (
-809: {supplierPurchases.length === 0 && <div className="p-8 text-center text-gray-400">Aucun achat enregistré</div>}
+126:   // Box sizes sold this month
+127:   const boxSizesData: { size: number; count: number }[] = [];
+128:   const sizeMap: Record<number, number> = {};
+129:   salesThisMonth.forEach(s => {
+130:     sizeMap[s.box_size] = (sizeMap[s.box_size] || 0) + s.quantity;
+131:   });
+132:   Object.entries(sizeMap).forEach(([size, count]) => {
+133:     boxSizesData.push({ size: parseInt(size), count });
+134:   });
+135: 
+136:   // Production vs Sales comparison
+137:   const productionComparisonData = last7Days.map(day => {
+138:     const dayStr = format(day, 'yyyy-MM-dd');
+139:     const dayProduction = productionBatches
+140:       .filter(b => b.batch_date === dayStr)
+141:       .reduce((sum, b) => sum + b.produced_quantity, 0);
+142:     const daySalesCount = sales
+143:       .filter(s => s.sale_date === dayStr)
+144:       .reduce((sum, s) => sum + s.quantity, 0);
+145:     return {
+146:       date: format(day, 'dd/MM'),
+147:       production: dayProduction,
+148:       ventes: daySalesCount
+149:     };
+150:   });
+151: 
+152:   const statsCards = [
+153:     {
+154:       title: "Chiffre d'Affaires Aujourd'hui",
+155:       value: `${totalSalesToday.toLocaleString()} DZD`,
+156:       subtitle: `${boxesSoldToday} boîtes + ${bulkAmountToday > 0 ? bulkSalesToday.reduce((s, b) => s + b.quantity_kg, 0).toFixed(1) + 'kg vrac' : '0kg vrac'}`,
+157:       icon: <ShoppingCart size={24} />,
+158:       trend: profitToday >= 0,
+159:       trendValue: `${Math.abs(profitToday).toLocaleString()} DZD ${profitToday >= 0 ? 'bénéfice' : 'perte estimée'}`,
+160:       color: 'from-emerald-500 to-teal-600',
+=== src/pages/Dashboard.tsx lignes 345-385 ===
+345:                 <tr className="text-left text-sm text-gray-500 border-b">
+346:                   <th className="pb-3 font-medium">Date</th>
+347:                   <th className="pb-3 font-medium">Type</th>
+348:                   <th className="pb-3 font-medium">Détail</th>
+349:                   <th className="pb-3 font-medium text-right">Montant</th>
+350:                 </tr>
+351:               </thead>
+352:               <tbody>
+353:                 {[
+354:                   ...sales.slice(0, 4).map(s => ({ date: s.sale_date, type: 'boite' as const, detail: `${s.quantity} boîte(s) × ${s.box_size} pcs`, amount: s.total_amount })),
+355:                   ...bulkSales.slice(0, 3).map(s => ({ date: s.sale_date, type: 'vrac' as const, detail: `${s.quantity_kg} kg × ${s.price_per_kg.toLocaleString()} DZD/kg`, amount: s.total_amount }))
+356:                 ]
+357:                   .sort((a, b) => b.date.localeCompare(a.date))
+358:                   .slice(0, 6)
+359:                   .map((item, i) => (
+360:                     <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+361:                       <td className="py-3 text-sm text-gray-600">
+362:                         {format(new Date(item.date), 'dd MMM', { locale: fr })}
+363:                       </td>
+364:                       <td className="py-3">
+365:                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${item.type === 'boite' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+366:                           {item.type === 'boite' ? 'Boîte' : 'Vrac'}
+367:                         </span>
+368:                       </td>
+369:                       <td className="py-3 text-sm text-gray-600">{item.detail}</td>
+370:                       <td className="py-3 text-sm text-gray-900 font-medium text-right">
+371:                         {item.amount.toLocaleString()} DZD
+372:                       </td>
+373:                     </tr>
+374:                   ))}
+375:                 {sales.length === 0 && bulkSales.length === 0 && (
+376:                   <tr>
+377:                     <td colSpan={4} className="py-8 text-center text-gray-400">
+378:                       Aucune vente enregistrée
+379:                     </td>
+380:                   </tr>
+381:                 )}
+382:               </tbody>
+383:             </table>
+384:           </div>
+385:         </div>
+=== src/pages/ReportsPage.tsx lignes 70-125 ===
+70:   // Daily sales chart (current month) — box + bulk
+71:   const dailySalesData = useMemo(() => {
+72:     const days = eachDayOfInterval({
+73:       start: startOfMonth(today),
+74:       end: today
+75:     });
+76: 
+77:     return days.map(day => {
+78:       const dayStr = format(day, 'yyyy-MM-dd');
+79:       const daySales = sales.filter(s => s.sale_date === dayStr);
+80:       const dayBulk = bulkSales.filter(s => s.sale_date === dayStr);
+81:       return {
+82:         date: format(day, 'dd'),
+83:         dayName: format(day, 'EEE', { locale: fr }),
+84:         ventes: daySales.reduce((sum, s) => sum + s.total_amount, 0),
+85:         vrac: dayBulk.reduce((sum, s) => sum + s.total_amount, 0),
+86:         transactions: daySales.length + dayBulk.length
+87:       };
+88:     });
+89:   }, [sales, bulkSales]);
+90: 
+91:   // Box size distribution
+92:   const boxSizeDistribution = useMemo(() => {
+93:     const sizeMap: Record<number, { count: number; amount: number }> = {};
+94:     const monthSales = sales.filter(s => {
+95:       const date = new Date(s.sale_date);
+96:       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+97:     });
+98: 
+99:     monthSales.forEach(s => {
+100:       if (!sizeMap[s.box_size]) {
+101:         sizeMap[s.box_size] = { count: 0, amount: 0 };
+102:       }
+103:       sizeMap[s.box_size].count += s.quantity;
+104:       sizeMap[s.box_size].amount += s.total_amount;
+105:     });
+106: 
+107:     return Object.entries(sizeMap).map(([size, data]) => ({
+108:       name: `${size} pcs`,
+109:       value: data.count,
+110:       amount: data.amount
+111:     }));
+112:   }, [sales]);
+113: 
+114:   // Revenue vs Expenses
+115:   const monthStart = format(startOfMonth(today), 'yyyy-MM-dd');
+116:   const monthEnd = format(endOfMonth(today), 'yyyy-MM-dd');
+117: 
+118:   const monthBoxSales = sales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
+119:   const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
+120:   const boxRevenue = monthBoxSales.reduce((sum, s) => sum + s.total_amount, 0);
+121:   const bulkRevenue = monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0);
+122:   const shopRevenue = shopSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd).reduce((sum, s) => sum + s.total_amount, 0);
+123:   const totalRevenue = boxRevenue + bulkRevenue + shopRevenue;
+124: 
+125:   // keep alias for table below
