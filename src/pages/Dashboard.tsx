@@ -114,12 +114,14 @@ export default function Dashboard() {
     const dayStr = format(day, 'yyyy-MM-dd');
     const boxAmt = sales.filter(s => s.sale_date === dayStr).reduce((sum, s) => sum + s.total_amount, 0);
     const bulkAmt = bulkSales.filter(s => s.sale_date === dayStr).reduce((sum, s) => sum + s.total_amount, 0);
+    const shopAmt = shopSales.filter(s => s.sale_date === dayStr).reduce((sum, s) => sum + s.total_amount, 0);
     return {
       date: format(day, 'dd/MM', { locale: fr }),
       dayName: format(day, 'EEE', { locale: fr }),
       boites: boxAmt,
       vrac: bulkAmt,
-      ventes: boxAmt + bulkAmt
+      magasin: shopAmt,
+      ventes: boxAmt + bulkAmt + shopAmt
     };
   });
 
@@ -266,6 +268,7 @@ export default function Dashboard() {
                 <Legend />
                 <Bar dataKey="boites" stackId="a" fill="#f59e0b" radius={[0, 0, 0, 0]} name="Boîtes" />
                 <Bar dataKey="vrac" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} name="Vrac" />
+              <Bar dataKey="magasin" stackId="a" fill="#f43f5e" radius={[4, 4, 0, 0]} name="Magasin" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -352,7 +355,8 @@ export default function Dashboard() {
               <tbody>
                 {[
                   ...sales.slice(0, 4).map(s => ({ date: s.sale_date, type: 'boite' as const, detail: `${s.quantity} boîte(s) × ${s.box_size} pcs`, amount: s.total_amount })),
-                  ...bulkSales.slice(0, 3).map(s => ({ date: s.sale_date, type: 'vrac' as const, detail: `${s.quantity_kg} kg × ${s.price_per_kg.toLocaleString()} DZD/kg`, amount: s.total_amount }))
+                  ...bulkSales.slice(0, 3).map(s => ({ date: s.sale_date, type: 'vrac' as const, detail: `${s.quantity_kg} kg × ${s.price_per_kg.toLocaleString()} DZD/kg`, amount: s.total_amount })),
+                  ...shopSales.slice(0, 3).map(s => ({ date: s.sale_date, type: 'magasin' as const, detail: `${s.quantity} pcs × ${s.price_per_piece.toLocaleString()} DZD`, amount: s.total_amount }))
                 ]
                   .sort((a, b) => b.date.localeCompare(a.date))
                   .slice(0, 6)
@@ -362,8 +366,8 @@ export default function Dashboard() {
                         {format(new Date(item.date), 'dd MMM', { locale: fr })}
                       </td>
                       <td className="py-3">
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${item.type === 'boite' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                          {item.type === 'boite' ? 'Boîte' : 'Vrac'}
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${item.type === 'boite' ? 'bg-amber-100 text-amber-700' : item.type === 'magasin' ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          {item.type === 'boite' ? 'Boîte' : item.type === 'magasin' ? 'Magasin' : 'Vrac'}
                         </span>
                       </td>
                       <td className="py-3 text-sm text-gray-600">{item.detail}</td>
@@ -372,7 +376,7 @@ export default function Dashboard() {
                       </td>
                     </tr>
                   ))}
-                {sales.length === 0 && bulkSales.length === 0 && (
+                {sales.length === 0 && bulkSales.length === 0 && shopSales.length === 0 && (
                   <tr>
                     <td colSpan={4} className="py-8 text-center text-gray-400">
                       Aucune vente enregistrée

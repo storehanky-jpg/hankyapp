@@ -78,15 +78,17 @@ export default function ReportsPage() {
       const dayStr = format(day, 'yyyy-MM-dd');
       const daySales = sales.filter(s => s.sale_date === dayStr);
       const dayBulk = bulkSales.filter(s => s.sale_date === dayStr);
+      const dayShop = shopSales.filter(s => s.sale_date === dayStr);
       return {
         date: format(day, 'dd'),
         dayName: format(day, 'EEE', { locale: fr }),
         ventes: daySales.reduce((sum, s) => sum + s.total_amount, 0),
         vrac: dayBulk.reduce((sum, s) => sum + s.total_amount, 0),
-        transactions: daySales.length + dayBulk.length
+        magasin: dayShop.reduce((sum, s) => sum + s.total_amount, 0),
+        transactions: daySales.length + dayBulk.length + dayShop.length
       };
     });
-  }, [sales, bulkSales]);
+  }, [sales, bulkSales, shopSales]);
 
   // Box size distribution
   const boxSizeDistribution = useMemo(() => {
@@ -292,6 +294,7 @@ export default function ReportsPage() {
                 <Legend />
                 <Bar dataKey="ventes" stackId="a" fill="#f59e0b" radius={[0, 0, 0, 0]} name="Boîtes (DA)" />
                 <Bar dataKey="vrac" stackId="a" fill="#10b981" radius={[4, 4, 0, 0]} name="Vrac (DA)" />
+              <Bar dataKey="magasin" stackId="a" fill="#f43f5e" radius={[4, 4, 0, 0]} name="Magasin" />
               </BarChart>
             </ResponsiveContainer>
           </div>
