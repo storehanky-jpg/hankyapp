@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { 
+import {
   Plus, Trash2, Edit2, X, Phone, Mail, MapPin,
   Users, ShoppingBag, Tag, Save, Search, ChevronRight,
   Scale, Package, Store, Sparkles, Building2, FileText
