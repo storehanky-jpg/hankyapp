@@ -1239,7 +1239,7 @@ export default function BulkSalesPage() {
   // CUSTOMER LIST VIEW
   // ═══════════════════════════════════════════════
   const globalTotal = Object.values(allCustomerStats).reduce((s, v) => s + v.total, 0);
-  const globalReste = Object.values(allCustomerStats).reduce((s, v) => s + v.reste, 0);
+  const globalReste = customers.reduce((s, c) => s + ((allCustomerStats[c.id] || allCustomerStats[c.name] || { reste: 0 }).reste), 0);
 
   return (
     <div className="space-y-6">
