@@ -1,382 +1,381 @@
-=== src/pages/BulkSalesPage.tsx ===
+=== src/pages/Dashboard.tsx ===
 ...
-69:   type: SaleType;
-70:   quantity: number;
-71:   unit_price: number;
-72: }
-73: 
-74: export default function BulkSalesPage() {
-75:   const { bulkSales, setBulkSales, sales, setSales, shopSales, setShopSales, customers } = useApp();
-76:   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
-77:   const [search, setSearch] = useState('');
-78:   const [fiscalInfo, setFiscalInfo] = useState<FiscalInfo | null>(null);
-79:   const [activeTab, setActiveTab] = useState<'ventes' | 'tarifs'>('ventes');
-80:   const [showFactureModal, setShowFactureModal] = useState(false);
-81:   const [factureItems, setFactureItems] = useState<{ label: string; quantity: number; unit_price: number }[]>([]);
-82:   const [factureItemForm, setFactureItemForm] = useState({ label: '', quantity: 1, unit_price: 0 });
-83: 
-84:   useEffect(() => {
-85:     api.fiscalInfoService.get().then(setFiscalInfo).catch(() => {});
+32: 
+33:   // Today's stats
+34:   const salesToday = sales.filter(s => s.sale_date === todayStr);
+35:   const bulkSalesToday = bulkSales.filter(s => s.sale_date === todayStr);
+36:   const boxAmountToday = salesToday.reduce((sum, s) => sum + s.total_amount, 0);
+37:   const bulkAmountToday = bulkSalesToday.reduce((sum, s) => sum + s.total_amount, 0);
+38:   const shopAmountToday = shopSales.filter(s => s.sale_date === todayStr).reduce((sum, s) => sum + s.total_amount, 0);
+39:   const totalSalesToday = boxAmountToday + bulkAmountToday + shopAmountToday;
+40:   const boxesSoldToday = salesToday.reduce((sum, s) => sum + s.quantity, 0);
+41: 
+42:   // Monthly stats
+43:   const salesThisMonth = sales.filter(s => {
+44:     const date = new Date(s.sale_date);
+45:     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+46:   });
+47:   const bulkSalesThisMonth = bulkSales.filter(s => {
+48:     const date = new Date(s.sale_date);
+49:     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+50:   });
+51:   const boxAmountMonth = salesThisMonth.reduce((sum, s) => sum + s.total_amount, 0);
+52:   const bulkAmountMonth = bulkSalesThisMonth.reduce((sum, s) => sum + s.total_amount, 0);
+53:   const shopAmountMonth = shopSales.filter(s => {
+54:     const date = new Date(s.sale_date);
+55:     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+56:   }).reduce((sum, s) => sum + s.total_amount, 0);
+57:   const totalSalesMonth = boxAmountMonth + bulkAmountMonth + shopAmountMonth;
+58: 
+59:   const purchasesThisMonth = materialPurchases.filter(p => {
+60:     const date = new Date(p.purchase_date);
+61:     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+62:   });
 ...
-106:         label: `Boîte ${s.box_size} pcs`, quantity: s.quantity,
-107:         unit_price: s.unit_price, total_amount: s.total_amount,
-108:         amount_paid: s.amount_paid || 0, is_paid: s.is_paid,
-109:         notes: s.notes, raw: s,
-110:       });
-111:     });
-112:     shopSales.filter(s => s.customer_id === selectedCustomerId || s.customer_name === selectedCustomer?.name).forEach(s => {
-113:       result.push({
-114:         id: s.id, type: 'magasin', sale_date: s.sale_date,
-115:         label: 'Coques Magasin', quantity: s.quantity,
-116:         unit_price: s.price_per_piece, total_amount: s.total_amount,
-117:         amount_paid: s.amount_paid || 0, is_paid: s.is_paid,
-118:         notes: s.notes, raw: s,
-119:       });
-120:     });
-121:     return result.sort((a, b) => b.sale_date.localeCompare(a.sale_date));
-122:   }, [selectedCustomerId, bulkSales, sales, shopSales, selectedCustomer]);
-123: 
-124:   const customerStats = useMemo(() => {
-125:     const totalAchats = customerSales.reduce((s, x) => s + x.total_amount, 0);
-126:     const totalPaye = customerSales.reduce((s, x) => s + x.amount_paid, 0);
-127:     const totalReste = totalAchats - totalPaye;
-128:     return { totalAchats, totalPaye, totalReste, count: customerSales.length };
-129:   }, [customerSales]);
-130: 
-131:   const allCustomerStats = useMemo(() => {
-132:     const map: Record<string, { total: number; paid: number; reste: number; count: number }> = {};
-133:     const addSale = (cid: string | undefined, cname: string | undefined, total: number, paid: number) => {
-134:       const key = cid || cname || '';
-135:       if (!key) return;
-136:       if (!map[key]) map[key] = { total: 0, paid: 0, reste: 0, count: 0 };
-137:       map[key].total += total;
-138:       map[key].paid += paid;
-139:       map[key].reste = map[key].total - map[key].paid;
-140:       map[key].count++;
-141:     };
-142:     bulkSales.forEach(s => addSale(s.customer_id, s.customer_name, s.total_amount, s.amount_paid || 0));
-143:     sales.forEach(s => addSale(s.customer_id, s.customer_name, s.total_amount, s.amount_paid || 0));
-144:     shopSales.forEach(s => addSale(s.customer_id, s.customer_name, s.total_amount, s.amount_paid || 0));
-145:     return map;
-146:   }, [bulkSales, sales, shopSales]);
-147: 
-148:   const filteredCustomers = useMemo(() => {
-149:     if (!search.trim()) return customers;
-150:     const q = search.toLowerCase();
-151:     return customers.filter(c => c.name.toLowerCase().includes(q) || c.phone?.includes(q));
-152:   }, [customers, search]);
-153: 
-154:   // Group sales by date for display
-155:   const groupedSales = useMemo<GroupedSale[]>(() => {
-156:     const map = new Map<string, UnifiedSale[]>();
+65:   // Fixed charges monthly equivalent
+66:   const fixedChargesMonthly = fixedCharges
+67:     .filter(c => c.is_active)
+68:     .reduce((sum, c) => {
+69:       switch (c.frequency) {
+70:         case 'daily': return sum + c.amount * 30;
 ...
-271:       }
-272:     }
-273:     const paid = paymentStatus === 'paid' ? total : paymentStatus === 'unpaid' ? 0 : amountPaid;
-274:     const notes = saleNotes.trim() || undefined;
-275: 
-276:     // Distribute paid amount line by line
-277:     let remainingPaid = paid;
-278:     const linesWithPaid = saleLines.map(line => {
-279:       const lineTotal = line.quantity * line.unit_price;
-280:       const linePaid = Math.min(lineTotal, Math.max(0, remainingPaid));
-281:       remainingPaid -= linePaid;
-282:       return {
-283:         ...line,
-284:         lineTotal,
-285:         linePaid,
-286:         lineIsPaid: linePaid >= lineTotal,
-287:       };
-288:     });
-289: 
-290:     try {
-291:       setSavingSale(true);
+77: 
+78:   const variableExpensesMonth = variableExpenses
+79:     .filter(e => {
+80:       const date = new Date(e.date);
+81:       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+82:     })
 ...
-294:         // Delete removed lines from DB
-295:         for (const orig of editGroup.items) {
-296:           if (!activeIds.has(orig.id)) {
-297:             const meta = SALE_TYPES.find(t => t.id === orig.type)!;
-298:             if (meta.table === 'bulk') await api.bulkSalesService.delete(orig.id);
-299:             else if (meta.table === 'sales') await api.salesService.delete(orig.id);
-300:             else await api.shopSalesService.delete(orig.id);
-301:           }
-302:         }
-303: 
-304:         let updatedBulk = bulkSales.filter(b => !editGroup.items.some(orig => !activeIds.has(orig.id) && orig.id === b.id));
-305:         let updatedSales = sales.filter(s => !editGroup.items.some(orig => !activeIds.has(orig.id) && orig.id === s.id));
-306:         let updatedShop = shopSales.filter(sh => !editGroup.items.some(orig => !activeIds.has(orig.id) && orig.id === sh.id));
+84: 
+85:   const utilitiesMonth = utilities
+86:     .filter(u => {
+87:       const start = new Date(u.period_start);
+88:       return start.getMonth() === currentMonth && start.getFullYear() === currentYear;
+89:     })
+...
+91: 
+92:   const laborMonth = laborCosts
+93:     .filter(l => l.period_month === currentMonth + 1 && l.period_year === currentYear)
+94:     .reduce((sum, l) => sum + l.total_cost, 0);
+95: 
+96:   const totalExpensesMonth = fixedChargesMonthly + variableExpensesMonth + utilitiesMonth + laborMonth;
+97:   const profitMonth = totalSalesMonth - (totalExpensesMonth + totalPurchasesMonth);
+98:   const profitToday = totalSalesToday - ((totalExpensesMonth + totalPurchasesMonth) / 30);
+99: 
+100:   // Production stats
+101:   const productionThisMonth = productionBatches.filter(b => {
+102:     const date = new Date(b.batch_date);
+103:     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+104:   });
+...
+113:   const salesChartData = last7Days.map(day => {
+114:     const dayStr = format(day, 'yyyy-MM-dd');
+115:     const boxAmt = sales.filter(s => s.sale_date === dayStr).reduce((sum, s) => sum + s.total_amount, 0);
+116:     const bulkAmt = bulkSales.filter(s => s.sale_date === dayStr).reduce((sum, s) => sum + s.total_amount, 0);
+117:     const shopAmt = shopSales.filter(s => s.sale_date === dayStr).reduce((sum, s) => sum + s.total_amount, 0);
+118:     return {
+119:       date: format(day, 'dd/MM', { locale: fr }),
+120:       dayName: format(day, 'EEE', { locale: fr }),
+...
+140:     const dayStr = format(day, 'yyyy-MM-dd');
+141:     const dayProduction = productionBatches
+142:       .filter(b => b.batch_date === dayStr)
+143:       .reduce((sum, b) => sum + b.produced_quantity, 0);
+144:     const daySalesCount = sales
+145:       .filter(s => s.sale_date === dayStr)
+146:       .reduce((sum, s) => sum + s.quantity, 0);
+147:     return {
+148:       date: format(day, 'dd/MM'),
+...
+155:     {
+156:       title: "Chiffre d'Affaires Aujourd'hui",
+157:       value: `${totalSalesToday.toLocaleString()} DZD`,
+158:       subtitle: `${boxesSoldToday} boîtes + ${bulkAmountToday > 0 ? bulkSalesToday.reduce((s, b) => s + b.quantity_kg, 0).toFixed(1) + 'kg vrac' : '0kg vrac'}`,
+159:       icon: <ShoppingCart size={24} />,
+160:       trend: profitToday >= 0,
+161:       trendValue: `${Math.abs(profitToday).toLocaleString()} DZD ${profitToday >= 0 ? 'bénéfice' : 'perte estimée'}`,
+162:       color: 'from-emerald-500 to-teal-600',
+163:       bgColor: 'bg-emerald-50'
+164:     },
+165:     {
+166:       title: "Chiffre d'Affaires Mensuel",
+167:       value: `${totalSalesMonth.toLocaleString()} DZD`,
+168:       subtitle: `Boîtes: ${boxAmountMonth.toLocaleString()} · Vrac: ${bulkAmountMonth.toLocaleString()} DZD`,
+169:       icon: <DollarSign size={24} />,
+170:       trend: profitMonth >= 0,
+171:       trendValue: `${Math.abs(profitMonth).toLocaleString()} DZD`,
+172:       color: 'from-blue-500 to-indigo-600',
+173:       bgColor: 'bg-blue-50'
+174:     },
+...
+188:       subtitle: `Achats: ${totalPurchasesMonth.toLocaleString()} DZD`,
+189:       icon: <Package size={24} />,
+190:       trend: totalPurchasesMonth < totalSalesMonth,
+191:       trendValue: `Charges: ${totalExpensesMonth.toLocaleString()} DZD`,
+192:       color: 'from-rose-500 to-pink-600',
+193:       bgColor: 'bg-rose-50'
+...
+206:           </p>
+207:         </div>
+208:         <div className={`px-4 py-2 rounded-lg ${profitMonth >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+209:           <div className="flex items-center gap-2">
+210:             {profitMonth >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+211:             <span className="font-medium">
+212:               {profitMonth >= 0 ? 'Bénéfice' : 'Perte'} mensuel: {Math.abs(profitMonth).toLocaleString()} DZD
+213:             </span>
+214:           </div>
+215:         </div>
+=== src/pages/ReportsPage.tsx ===
+...
+40:   }, [selectedPeriod]);
+41: 
+42:   // Monthly revenue data (last 12 months) — box + bulk
+43:   const monthlyRevenueData = useMemo(() => {
+44:     const data = [];
+45:     for (let i = 11; i >= 0; i--) {
+46:       const month = subMonths(today, i);
+...
+48:       const monthEnd = format(endOfMonth(month), 'yyyy-MM-dd');
+49: 
+50:       const monthBoxSales = sales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
+51:       const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
+52:       const revenue = monthBoxSales.reduce((sum, s) => sum + s.total_amount, 0)
+53:                     + monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0)
+54:                     + shopSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd).reduce((sum, s) => sum + s.total_amount, 0);
+55: 
+56:       const monthPurchases = materialPurchases.filter(p => p.purchase_date >= monthStart && p.purchase_date <= monthEnd);
+57:       const expenses = monthPurchases.reduce((sum, p) => sum + p.total_cost, 0);
+58: 
+59:       data.push({
+60:         month: format(month, 'MMM', { locale: fr }),
+61:         fullMonth: format(month, 'MMMM yyyy', { locale: fr }),
+62:         revenus: revenue,
+63:         depenses: expenses,
+64:         benefice: revenue - expenses
+65:       });
+66:     }
+67:     return data;
+...
+77:     return days.map(day => {
+78:       const dayStr = format(day, 'yyyy-MM-dd');
+79:       const daySales = sales.filter(s => s.sale_date === dayStr);
+80:       const dayBulk = bulkSales.filter(s => s.sale_date === dayStr);
+81:       const dayShop = shopSales.filter(s => s.sale_date === dayStr);
+82:       return {
+83:         date: format(day, 'dd'),
+84:         dayName: format(day, 'EEE', { locale: fr }),
+...
+94:   const boxSizeDistribution = useMemo(() => {
+95:     const sizeMap: Record<number, { count: number; amount: number }> = {};
+96:     const monthSales = sales.filter(s => {
+97:       const date = new Date(s.sale_date);
+98:       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+99:     });
+...
+114:   }, [sales]);
+115: 
+116:   // Revenue vs Expenses
+117:   const monthStart = format(startOfMonth(today), 'yyyy-MM-dd');
+118:   const monthEnd = format(endOfMonth(today), 'yyyy-MM-dd');
+119: 
+120:   const monthBoxSales = sales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
+121:   const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
+122:   const boxRevenue = monthBoxSales.reduce((sum, s) => sum + s.total_amount, 0);
+123:   const bulkRevenue = monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0);
+124:   const shopRevenue = shopSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd).reduce((sum, s) => sum + s.total_amount, 0);
+125:   const totalRevenue = boxRevenue + bulkRevenue + shopRevenue;
+126: 
+127:   // keep alias for table below
+128:   const monthSales = monthBoxSales;
+129: 
+130:   const monthPurchases = materialPurchases.filter(p => p.purchase_date >= monthStart && p.purchase_date <= monthEnd);
+131:   const totalPurchasesExpenses = monthPurchases.reduce((sum, p) => sum + p.total_cost, 0);
+132: 
+133:   const fixedMonthly = fixedCharges.filter(c => c.is_active).reduce((sum, c) => {
+134:     switch (c.frequency) {
+135:       case 'daily': return sum + c.amount * 30;
+136:       case 'weekly': return sum + c.amount * 4;
+...
+142: 
+143:   const variableMonthly = variableExpenses
+144:     .filter(e => {
+145:       const date = new Date(e.date);
+146:       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+147:     })
+...
+149: 
+150:   const utilitiesMonthly = utilities
+151:     .filter(u => {
+152:       const start = new Date(u.period_start);
+153:       return start.getMonth() === currentMonth && start.getFullYear() === currentYear;
+154:     })
+...
+156: 
+157:   const laborMonthly = laborCosts
+158:     .filter(l => l.period_month === currentMonth + 1 && l.period_year === currentYear)
+159:     .reduce((sum, l) => sum + l.total_cost, 0);
+160: 
+161:   const totalExpenses = totalPurchasesExpenses + fixedMonthly + variableMonthly + utilitiesMonthly + laborMonthly;
+162:   const netProfit = totalRevenue - totalExpenses;
+163: 
+164:   // Expense breakdown for pie chart
+165:   const expenseBreakdown = [
+...
+169:     { name: 'Énergie', value: utilitiesMonthly },
+170:     { name: 'Main d\'œuvre', value: laborMonthly }
+171:   ].filter(e => e.value > 0);
+172: 
+173:   return (
+174:     <div className="space-y-6">
+...
+198:       {/* KPIs */}
+199:       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+200:         <div className={`rounded-xl p-5 shadow-lg ${netProfit >= 0 ? 'bg-gradient-to-br from-emerald-500 to-teal-600' : 'bg-gradient-to-br from-rose-500 to-pink-600'} text-white`}>
+201:           <div className="flex items-center gap-3 mb-2">
+202:             {netProfit >= 0 ? <TrendingUp size={24} /> : <TrendingDown size={24} />}
+203:             <span className="text-sm text-white/80">Bénéfice Net</span>
+204:           </div>
+205:           <p className="text-3xl font-bold">{Math.abs(netProfit).toLocaleString()} DZD</p>
+206:           <p className="text-sm text-white/70 mt-1">{netProfit >= 0 ? 'Bénéfice' : 'Perte'}</p>
+207:         </div>
+208:         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+209:           <div className="flex items-center gap-3 mb-2">
+...
+211:             <span className="text-sm text-gray-500">Chiffre d'Affaires</span>
+212:           </div>
+213:           <p className="text-2xl font-bold text-gray-900">{totalRevenue.toLocaleString()} DZD</p>
+214:           <p className="text-xs text-gray-400 mt-1">Boîtes: {boxRevenue.toLocaleString()} · Vrac: {bulkRevenue.toLocaleString()}</p>
+215:         </div>
+216:         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+217:           <div className="flex items-center gap-3 mb-2">
+...
+231:       </div>
+232: 
+233:       {/* Revenue Evolution Chart */}
+234:       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+235:         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+236:           <TrendingUp size={20} className="text-amber-500" />
+...
+239:         <div className="h-72">
+240:           <ResponsiveContainer width="100%" height="100%">
+241:             <AreaChart data={monthlyRevenueData}>
+242:               <defs>
+243:                 <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+244:                   <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+245:                   <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+246:                 </linearGradient>
+...
+262:                 stroke="#10b981"
+263:                 strokeWidth={2}
+264:                 fill="url(#revenueGradient)"
+265:                 name="Revenus"
+266:               />
+267:               <Area
+...
+285:           <div className="h-64">
+286:             <ResponsiveContainer width="100%" height="100%">
+287:               <BarChart data={dailySalesData.filter(d => d.ventes + d.vrac > 0)}>
+288:                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+289:                 <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
+290:                 <YAxis stroke="#9ca3af" fontSize={12} />
+...
+370:         </div>
+371: 
+372:         {/* Profit Evolution */}
+373:         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+374:           <h3 className="text-lg font-semibold text-gray-900 mb-4">Évolution du Bénéfice</h3>
+375:           <div className="h-64">
+376:             <ResponsiveContainer width="100%" height="100%">
+377:               <LineChart data={monthlyRevenueData}>
+378:                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+379:                 <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} />
+380:                 <YAxis stroke="#9ca3af" fontSize={12} />
+...
+406:               <tr className="hover:bg-gray-50">
+407:                 <td className="px-4 py-3 text-gray-600">Ventes boîtes</td>
+408:                 <td className="px-4 py-3 text-right font-medium text-emerald-600">+{boxRevenue.toLocaleString()} DZD</td>
+409:               </tr>
+410:               <tr className="hover:bg-gray-50">
+411:                 <td className="px-4 py-3 text-gray-600">Ventes en vrac</td>
+412:                 <td className="px-4 py-3 text-right font-medium text-emerald-600">+{bulkRevenue.toLocaleString()} DZD</td>
+413:               </tr>
+414:               <tr className="bg-emerald-50">
+415:                 <td className="px-4 py-3 font-bold text-emerald-800">Chiffre d'Affaires Global</td>
+416:                 <td className="px-4 py-3 text-right font-bold text-emerald-700 text-lg">{totalRevenue.toLocaleString()} DZD</td>
+417:               </tr>
+418:               <tr className="hover:bg-gray-50">
+419:                 <td className="px-4 py-3 text-gray-600">Achats matières premières</td>
+...
+438:               <tr className="bg-gray-50 font-bold">
+439:                 <td className="px-4 py-3 text-gray-900">Bénéfice Net</td>
+440:                 <td className={`px-4 py-3 text-right ${netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+441:                   {netProfit.toLocaleString()} DZD
+442:                 </td>
+443:               </tr>
+444:             </tbody>
+=== src/context/AppContext.tsx ===
+...
+185:         withTimeout(api.recipeConfigService.get()).catch(() => cachedRecipeConfig || { id: 'default', name: 'Macaron Classique', batch_size_kg: 1, created_at: new Date().toISOString() }),
+186:         withTimeout(api.recipeItemsService.getAll()).catch(() => cachedRecipeItems),
+187:         withTimeout(api.settingsService.get()).catch(() => cachedSettings || { id: 'default', company_name: 'Hanky Macarons', currency: 'DZD', profit_margin: 30, created_at: new Date().toISOString() })
+188:       ]);
+189: 
+190:       setState({
+...
+277:     const currentYear = new Date().getFullYear();
+278: 
+279:     const salesToday = state.sales.filter(s => s.sale_date === today);
+280:     const salesThisMonth = state.sales.filter(s => {
+281:       const date = new Date(s.sale_date);
+282:       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+283:     });
+284: 
+285:     const totalSalesToday = salesToday.reduce((sum, s) => sum + s.total_amount, 0);
+286:     const totalSalesMonth = salesThisMonth.reduce((sum, s) => sum + s.total_amount, 0);
+287: 
+288:     const purchasesThisMonth = state.materialPurchases.filter(p => {
+289:       const date = new Date(p.purchase_date);
+290:       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+291:     });
+...
+306:     });
 307: 
-308:         const existingGroupId = (editGroup.items.find(i => 'sale_group_id' in (i.raw as any))?.raw as Sale | undefined)?.sale_group_id;
-309:         const groupId = existingGroupId || `sale-${Date.now()}`;
-310: 
-311:         for (const line of linesWithPaid) {
-312:           const meta = SALE_TYPES.find(t => t.id === line.type)!;
-313:           const common = {
-314:             sale_date: saleDate,
-315:             amount_paid: line.linePaid,
-316:             notes,
+308:     // Calculate profits
+309:     const fixedChargesMonthly = state.fixedCharges
+310:       .filter(c => c.is_active)
+311:       .reduce((sum, c) => {
+312:         switch (c.frequency) {
+313:           case 'daily': return sum + c.amount * 30;
 ...
-334:                 unit_price: line.unit_price,
-335:                 total_amount: line.lineTotal,
-336:                 is_paid: line.lineIsPaid,
-337:               });
-338:               updatedSales = updatedSales.map(s => s.id === line.id ? res : s);
-339:             } else {
-340:               const res = await api.shopSalesService.update(line.id, {
-341:                 ...common,
-342:                 quantity: line.quantity,
-343:                 price_per_piece: line.unit_price,
-344:                 total_amount: line.lineTotal,
-345:                 is_paid: line.lineIsPaid,
-346:               });
-347:               updatedShop = updatedShop.map(sh => sh.id === line.id ? res : sh);
-348:             }
-349:           } else {
-350:             // Type changed: delete from old table if had an id
+320: 
+321:     const variableExpensesMonth = state.variableExpenses
+322:       .filter(e => {
+323:         const date = new Date(e.date);
+324:         return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+325:       })
 ...
-354:                 await api.bulkSalesService.delete(line.id);
-355:                 updatedBulk = updatedBulk.filter(b => b.id !== line.id);
-356:               } else if (oldMeta.table === 'sales') {
-357:                 await api.salesService.delete(line.id);
-358:                 updatedSales = updatedSales.filter(s => s.id !== line.id);
-359:               } else {
-360:                 await api.shopSalesService.delete(line.id);
-361:                 updatedShop = updatedShop.filter(sh => sh.id !== line.id);
-362:               }
-363:             }
-364: 
-365:             // Create new
-366:             if (meta.table === 'bulk') {
-367:               const res = await api.bulkSalesService.create({
-368:                 ...common,
-369:                 quantity_kg: line.quantity,
-370:                 price_per_kg: line.unit_price,
+327: 
+328:     const utilitiesMonth = state.utilities
+329:       .filter(u => {
+330:         const start = new Date(u.period_start);
+331:         const end = new Date(u.period_end);
+332:         return (start.getMonth() === currentMonth || end.getMonth() === currentMonth) &&
 ...
-385:                 customer_id: selectedCustomer.id,
-386:                 customer_name: selectedCustomer.name,
-387:                 sale_group_id: groupId,
-388:               });
-389:               updatedSales = [res, ...updatedSales];
-390:             } else {
-391:               const res = await api.shopSalesService.create({
-392:                 ...common,
-393:                 quantity: line.quantity,
-394:                 price_per_piece: line.unit_price,
-395:                 total_amount: line.lineTotal,
-396:                 is_paid: line.lineIsPaid,
-397:                 customer_id: selectedCustomer.id,
-398:                 customer_name: selectedCustomer.name,
-399:               });
-400:               updatedShop = [res, ...updatedShop];
-401:             }
-402:           }
-403:         }
-404: 
-405:         setBulkSales(updatedBulk);
-406:         setSales(updatedSales);
-407:         setShopSales(updatedShop);
-408:       } else {
-409:         const groupId = `sale-${Date.now()}`;
-410:         const newBulk: BulkSale[] = [];
-411:         const newSales: Sale[] = [];
-412:         const newShop: ShopSale[] = [];
-413: 
-414:         for (const line of linesWithPaid) {
-415:           const meta = SALE_TYPES.find(t => t.id === line.type)!;
-416:           const common = {
-417:             sale_date: saleDate,
-...
-441:               customer_id: selectedCustomer.id,
-442:               customer_name: selectedCustomer.name,
-443:               sale_group_id: groupId,
-444:             });
-445:             newSales.push(created);
-446:           } else {
-447:             const created = await api.shopSalesService.create({
-448:               ...common,
-449:               quantity: line.quantity,
-450:               price_per_piece: line.unit_price,
-451:               total_amount: line.lineTotal,
-452:               is_paid: line.lineIsPaid,
-453:               customer_id: selectedCustomer.id,
-454:               customer_name: selectedCustomer.name,
-455:             });
-456:             newShop.push(created);
-457:           }
-458:         }
-459: 
-460:         if (newBulk.length) setBulkSales([...newBulk, ...bulkSales]);
-461:         if (newSales.length) setSales([...newSales, ...sales]);
-462:         if (newShop.length) setShopSales([...newShop, ...shopSales]);
-463:       }
-464:       setShowSaleModal(false);
-465:     } catch (err) {
-466:       console.error(err);
-467:     } finally {
-468:       setSavingSale(false);
-469:     }
-470:   };
-471: 
-472:   const handleDeleteGroup = async (group: GroupedSale) => {
-...
-481:         const meta = SALE_TYPES.find(t => t.id === s.type)!;
-482:         if (meta.table === 'bulk') {
-483:           await api.bulkSalesService.delete(s.id);
-484:         } else if (meta.table === 'sales') {
-485:           await api.salesService.delete(s.id);
-486:         } else {
-487:           await api.shopSalesService.delete(s.id);
-488:         }
-489:       }
-490:       const itemIds = new Set(group.items.map(i => i.id));
-491:       setBulkSales(bulkSales.filter(x => !itemIds.has(x.id)));
-492:       setSales(sales.filter(x => !itemIds.has(x.id)));
-493:       setShopSales(shopSales.filter(x => !itemIds.has(x.id)));
-494:     } catch (err) {
-495:       console.error(err);
-496:     }
-497:   };
-498: 
-499:   const buildDocHTML = (docType: 'bon' | 'facture', items: { label: string; quantity: number; unit_price: number; total: number }[], totalGeneral: number, verse: number) => {
-500:     if (!selectedCustomer) return '';
-501:     const docNum = docType === 'bon'
-502:       ? `BC-${format(new Date(), 'yyyyMMdd')}-${Date.now().toString().slice(-4)}`
-503:       : `FAC-${format(new Date(), 'yyyyMMdd')}-${Date.now().toString().slice(-4)}`;
-...
-609:     printHTML(html);
-610:   };
-611: 
-612:   const printDocument = (docType: 'bon' | 'facture') => {
-613:     if (!selectedCustomer || customerSales.length === 0) return;
-614:     const items = customerSales.map(s => ({ label: s.label, quantity: s.quantity, unit_price: s.unit_price, total: s.total_amount }));
-615:     const html = buildDocHTML(docType, items, customerStats.totalAchats, customerStats.totalPaye);
-616:     printHTML(html);
-617:   };
-618: 
-619:   const openFactureModal = () => {
-620:     setFactureItems([]);
-621:     setFactureItemForm({ label: '', quantity: 1, unit_price: 0 });
-622:     setShowFactureModal(true);
-623:   };
-624: 
-625:   const addFactureItem = () => {
-...
-685:         </div>
-686: 
-687:         {/* Stats */}
-688:         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-689:           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-690:             <div className="flex items-center gap-2 mb-1"><Receipt size={14} className="text-gray-400" /><p className="text-xs text-gray-500">Transactions</p></div>
-691:             <p className="text-2xl font-bold text-gray-900">{customerStats.count}</p>
-692:           </div>
-693:           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-694:             <div className="flex items-center gap-2 mb-1"><TrendingUp size={14} className="text-gray-400" /><p className="text-xs text-gray-500">Total Achats</p></div>
-695:             <p className="text-2xl font-bold text-gray-900">{customerStats.totalAchats.toLocaleString()} <span className="text-sm font-normal text-gray-400">DA</span></p>
-696:           </div>
-697:           <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
-698:             <div className="flex items-center gap-2 mb-1"><Check size={14} className="text-emerald-500" /><p className="text-xs text-emerald-600 font-medium">Versé</p></div>
-699:             <p className="text-2xl font-bold text-emerald-700">{customerStats.totalPaye.toLocaleString()} <span className="text-sm font-normal text-emerald-400">DA</span></p>
-700:           </div>
-701:           <div className="bg-red-50 rounded-xl p-4 border border-red-100">
-702:             <div className="flex items-center gap-2 mb-1"><Clock size={14} className="text-red-500" /><p className="text-xs text-red-600 font-medium">Reste à Payer</p></div>
-703:             <p className="text-2xl font-bold text-red-700">{customerStats.totalReste.toLocaleString()} <span className="text-sm font-normal text-red-400">DA</span></p>
-704:           </div>
-705:         </div>
-706: 
-707:         {/* Tabs */}
-708:         <div className="flex items-center gap-1 bg-white rounded-xl p-1 shadow-sm border border-gray-100 w-fit">
-709:           <button onClick={() => setActiveTab('ventes')}
-710:             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'ventes' ? 'bg-emerald-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}>
-711:             <ShoppingBag size={15} /> Ventes
-712:           </button>
-713:           <button onClick={() => setActiveTab('tarifs')}
-...
-930:                   })}
-931:                 </tbody>
-932:                 {groupedSales.length > 0 && (
-933:                   <tfoot className="bg-gray-50">
-934:                     <tr>
-935:                       <td colSpan={4} className="px-4 py-3 font-bold text-right">Total</td>
-936:                       <td className="px-4 py-3 text-right font-bold text-gray-900">{customerStats.totalAchats.toLocaleString()}</td>
-937:                       <td className="px-4 py-3 text-right font-bold text-emerald-600">{customerStats.totalPaye.toLocaleString()}</td>
-938:                       <td className="px-4 py-3 text-right font-bold text-red-600">{customerStats.totalReste.toLocaleString()}</td>
-939:                       <td colSpan={2} />
-940:                     </tr>
-941:                   </tfoot>
-942:                 )}
-943:               </table>
-944:             </div>
-945:             {groupedSales.length === 0 && (
-946:               <div className="p-12 text-center text-gray-400">
-947:                 <ShoppingBag size={48} className="mx-auto mb-3 text-gray-300" />
-948:                 <p>Aucune vente enregistrée pour ce client</p>
-...
-1221:     );
-1222:   }
-1223: 
-1224:   // ═══════════════════════════════════════════════
-1225:   // CUSTOMER LIST VIEW
-1226:   // ═══════════════════════════════════════════════
-1227:   const globalTotal = Object.values(allCustomerStats).reduce((s, v) => s + v.total, 0);
-1228:   const globalReste = Object.values(allCustomerStats).reduce((s, v) => s + v.reste, 0);
-1229: 
-1230:   return (
-1231:     <div className="space-y-6">
-1232:       <div>
-1233:         <h1 className="text-2xl font-bold text-gray-900">Ventes</h1>
-1234:         <p className="text-gray-500">Sélectionnez un client pour gérer ses ventes</p>
-1235:       </div>
-1236: 
-1237:       {/* Global stats */}
-1238:       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-1239:         <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-5 text-white shadow-lg">
-1240:           <div className="flex items-center justify-between">
-1241:             <div>
-1242:               <p className="text-white/70 text-sm font-medium uppercase tracking-wide">CA Global</p>
-1243:               <p className="text-3xl font-bold mt-1">{globalTotal.toLocaleString()} <span className="text-sm font-normal text-white/70">DA</span></p>
-1244:             </div>
-1245:             <div className="p-3 bg-white/15 rounded-xl"><TrendingUp size={24} /></div>
-1246:           </div>
-1247:         </div>
-1248:         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-1249:           <div className="flex items-center justify-between">
-1250:             <div>
-1251:               <p className="text-xs text-gray-500 font-medium mb-1">Clients</p>
-1252:               <p className="text-2xl font-bold text-gray-900">{customers.length}</p>
-...
-1254:             <div className="p-3 bg-emerald-50 rounded-xl"><Users size={22} className="text-emerald-600" /></div>
-1255:           </div>
-1256:         </div>
-1257:         <div className="bg-red-50 rounded-xl p-5 border border-red-100">
-1258:           <div className="flex items-center justify-between">
-1259:             <div>
-1260:               <p className="text-xs text-red-600 font-medium mb-1">Reste à Encaisser</p>
-1261:               <p className="text-2xl font-bold text-red-700">{globalReste.toLocaleString()} <span className="text-sm font-normal text-red-400">DA</span></p>
-1262:             </div>
-1263:             <div className="p-3 bg-red-100 rounded-xl"><Clock size={22} className="text-red-600" /></div>
-1264:           </div>
-1265:         </div>
-1266:       </div>
-1267: 
-1268:       {/* Search */}
-1269:       <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
-1270:         <Search size={16} className="text-gray-400" />
-...
-1280:           <p className="font-medium">Aucun client trouvé</p>
-1281:           <p className="text-sm mt-1">Ajoutez des clients depuis la section Clients</p>
-1282:         </div>
-1283:       ) : (
-1284:         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-1285:           {filteredCustomers.map(customer => {
-1286:             const stats = allCustomerStats[customer.id] || allCustomerStats[customer.name] || { total: 0, paid: 0, reste: 0, count: 0 };
-1287:             return (
-1288:               <button key={customer.id} onClick={() => setSelectedCustomerId(customer.id)}
-1289:                 className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 text-left hover:shadow-md hover:border-emerald-300 transition-all group">
-1290:                 <div className="flex items-center gap-3 mb-4">
-1291:                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
-1292:                     {customer.name.charAt(0).toUpperCase()}
-1293:                   </div>
-1294:                   <div className="min-w-0 flex-1">
-1295:                     <p className="font-semibold text-gray-900 truncate group-hover:text-emerald-600 transition-colors flex items-center gap-1">
-1296:                       {customer.name}
-=== src/pages/CustomersPage.tsx ===
+336: 
+337:     const laborMonth = state.laborCosts
+338:       .filter(l => l.period_month === currentMonth + 1 && l.period_year === currentYear)
+339:       .reduce((sum, l) => sum + l.total_cost, 0);
+340: 
+341:     const totalExpensesMonth = fixedChargesMonthly + variableExpensesMonth + utilitiesMonth + laborMonth + totalPurchasesMonth;
+342:     const profitMonth = totalSalesMonth - totalExpensesMonth;
+343:     const profitToday = totalSalesToday - (totalExpensesMonth ? totalExpensesMonth / 30 : 0);
+344: 
+345:     return {
+346:       totalSalesToday,
+347:       totalSalesMonth,
+348:       totalPurchasesMonth,
+349:       profitToday,
+350:       profitMonth,
+351:       productionCostPerKg,
+352:       boxesSold,
+353:       recentSales: state.sales.slice(0, 10)
