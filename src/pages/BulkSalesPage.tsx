@@ -129,21 +129,11 @@ export default function BulkSalesPage() {
   }, [customerSales]);
 
   const allCustomerStats = useMemo(() => {
-    const map: Record<string, { total: number; paid: number; reste: number; count: number; label?: string }> = {};
-    const norm = (x: string | undefined) => (x || '').trim().toLowerCase();
-    const resolve = (cid: string | undefined, cname: string | undefined) => {
-      if (cid && customers.some(c => c.id === cid)) return cid;
-      const n = norm(cname);
-      if (n) {
-        const f = customers.find(c => norm(c.name) === n);
-        if (f) return f.id;
-      }
-      return cid || cname || '';
-    };
+    const map: Record<string, { total: number; paid: number; reste: number; count: number }> = {};
     const addSale = (cid: string | undefined, cname: string | undefined, total: number, paid: number) => {
-      const key = resolve(cid, cname);
+      const key = cid || cname || '';
       if (!key) return;
-      if (!map[key]) map[key] = { total: 0, paid: 0, reste: 0, count: 0, label: cname };
+      if (!map[key]) map[key] = { total: 0, paid: 0, reste: 0, count: 0 };
       map[key].total += total;
       map[key].paid += paid;
       map[key].reste = map[key].total - map[key].paid;
@@ -153,13 +143,7 @@ export default function BulkSalesPage() {
     sales.forEach(s => addSale(s.customer_id, s.customer_name, s.total_amount, s.amount_paid || 0));
     shopSales.forEach(s => addSale(s.customer_id, s.customer_name, s.total_amount, s.amount_paid || 0));
     return map;
-  }, [bulkSales, sales, shopSales, customers]);
-
-  const orphanStats = useMemo(() => {
-    return Object.keys(allCustomerStats)
-      .filter(k => !customers.some(c => c.id === k))
-      .map(k => ({ key: k, ...allCustomerStats[k] }));
-  }, [allCustomerStats, customers]);
+  }, [bulkSales, sales, shopSales]);
 
   const filteredCustomers = useMemo(() => {
     if (!search.trim()) return customers;
@@ -1281,15 +1265,6 @@ export default function BulkSalesPage() {
         </div>
       </div>
 
-      {orphanStats.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <p className="text-sm font-semibold text-amber-800 mb-2">Ventes sans client reconnu (comptees dans le total)</p>
-          {orphanStats.map(o => (
-            <p key={o.key} className="text-sm text-amber-700">{o.label || o.key} : {o.count} vente(s) - total {o.total.toLocaleString()} DA - reste {o.reste.toLocaleString()} DA</p>
-          ))}
-        </div>
-      )}
-
       {/* Search */}
       <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
         <Search size={16} className="text-gray-400" />
@@ -1308,7 +1283,7 @@ export default function BulkSalesPage() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredCustomers.map(customer => {
-            const stats = allCustomerStats[customer.id] || { total: 0, paid: 0, reste: 0, count: 0 };
+            const stats = allCustomerStats[customer.id] || allCustomerStats[customer.name] || { total: 0, paid: 0, reste: 0, count: 0 };
             return (
               <button key={customer.id} onClick={() => setSelectedCustomerId(customer.id)}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 text-left hover:shadow-md hover:border-emerald-300 transition-all group">
