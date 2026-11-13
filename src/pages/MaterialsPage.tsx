@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit2, Trash2, Search, Package, ShoppingCart, X, Truck, ChevronRight, ChevronDown, ChevronUp, Wallet, ArrowLeft, BarChart3, TrendingUp, Layers, CheckCircle, XCircle } from 'lucide-react';
-import { format, startOfWeek, startOfMonth, startOfYear, subWeeks, subMonths, subYears, isAfter } from 'date-fns';
+import  { format, startOfWeek, startOfMonth, startOfYear, subWeeks, subMonths, subYears, isAfter } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
