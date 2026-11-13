@@ -8,7 +8,7 @@ import { format, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, subDays
 import { fr } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 
-const COLORS  = ['#f59e0b', '#ea580c', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444'];
+const COLORS = ['#f59e0b', '#ea580c', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444'];
 
 export default function ReportsPage() {
   const { sales, bulkSales, shopSales, materialPurchases, fixedCharges, variableExpenses, utilities, laborCosts } = useApp();
