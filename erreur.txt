@@ -1,0 +1,2 @@
+DEBUT
+OK : 2 defauts vrac, 16 champs decimaux, 5 fichiers

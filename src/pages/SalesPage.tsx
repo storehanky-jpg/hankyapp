@@ -718,7 +718,7 @@ export default function SalesPage() {
                           <div className="flex items-center gap-3 px-4 pb-3 pt-1 bg-white border-t border-emerald-50">
                             <div className="flex-1">
                               <label className="block text-xs text-gray-500 mb-0.5">Quantité ({product.unit})</label>
-                              <input type="number" min="0.5" step={product.unit === 'kg' ? 'any' : '1'} value={sel.quantity}
+                              <input type="number" step="any" min="0.5" step={product.unit === 'kg' ? 'any' : '1'} value={sel.quantity}
                                 onChange={e => updateSelection(product.key, 'quantity', parseFloat(e.target.value) || 0)}
                                 className="w-full px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500" />
                             </div>

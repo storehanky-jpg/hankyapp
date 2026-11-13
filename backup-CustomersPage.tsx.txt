@@ -430,7 +430,7 @@ export default function CustomersPage() {
                           <p className="text-xs text-gray-400">Défaut: {pt.defaultPrice} DA/{pt.unitLabel}</p>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <input type="number" min="0" step="10" value={p.unit_price}
+                          <input type="number" min="0" step="any" value={p.unit_price}
                             onChange={e => updateProductPrice(p.product_type, parseFloat(e.target.value) || 0)}
                             className="w-24 px-3 py-1.5 border rounded-lg text-sm text-right font-bold text-emerald-700 focus:ring-2 focus:ring-emerald-500" />
                           <span className="text-sm text-gray-400 w-12">DA/{p.unit_label}</span>

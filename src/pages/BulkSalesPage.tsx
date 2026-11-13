@@ -210,7 +210,7 @@ export default function BulkSalesPage() {
     setPaymentStatus('unpaid');
     setAmountPaid(0);
     setSaleNotes('');
-    setSaleLines([{ type: 'boite20', quantity: 1, unit_price: getCustomerPrice(selectedCustomer, 'boite20') }]);
+    setSaleLines([{ type: 'vrac', quantity: 1, unit_price: getCustomerPrice(selectedCustomer, 'vrac') }]);
     setShowSaleModal(true);
   }
 
@@ -232,7 +232,7 @@ export default function BulkSalesPage() {
   }
 
   function addSaleLine() {
-    const lastType = saleLines[saleLines.length - 1]?.type || 'boite20';
+    const lastType = saleLines[saleLines.length - 1]?.type || 'vrac';
     setSaleLines([...saleLines, { type: lastType, quantity: 1, unit_price: getCustomerPrice(selectedCustomer, lastType) }]);
   }
 
@@ -1094,7 +1094,7 @@ export default function BulkSalesPage() {
                                 </select>
                               </td>
                               <td className="px-2 py-1.5">
-                                <input type="number" step={line.type === 'vrac' ? 'any' : '1'} min="0" value={line.quantity}
+                                <input type="number" step="any" step={line.type === 'vrac' ? 'any' : '1'} min="0" value={line.quantity}
                                   onChange={e => updateSaleLine(idx, 'quantity', e.target.value)}
                                   className="w-full px-2 py-1.5 border rounded-lg text-sm text-right focus:ring-2 focus:ring-emerald-500" />
                               </td>

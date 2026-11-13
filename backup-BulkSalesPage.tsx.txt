@@ -973,12 +973,12 @@ export default function BulkSalesPage() {
                         className="w-full px-2 py-1.5 border rounded-lg text-sm" />
                     </div>
                     <div className="col-span-3">
-                      <input type="number" min="0" step="0.5" placeholder="Qté" value={factureItemForm.quantity}
+                      <input type="number" min="0" step="any" placeholder="Qté" value={factureItemForm.quantity}
                         onChange={e => setFactureItemForm({ ...factureItemForm, quantity: parseFloat(e.target.value) || 0 })}
                         className="w-full px-2 py-1.5 border rounded-lg text-sm" />
                     </div>
                     <div className="col-span-3">
-                      <input type="number" min="0" step="10" placeholder="Prix" value={factureItemForm.unit_price}
+                      <input type="number" min="0" step="any" placeholder="Prix" value={factureItemForm.unit_price}
                         onChange={e => setFactureItemForm({ ...factureItemForm, unit_price: parseFloat(e.target.value) || 0 })}
                         className="w-full px-2 py-1.5 border rounded-lg text-sm" />
                     </div>
@@ -1094,12 +1094,12 @@ export default function BulkSalesPage() {
                                 </select>
                               </td>
                               <td className="px-2 py-1.5">
-                                <input type="number" step={line.type === 'vrac' ? '0.1' : '1'} min="0" value={line.quantity}
+                                <input type="number" step={line.type === 'vrac' ? 'any' : '1'} min="0" value={line.quantity}
                                   onChange={e => updateSaleLine(idx, 'quantity', e.target.value)}
                                   className="w-full px-2 py-1.5 border rounded-lg text-sm text-right focus:ring-2 focus:ring-emerald-500" />
                               </td>
                               <td className="px-2 py-1.5">
-                                <input type="number" min="0" step="10" value={line.unit_price}
+                                <input type="number" min="0" step="any" value={line.unit_price}
                                   onChange={e => updateSaleLine(idx, 'unit_price', e.target.value)}
                                   className="w-full px-2 py-1.5 border rounded-lg text-sm text-right font-bold text-amber-700 focus:ring-2 focus:ring-emerald-500" />
                               </td>
