@@ -4,7 +4,7 @@ import { format, startOfWeek, startOfMonth, startOfYear, subWeeks, subMonths, su
 import { fr } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
-import type { RawMaterial, MaterialPurchase, Supplier, SupplierPurchase } from '../types';
+import type { R awMaterial, MaterialPurchase, Supplier, SupplierPurchase } from '../types';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
