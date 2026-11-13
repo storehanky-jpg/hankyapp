@@ -2,7 +2,7 @@ import React from 'react';
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingCart, Package,
   ChefHat, Calendar, ArrowUp, ArrowDown, AlertCircle
-} from ' lucide-react';
+} from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, PieChart, Pie, Cell, Legend
