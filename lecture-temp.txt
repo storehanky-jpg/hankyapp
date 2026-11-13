@@ -1,261 +1,382 @@
-=== src/pages/MaterialsPage.tsx lignes 28-40 ===
-28:   unpaid: 'bg-red-500',
-29:   partial: 'bg-orange-500',
-30: };
-31: 
-32: interface PurchaseLine {
-33:   material_id: string;
-34:   quantity: number;
-35:   unit_cost: number;
-36: }
-37: 
-38: const emptyPurchaseLine = (materialId: string): PurchaseLine => ({ material_id: materialId, quantity: 1, unit_cost: 0 });
-39: 
-40: export default function MaterialsPage() {
-=== src/pages/MaterialsPage.tsx lignes 200-232 ===
-200:         lines: [],
-201:       });
-202:     } catch (error) {
-203:       console.error('Error saving purchase:', error);
-204:       alert('Erreur lors de l\'enregistrement de l\'achat.');
-205:     }
-206:   };
-207: 
-208:   const handleUpdateGroupPaymentStatus = async (groupKey: string, status: PaymentStatus, amountPaid?: number) => {
-209:     const groupPurchases = groupedPurchases.find(g => g.key === groupKey)?.purchases || [];
-210:     try {
-211:       for (const p of groupPurchases) {
-212:         const updated = await api.materialPurchasesService.update(p.id, {
-213:           payment_status: status,
-214:           amount_paid: status === 'paid' ? p.total_cost : status === 'partial' ? (amountPaid ?? p.amount_paid ?? 0) : 0,
-215:         });
-216:         setMaterialPurchases(prev => prev.map(x => x.id === p.id ? updated : x));
-217:       }
-218:     } catch (error) {
-219:       console.error('Error updating payment status:', error);
-220:     }
-221:   };
-222: 
-223:   const handleDeleteMaterial = async (id: string) => {
-224:     if (!confirm('Supprimer cette matière première?')) return;
-225:     try {
-226:       await api.rawMaterialsService.delete(id);
-227:       setRawMaterials(rawMaterials.filter(m => m.id !== id));
-228:     } catch (error) {
-229:       console.error('Error deleting material:', error);
-230:     }
-231:   };
-232: 
-=== src/pages/MaterialsPage.tsx lignes 385-440 ===
-385:     m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-386:     m.supplier?.toLowerCase().includes(searchTerm.toLowerCase())
-387:   );
-388: 
-389:   const filteredPurchases = materialPurchases.filter(p =>
-390:     p.material?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-391:     p.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase())
-392:   );
-393: 
-394:   // Group purchases by purchase_date (all purchases on same day = one row)
-395:   const groupedPurchases = useMemo(() => {
-396:     const groups: {
-397:       key: string; purchases: MaterialPurchase[]; purchase_date: string;
-398:       total: number; amount_paid: number; reste: number; count: number;
-399:       payment_status: PaymentStatus;
-400:     }[] = [];
-401:     const groupMap: Record<string, number> = {};
-402: 
-403:     for (const p of filteredPurchases) {
-404:       const key = p.purchase_date;
-405:       if (groupMap[key] === undefined) {
-406:         groupMap[key] = groups.length;
-407:         groups.push({
-408:           key, purchases: [], purchase_date: p.purchase_date,
-409:           total: 0, amount_paid: 0, reste: 0, count: 0, payment_status: 'paid',
-410:         });
-411:       }
-412:       const g = groups[groupMap[key]];
-413:       g.purchases.push(p);
-414:       g.total += p.total_cost;
-415:       g.amount_paid += p.amount_paid || 0;
-416:       g.count++;
-417:     }
-418: 
-419:     for (const g of groups) {
-420:       g.reste = g.total - g.amount_paid;
-421:       if (g.reste <= 0) g.payment_status = 'paid';
-422:       else if (g.amount_paid > 0) g.payment_status = 'partial';
-423:       else g.payment_status = 'unpaid';
-424:     }
-425: 
-426:     return groups.sort((a, b) => b.purchase_date.localeCompare(a.purchase_date));
-427:   }, [filteredPurchases]);
-428: 
-429:   function renderPurchasePaymentBadge(group: typeof groupedPurchases[number]) {
-430:     const status = group.payment_status;
-431:     const colorClass = status === 'paid' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-432:       : status === 'partial' ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-433:       : 'bg-red-100 text-red-700 hover:bg-red-200';
-434:     return (
-435:       <button
-436:         onClick={() => {
-437:           if (status === 'paid') handleUpdateGroupPaymentStatus(group.key, 'unpaid');
-438:           else if (status === 'unpaid') handleUpdateGroupPaymentStatus(group.key, 'paid');
-439:           else {
-440:             const amt = prompt('Montant versé (DA):', String(group.amount_paid));
-=== src/pages/MaterialsPage.tsx lignes 545-640 ===
-545:                     </td>
-546:                   </tr>
-547:                 ))}
-548:               </tbody>
-549:             </table>
-550:           </div>
-551:           {filteredMaterials.length === 0 && <div className="p-8 text-center text-gray-400">Aucune matière première trouvée</div>}
-552:         </div>
-553:       )}
-554: 
-555:       {/* Purchases — grouped by date with expand/collapse */}
-556:       {activeTab === 'purchases' && (
-557:         <div className="space-y-3">
-558:           {groupedPurchases.length === 0 && (
-559:             <div className="bg-white rounded-2xl p-10 text-center text-gray-400 shadow-sm border border-gray-100">
-560:               <ShoppingCart size={48} className="mx-auto mb-3 text-gray-200" />
-561:               <p className="font-medium">Aucun achat enregistré</p>
-562:             </div>
-563:           )}
-564:           {groupedPurchases.map(group => {
-565:             const isExpanded = expandedPurchaseRow === group.key;
-566:             const isMulti = group.purchases.length > 1;
-567:             return (
-568:               <div key={group.key} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-569:                 {/* Collapsed header */}
-570:                 <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
-571:                   <button onClick={() => setExpandedPurchaseRow(isExpanded ? null : group.key)}
-572:                     className="p-0.5 text-gray-400 hover:text-gray-600" title="Voir détails">
-573:                     {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-574:                   </button>
-575:                   <div className="flex-1 min-w-0">
-576:                     <div className="flex items-center gap-2">
-577:                       <p className="font-medium text-gray-900 text-sm">{format(new Date(group.purchase_date), 'dd/MM/yyyy', { locale: fr })}</p>
-578:                       {isMulti && (
-579:                         <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-medium">
-580:                           <Layers size={10} /> {group.count} produits
-581:                         </span>
-582:                       )}
-583:                     </div>
-584:                     {!isMulti && (
-585:                       <p className="text-xs text-gray-400 mt-0.5">{group.purchases[0].material?.name || '-'} — {group.purchases[0].quantity} {group.purchases[0].material?.unit}</p>
-586:                     )}
-587:                   </div>
-588:                   <div className="text-right flex-shrink-0">
-589:                     <p className="font-bold text-gray-900">{group.total.toLocaleString()} DZD</p>
-590:                     {group.payment_status === 'partial' && (
-591:                       <p className="text-xs text-orange-600">Reste: {group.reste.toLocaleString()} DZD</p>
-592:                     )}
-593:                   </div>
-594:                   {renderPurchasePaymentBadge(group)}
-595:                   <div className="flex items-center gap-1 flex-shrink-0">
-596:                     <button onClick={() => handleDeletePurchaseGroup(group.key)}
-597:                       className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Supprimer">
-598:                       <Trash2 size={14} />
-599:                     </button>
-600:                   </div>
-601:                 </div>
-602: 
-603:                 {/* Expanded details */}
-604:                 {isExpanded && (
-605:                   <div className="bg-amber-50/60 border-t border-gray-100 px-6 py-4">
-606:                     {isMulti && (
-607:                       <div className="space-y-2 mb-3">
-608:                         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Produits de l'achat</p>
-609:                         {group.purchases.map(p => (
-610:                           <div key={p.id} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 border border-gray-100">
-611:                             <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-amber-100 text-amber-600">
-612:                               <Package size={14} />
-613:                             </div>
-614:                             <div className="flex-1">
-615:                               <span className="text-sm font-medium text-gray-900">{p.material?.name || 'Inconnu'}</span>
-616:                               <span className="text-xs text-gray-500 ml-2">× {p.quantity} {p.material?.unit}</span>
-617:                             </div>
-618:                             <span className="text-sm text-gray-600">{p.unit_cost.toLocaleString()} DZD/{p.material?.unit}</span>
-619:                             <span className="text-sm font-bold text-gray-900">{p.total_cost.toLocaleString()} DZD</span>
-620:                           </div>
-621:                         ))}
-622:                       </div>
-623:                     )}
-624:                     {group.payment_status === 'partial' && (
-625:                       <div className="flex gap-4 bg-white rounded-lg p-3 border border-orange-100 mb-3">
-626:                         <div><p className="text-xs text-gray-500">Total</p><p className="font-bold text-gray-900">{group.total.toLocaleString()} DZD</p></div>
-627:                         <div><p className="text-xs text-gray-500">Versé</p><p className="font-bold text-emerald-600">{group.amount_paid.toLocaleString()} DZD</p></div>
-628:                         <div><p className="text-xs text-gray-500">Reste à payer</p><p className="font-bold text-orange-600">{group.reste.toLocaleString()} DZD</p></div>
-629:                       </div>
-630:                     )}
-631:                     {(group.purchases[0]?.invoice_number || group.purchases[0]?.notes) && (
-632:                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-633:                         {group.purchases[0]?.invoice_number && (
-634:                           <div><p className="text-xs text-gray-500 font-medium mb-1">N° Facture</p><p className="font-semibold text-gray-800">{group.purchases[0].invoice_number}</p></div>
-635:                         )}
-636:                         {group.purchases[0]?.notes && (
-637:                           <div><p className="text-xs text-gray-500 font-medium mb-1">Notes</p><p className="text-gray-700">{group.purchases[0].notes}</p></div>
-638:                         )}
-639:                       </div>
-640:                     )}
-=== src/services/api.ts lignes 78-135 ===
-78: 
-79: // Material Purchases
-80: export const materialPurchasesService = {
-81:   async getAll(): Promise<MaterialPurchase[]> {
-82:     if (!isOnline()) {
-83:       return offlineStorage.get<MaterialPurchase[]>('material_purchases') || [];
-84:     }
-85:     try {
-86:       const { data, error } = await supabase
-87:         .from('material_purchases')
-88:         .select('*, material:raw_materials(*)')
-89:         .order('purchase_date', { ascending: false });
-90:       if (error) throw error;
-91:       const merged = mergeWithLocal<MaterialPurchase>('material_purchases', data);
-92:       offlineStorage.set('material_purchases', merged);
-93:       return merged;
-94:     } catch {
-95:       return offlineStorage.get<MaterialPurchase[]>('material_purchases') || [];
-96:     }
-97:   },
-98: 
-99:   async create(purchase: Omit<MaterialPurchase, 'id' | 'created_at'>): Promise<MaterialPurchase> {
-100:     if (!isOnline()) {
-101:       return offlineCreate<MaterialPurchase>('material_purchases', purchase);
-102:     }
-103:     const { data, error } = await supabase.from('material_purchases').insert(purchase).select().single();
-104:     if (error) throw error;
-105:     return data;
-106:   },
-107: 
-108:   async update(id: string, purchase: Partial<MaterialPurchase>): Promise<MaterialPurchase> {
-109:     if (!isOnline()) {
-110:       return offlineUpdate<MaterialPurchase>('material_purchases', id, purchase);
-111:     }
-112:     const { data, error } = await supabase.from('material_purchases').update(purchase).eq('id', id).select().single();
-113:     if (error) throw error;
-114:     return data;
-115:   },
-116: 
-117:   async delete(id: string): Promise<void> {
-118:     if (!isOnline()) {
-119:       offlineDelete<MaterialPurchase>('material_purchases', id);
-120:       addToTombstone('material_purchases', id);
-121:       return;
-122:     }
-123:     const { error } = await supabase.from('material_purchases').delete().eq('id', id);
-124:     if (error) throw error;
-125:     purgeFromLocal<MaterialPurchase>('material_purchases', id);
-126:     addToTombstone('material_purchases', id);
-127:   }
-128: };
-129: 
-130: // Fixed Charges
-131: export const fixedChargesService = {
-132:   async getAll(): Promise<FixedCharge[]> {
-133:     if (!isOnline()) {
-134:       return offlineStorage.get<FixedCharge[]>('fixed_charges') || [];
-135:     }
+=== src/pages/BulkSalesPage.tsx ===
+...
+69:   type: SaleType;
+70:   quantity: number;
+71:   unit_price: number;
+72: }
+73: 
+74: export default function BulkSalesPage() {
+75:   const { bulkSales, setBulkSales, sales, setSales, shopSales, setShopSales, customers } = useApp();
+76:   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+77:   const [search, setSearch] = useState('');
+78:   const [fiscalInfo, setFiscalInfo] = useState<FiscalInfo | null>(null);
+79:   const [activeTab, setActiveTab] = useState<'ventes' | 'tarifs'>('ventes');
+80:   const [showFactureModal, setShowFactureModal] = useState(false);
+81:   const [factureItems, setFactureItems] = useState<{ label: string; quantity: number; unit_price: number }[]>([]);
+82:   const [factureItemForm, setFactureItemForm] = useState({ label: '', quantity: 1, unit_price: 0 });
+83: 
+84:   useEffect(() => {
+85:     api.fiscalInfoService.get().then(setFiscalInfo).catch(() => {});
+...
+106:         label: `Boîte ${s.box_size} pcs`, quantity: s.quantity,
+107:         unit_price: s.unit_price, total_amount: s.total_amount,
+108:         amount_paid: s.amount_paid || 0, is_paid: s.is_paid,
+109:         notes: s.notes, raw: s,
+110:       });
+111:     });
+112:     shopSales.filter(s => s.customer_id === selectedCustomerId || s.customer_name === selectedCustomer?.name).forEach(s => {
+113:       result.push({
+114:         id: s.id, type: 'magasin', sale_date: s.sale_date,
+115:         label: 'Coques Magasin', quantity: s.quantity,
+116:         unit_price: s.price_per_piece, total_amount: s.total_amount,
+117:         amount_paid: s.amount_paid || 0, is_paid: s.is_paid,
+118:         notes: s.notes, raw: s,
+119:       });
+120:     });
+121:     return result.sort((a, b) => b.sale_date.localeCompare(a.sale_date));
+122:   }, [selectedCustomerId, bulkSales, sales, shopSales, selectedCustomer]);
+123: 
+124:   const customerStats = useMemo(() => {
+125:     const totalAchats = customerSales.reduce((s, x) => s + x.total_amount, 0);
+126:     const totalPaye = customerSales.reduce((s, x) => s + x.amount_paid, 0);
+127:     const totalReste = totalAchats - totalPaye;
+128:     return { totalAchats, totalPaye, totalReste, count: customerSales.length };
+129:   }, [customerSales]);
+130: 
+131:   const allCustomerStats = useMemo(() => {
+132:     const map: Record<string, { total: number; paid: number; reste: number; count: number }> = {};
+133:     const addSale = (cid: string | undefined, cname: string | undefined, total: number, paid: number) => {
+134:       const key = cid || cname || '';
+135:       if (!key) return;
+136:       if (!map[key]) map[key] = { total: 0, paid: 0, reste: 0, count: 0 };
+137:       map[key].total += total;
+138:       map[key].paid += paid;
+139:       map[key].reste = map[key].total - map[key].paid;
+140:       map[key].count++;
+141:     };
+142:     bulkSales.forEach(s => addSale(s.customer_id, s.customer_name, s.total_amount, s.amount_paid || 0));
+143:     sales.forEach(s => addSale(s.customer_id, s.customer_name, s.total_amount, s.amount_paid || 0));
+144:     shopSales.forEach(s => addSale(s.customer_id, s.customer_name, s.total_amount, s.amount_paid || 0));
+145:     return map;
+146:   }, [bulkSales, sales, shopSales]);
+147: 
+148:   const filteredCustomers = useMemo(() => {
+149:     if (!search.trim()) return customers;
+150:     const q = search.toLowerCase();
+151:     return customers.filter(c => c.name.toLowerCase().includes(q) || c.phone?.includes(q));
+152:   }, [customers, search]);
+153: 
+154:   // Group sales by date for display
+155:   const groupedSales = useMemo<GroupedSale[]>(() => {
+156:     const map = new Map<string, UnifiedSale[]>();
+...
+271:       }
+272:     }
+273:     const paid = paymentStatus === 'paid' ? total : paymentStatus === 'unpaid' ? 0 : amountPaid;
+274:     const notes = saleNotes.trim() || undefined;
+275: 
+276:     // Distribute paid amount line by line
+277:     let remainingPaid = paid;
+278:     const linesWithPaid = saleLines.map(line => {
+279:       const lineTotal = line.quantity * line.unit_price;
+280:       const linePaid = Math.min(lineTotal, Math.max(0, remainingPaid));
+281:       remainingPaid -= linePaid;
+282:       return {
+283:         ...line,
+284:         lineTotal,
+285:         linePaid,
+286:         lineIsPaid: linePaid >= lineTotal,
+287:       };
+288:     });
+289: 
+290:     try {
+291:       setSavingSale(true);
+...
+294:         // Delete removed lines from DB
+295:         for (const orig of editGroup.items) {
+296:           if (!activeIds.has(orig.id)) {
+297:             const meta = SALE_TYPES.find(t => t.id === orig.type)!;
+298:             if (meta.table === 'bulk') await api.bulkSalesService.delete(orig.id);
+299:             else if (meta.table === 'sales') await api.salesService.delete(orig.id);
+300:             else await api.shopSalesService.delete(orig.id);
+301:           }
+302:         }
+303: 
+304:         let updatedBulk = bulkSales.filter(b => !editGroup.items.some(orig => !activeIds.has(orig.id) && orig.id === b.id));
+305:         let updatedSales = sales.filter(s => !editGroup.items.some(orig => !activeIds.has(orig.id) && orig.id === s.id));
+306:         let updatedShop = shopSales.filter(sh => !editGroup.items.some(orig => !activeIds.has(orig.id) && orig.id === sh.id));
+307: 
+308:         const existingGroupId = (editGroup.items.find(i => 'sale_group_id' in (i.raw as any))?.raw as Sale | undefined)?.sale_group_id;
+309:         const groupId = existingGroupId || `sale-${Date.now()}`;
+310: 
+311:         for (const line of linesWithPaid) {
+312:           const meta = SALE_TYPES.find(t => t.id === line.type)!;
+313:           const common = {
+314:             sale_date: saleDate,
+315:             amount_paid: line.linePaid,
+316:             notes,
+...
+334:                 unit_price: line.unit_price,
+335:                 total_amount: line.lineTotal,
+336:                 is_paid: line.lineIsPaid,
+337:               });
+338:               updatedSales = updatedSales.map(s => s.id === line.id ? res : s);
+339:             } else {
+340:               const res = await api.shopSalesService.update(line.id, {
+341:                 ...common,
+342:                 quantity: line.quantity,
+343:                 price_per_piece: line.unit_price,
+344:                 total_amount: line.lineTotal,
+345:                 is_paid: line.lineIsPaid,
+346:               });
+347:               updatedShop = updatedShop.map(sh => sh.id === line.id ? res : sh);
+348:             }
+349:           } else {
+350:             // Type changed: delete from old table if had an id
+...
+354:                 await api.bulkSalesService.delete(line.id);
+355:                 updatedBulk = updatedBulk.filter(b => b.id !== line.id);
+356:               } else if (oldMeta.table === 'sales') {
+357:                 await api.salesService.delete(line.id);
+358:                 updatedSales = updatedSales.filter(s => s.id !== line.id);
+359:               } else {
+360:                 await api.shopSalesService.delete(line.id);
+361:                 updatedShop = updatedShop.filter(sh => sh.id !== line.id);
+362:               }
+363:             }
+364: 
+365:             // Create new
+366:             if (meta.table === 'bulk') {
+367:               const res = await api.bulkSalesService.create({
+368:                 ...common,
+369:                 quantity_kg: line.quantity,
+370:                 price_per_kg: line.unit_price,
+...
+385:                 customer_id: selectedCustomer.id,
+386:                 customer_name: selectedCustomer.name,
+387:                 sale_group_id: groupId,
+388:               });
+389:               updatedSales = [res, ...updatedSales];
+390:             } else {
+391:               const res = await api.shopSalesService.create({
+392:                 ...common,
+393:                 quantity: line.quantity,
+394:                 price_per_piece: line.unit_price,
+395:                 total_amount: line.lineTotal,
+396:                 is_paid: line.lineIsPaid,
+397:                 customer_id: selectedCustomer.id,
+398:                 customer_name: selectedCustomer.name,
+399:               });
+400:               updatedShop = [res, ...updatedShop];
+401:             }
+402:           }
+403:         }
+404: 
+405:         setBulkSales(updatedBulk);
+406:         setSales(updatedSales);
+407:         setShopSales(updatedShop);
+408:       } else {
+409:         const groupId = `sale-${Date.now()}`;
+410:         const newBulk: BulkSale[] = [];
+411:         const newSales: Sale[] = [];
+412:         const newShop: ShopSale[] = [];
+413: 
+414:         for (const line of linesWithPaid) {
+415:           const meta = SALE_TYPES.find(t => t.id === line.type)!;
+416:           const common = {
+417:             sale_date: saleDate,
+...
+441:               customer_id: selectedCustomer.id,
+442:               customer_name: selectedCustomer.name,
+443:               sale_group_id: groupId,
+444:             });
+445:             newSales.push(created);
+446:           } else {
+447:             const created = await api.shopSalesService.create({
+448:               ...common,
+449:               quantity: line.quantity,
+450:               price_per_piece: line.unit_price,
+451:               total_amount: line.lineTotal,
+452:               is_paid: line.lineIsPaid,
+453:               customer_id: selectedCustomer.id,
+454:               customer_name: selectedCustomer.name,
+455:             });
+456:             newShop.push(created);
+457:           }
+458:         }
+459: 
+460:         if (newBulk.length) setBulkSales([...newBulk, ...bulkSales]);
+461:         if (newSales.length) setSales([...newSales, ...sales]);
+462:         if (newShop.length) setShopSales([...newShop, ...shopSales]);
+463:       }
+464:       setShowSaleModal(false);
+465:     } catch (err) {
+466:       console.error(err);
+467:     } finally {
+468:       setSavingSale(false);
+469:     }
+470:   };
+471: 
+472:   const handleDeleteGroup = async (group: GroupedSale) => {
+...
+481:         const meta = SALE_TYPES.find(t => t.id === s.type)!;
+482:         if (meta.table === 'bulk') {
+483:           await api.bulkSalesService.delete(s.id);
+484:         } else if (meta.table === 'sales') {
+485:           await api.salesService.delete(s.id);
+486:         } else {
+487:           await api.shopSalesService.delete(s.id);
+488:         }
+489:       }
+490:       const itemIds = new Set(group.items.map(i => i.id));
+491:       setBulkSales(bulkSales.filter(x => !itemIds.has(x.id)));
+492:       setSales(sales.filter(x => !itemIds.has(x.id)));
+493:       setShopSales(shopSales.filter(x => !itemIds.has(x.id)));
+494:     } catch (err) {
+495:       console.error(err);
+496:     }
+497:   };
+498: 
+499:   const buildDocHTML = (docType: 'bon' | 'facture', items: { label: string; quantity: number; unit_price: number; total: number }[], totalGeneral: number, verse: number) => {
+500:     if (!selectedCustomer) return '';
+501:     const docNum = docType === 'bon'
+502:       ? `BC-${format(new Date(), 'yyyyMMdd')}-${Date.now().toString().slice(-4)}`
+503:       : `FAC-${format(new Date(), 'yyyyMMdd')}-${Date.now().toString().slice(-4)}`;
+...
+609:     printHTML(html);
+610:   };
+611: 
+612:   const printDocument = (docType: 'bon' | 'facture') => {
+613:     if (!selectedCustomer || customerSales.length === 0) return;
+614:     const items = customerSales.map(s => ({ label: s.label, quantity: s.quantity, unit_price: s.unit_price, total: s.total_amount }));
+615:     const html = buildDocHTML(docType, items, customerStats.totalAchats, customerStats.totalPaye);
+616:     printHTML(html);
+617:   };
+618: 
+619:   const openFactureModal = () => {
+620:     setFactureItems([]);
+621:     setFactureItemForm({ label: '', quantity: 1, unit_price: 0 });
+622:     setShowFactureModal(true);
+623:   };
+624: 
+625:   const addFactureItem = () => {
+...
+685:         </div>
+686: 
+687:         {/* Stats */}
+688:         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+689:           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+690:             <div className="flex items-center gap-2 mb-1"><Receipt size={14} className="text-gray-400" /><p className="text-xs text-gray-500">Transactions</p></div>
+691:             <p className="text-2xl font-bold text-gray-900">{customerStats.count}</p>
+692:           </div>
+693:           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+694:             <div className="flex items-center gap-2 mb-1"><TrendingUp size={14} className="text-gray-400" /><p className="text-xs text-gray-500">Total Achats</p></div>
+695:             <p className="text-2xl font-bold text-gray-900">{customerStats.totalAchats.toLocaleString()} <span className="text-sm font-normal text-gray-400">DA</span></p>
+696:           </div>
+697:           <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+698:             <div className="flex items-center gap-2 mb-1"><Check size={14} className="text-emerald-500" /><p className="text-xs text-emerald-600 font-medium">Versé</p></div>
+699:             <p className="text-2xl font-bold text-emerald-700">{customerStats.totalPaye.toLocaleString()} <span className="text-sm font-normal text-emerald-400">DA</span></p>
+700:           </div>
+701:           <div className="bg-red-50 rounded-xl p-4 border border-red-100">
+702:             <div className="flex items-center gap-2 mb-1"><Clock size={14} className="text-red-500" /><p className="text-xs text-red-600 font-medium">Reste à Payer</p></div>
+703:             <p className="text-2xl font-bold text-red-700">{customerStats.totalReste.toLocaleString()} <span className="text-sm font-normal text-red-400">DA</span></p>
+704:           </div>
+705:         </div>
+706: 
+707:         {/* Tabs */}
+708:         <div className="flex items-center gap-1 bg-white rounded-xl p-1 shadow-sm border border-gray-100 w-fit">
+709:           <button onClick={() => setActiveTab('ventes')}
+710:             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'ventes' ? 'bg-emerald-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}>
+711:             <ShoppingBag size={15} /> Ventes
+712:           </button>
+713:           <button onClick={() => setActiveTab('tarifs')}
+...
+930:                   })}
+931:                 </tbody>
+932:                 {groupedSales.length > 0 && (
+933:                   <tfoot className="bg-gray-50">
+934:                     <tr>
+935:                       <td colSpan={4} className="px-4 py-3 font-bold text-right">Total</td>
+936:                       <td className="px-4 py-3 text-right font-bold text-gray-900">{customerStats.totalAchats.toLocaleString()}</td>
+937:                       <td className="px-4 py-3 text-right font-bold text-emerald-600">{customerStats.totalPaye.toLocaleString()}</td>
+938:                       <td className="px-4 py-3 text-right font-bold text-red-600">{customerStats.totalReste.toLocaleString()}</td>
+939:                       <td colSpan={2} />
+940:                     </tr>
+941:                   </tfoot>
+942:                 )}
+943:               </table>
+944:             </div>
+945:             {groupedSales.length === 0 && (
+946:               <div className="p-12 text-center text-gray-400">
+947:                 <ShoppingBag size={48} className="mx-auto mb-3 text-gray-300" />
+948:                 <p>Aucune vente enregistrée pour ce client</p>
+...
+1221:     );
+1222:   }
+1223: 
+1224:   // ═══════════════════════════════════════════════
+1225:   // CUSTOMER LIST VIEW
+1226:   // ═══════════════════════════════════════════════
+1227:   const globalTotal = Object.values(allCustomerStats).reduce((s, v) => s + v.total, 0);
+1228:   const globalReste = Object.values(allCustomerStats).reduce((s, v) => s + v.reste, 0);
+1229: 
+1230:   return (
+1231:     <div className="space-y-6">
+1232:       <div>
+1233:         <h1 className="text-2xl font-bold text-gray-900">Ventes</h1>
+1234:         <p className="text-gray-500">Sélectionnez un client pour gérer ses ventes</p>
+1235:       </div>
+1236: 
+1237:       {/* Global stats */}
+1238:       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+1239:         <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-5 text-white shadow-lg">
+1240:           <div className="flex items-center justify-between">
+1241:             <div>
+1242:               <p className="text-white/70 text-sm font-medium uppercase tracking-wide">CA Global</p>
+1243:               <p className="text-3xl font-bold mt-1">{globalTotal.toLocaleString()} <span className="text-sm font-normal text-white/70">DA</span></p>
+1244:             </div>
+1245:             <div className="p-3 bg-white/15 rounded-xl"><TrendingUp size={24} /></div>
+1246:           </div>
+1247:         </div>
+1248:         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
+1249:           <div className="flex items-center justify-between">
+1250:             <div>
+1251:               <p className="text-xs text-gray-500 font-medium mb-1">Clients</p>
+1252:               <p className="text-2xl font-bold text-gray-900">{customers.length}</p>
+...
+1254:             <div className="p-3 bg-emerald-50 rounded-xl"><Users size={22} className="text-emerald-600" /></div>
+1255:           </div>
+1256:         </div>
+1257:         <div className="bg-red-50 rounded-xl p-5 border border-red-100">
+1258:           <div className="flex items-center justify-between">
+1259:             <div>
+1260:               <p className="text-xs text-red-600 font-medium mb-1">Reste à Encaisser</p>
+1261:               <p className="text-2xl font-bold text-red-700">{globalReste.toLocaleString()} <span className="text-sm font-normal text-red-400">DA</span></p>
+1262:             </div>
+1263:             <div className="p-3 bg-red-100 rounded-xl"><Clock size={22} className="text-red-600" /></div>
+1264:           </div>
+1265:         </div>
+1266:       </div>
+1267: 
+1268:       {/* Search */}
+1269:       <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm">
+1270:         <Search size={16} className="text-gray-400" />
+...
+1280:           <p className="font-medium">Aucun client trouvé</p>
+1281:           <p className="text-sm mt-1">Ajoutez des clients depuis la section Clients</p>
+1282:         </div>
+1283:       ) : (
+1284:         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+1285:           {filteredCustomers.map(customer => {
+1286:             const stats = allCustomerStats[customer.id] || allCustomerStats[customer.name] || { total: 0, paid: 0, reste: 0, count: 0 };
+1287:             return (
+1288:               <button key={customer.id} onClick={() => setSelectedCustomerId(customer.id)}
+1289:                 className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 text-left hover:shadow-md hover:border-emerald-300 transition-all group">
+1290:                 <div className="flex items-center gap-3 mb-4">
+1291:                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
+1292:                     {customer.name.charAt(0).toUpperCase()}
+1293:                   </div>
+1294:                   <div className="min-w-0 flex-1">
+1295:                     <p className="font-semibold text-gray-900 truncate group-hover:text-emerald-600 transition-colors flex items-center gap-1">
+1296:                       {customer.name}
+=== src/pages/CustomersPage.tsx ===
