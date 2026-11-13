@@ -1,339 +1,292 @@
-=== src/pages/BulkSalesPage.tsx lignes 1025-1056 ===
-1025:                 ) : (
-1026:                   <div className="text-center py-6 text-gray-400 text-sm">
-1027:                     Aucun article. Ajoutez des articles ou utilisez les boutons de tarifs ci-dessus.
-1028:                   </div>
-1029:                 )}
-1030: 
-1031:                 <div className="flex justify-end gap-2 pt-2">
-1032:                   <button onClick={() => setShowFactureModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Annuler</button>
-1033:                   <button onClick={printFactureFromModal} disabled={factureItems.length === 0}
-1034:                     className="flex items-center gap-2 px-5 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 disabled:opacity-50">
-1035:                     <Printer size={16} /> Imprimer la Facture
-1036:                   </button>
-1037:                 </div>
-1038:               </div>
-1039:             </div>
-1040:           </div>
-1041:         )}
-1042: 
-1043:         {/* Sale Modal — multi-line product table + payment status */}
-1044:         {showSaleModal && (
-1045:           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-1046:             <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
-1047:               <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
-1048:                 <h2 className="text-lg font-semibold">{editGroup ? "Modifier l'opération" : 'Nouvelle Vente'}</h2>
-1049:                 <button onClick={() => setShowSaleModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
-1050:               </div>
-1051:               <form onSubmit={handleSaleSubmit} className="p-4 space-y-3">
-1052:                 {/* Date */}
-1053:                 <div className="grid grid-cols-2 gap-3">
-1054:                   <div>
-1055:                     <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-1056:                     <input type="date" required value={saleDate} onChange={e => setSaleDate(e.target.value)}
-=== src/pages/MaterialsPage.tsx lignes 925-986 ===
-925:             <div className="flex items-center justify-between p-4 border-b">
-926:               <h2 className="text-lg font-semibold">{editingMaterial ? 'Modifier' : 'Nouvelle'} Matière</h2>
-927:               <button onClick={() => setShowMaterialModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
-928:             </div>
-929:             <form onSubmit={handleMaterialSubmit} className="p-4 space-y-4">
-930:               <div><label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
-931:                 <input type="text" required value={materialForm.name} onChange={e => setMaterialForm({ ...materialForm, name: e.target.value })}
-932:                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500" placeholder="Ex: Poudre d'amande" /></div>
-933:               <div className="grid grid-cols-2 gap-4">
-934:                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité</label>
-935:                   <select value={materialForm.unit} onChange={e => setMaterialForm({ ...materialForm, unit: e.target.value })}
-936:                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500">
-937:                     <option value="kg">Kilogramme (kg)</option>
-938:                     <option value="g">Gramme (g)</option>
-939:                     <option value="L">Litre (L)</option>
-940:                     <option value="ml">Millilitre (ml)</option>
-941:                     <option value="unité">Unité</option>
-942:                   </select></div>
-943:                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix/Unité (DZD)</label>
-944:                   <input type="number" step="any" min="0" required value={materialForm.unit_cost} onChange={e => setMaterialForm({ ...materialForm, unit_cost: parseFloat(e.target.value) || 0 })}
-945:                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500" /></div>
-946:               </div>
-947:               <div><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur (optionnel)</label>
-948:                 <input type="text" value={materialForm.supplier} onChange={e => setMaterialForm({ ...materialForm, supplier: e.target.value })}
-949:                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500" placeholder="Nom du fournisseur" /></div>
-950:               <div className="flex justify-end gap-2 pt-4">
-951:                 <button type="button" onClick={() => setShowMaterialModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">Annuler</button>
-952:                 <button type="submit" className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors">{editingMaterial ? 'Modifier' : 'Ajouter'}</button>
-953:               </div>
-954:             </form>
-955:           </div>
-956:         </div>
-957:       )}
-958: 
-959:       {/* Multi-line Purchase Modal */}
-960:       {showPurchaseModal && (
-961:         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-962:           <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
-963:             <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
-964:               <h2 className="text-lg font-semibold">Nouvel Achat</h2>
-965:               <button onClick={() => setShowPurchaseModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
-966:             </div>
-967:             <form onSubmit={handlePurchaseSubmit} className="p-5 space-y-4">
-968: 
-969:               {/* Date + invoice */}
-970:               <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-971:                 <div className="grid grid-cols-2 gap-3">
-972:                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Date d'achat</label>
-973:                     <input type="date" required value={purchaseForm.purchase_date}
-974:                       onChange={e => setPurchaseForm({ ...purchaseForm, purchase_date: e.target.value })}
-975:                       className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500" /></div>
-976:                   <div><label className="block text-sm font-medium text-gray-700 mb-1">N° Facture (optionnel)</label>
-977:                     <input type="text" value={purchaseForm.invoice_number}
-978:                       onChange={e => setPurchaseForm({ ...purchaseForm, invoice_number: e.target.value })}
-979:                       className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500" /></div>
-980:                 </div>
-981:               </div>
-982: 
-983:               {/* Multi-line products */}
-984:               <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-985:                 <div className="flex items-center justify-between">
-986:                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Produits de l'achat</p>
-=== src/pages/MaterialsPage.tsx lignes 85-104 ===
-85:   const [purchaseForm, setPurchaseForm] = useState<{
-86:     purchase_date: string;
-87:     invoice_number: string;
-88:     notes: string;
-89:     payment_status: PaymentStatus;
-90:     amount_paid: number;
-91:     lines: PurchaseLine[];
-92:   }>({
-93:     purchase_date: format(new Date(), 'yyyy-MM-dd'),
-94:     invoice_number: '',
-95:     notes: '',
-96:     payment_status: 'unpaid',
-97:     amount_paid: 0,
-98:     lines: [emptyPurchaseLine(rawMaterials[0]?.id || '')],
+=== src/pages/Dashboard.tsx lignes 18-100 ===
+18:   const { sales, bulkSales, productionBatches, materialPurchases, fixedCharges, variableExpenses, utilities, laborCosts, isLoading } = useApp();
+19: 
+20:   if (isLoading) {
+21:     return (
+22:       <div className="flex items-center justify-center h-96">
+23:         <div className="animate-spin rounded-full h-12 w-12 border-4 border-amber-500 border-t-transparent" />
+24:       </div>
+25:     );
+26:   }
+27: 
+28:   const today = new Date();
+29:   const todayStr = format(today, 'yyyy-MM-dd');
+30:   const currentMonth = today.getMonth();
+31:   const currentYear = today.getFullYear();
+32: 
+33:   // Today's stats
+34:   const salesToday = sales.filter(s => s.sale_date === todayStr);
+35:   const bulkSalesToday = bulkSales.filter(s => s.sale_date === todayStr);
+36:   const boxAmountToday = salesToday.reduce((sum, s) => sum + s.total_amount, 0);
+37:   const bulkAmountToday = bulkSalesToday.reduce((sum, s) => sum + s.total_amount, 0);
+38:   const totalSalesToday = boxAmountToday + bulkAmountToday;
+39:   const boxesSoldToday = salesToday.reduce((sum, s) => sum + s.quantity, 0);
+40: 
+41:   // Monthly stats
+42:   const salesThisMonth = sales.filter(s => {
+43:     const date = new Date(s.sale_date);
+44:     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+45:   });
+46:   const bulkSalesThisMonth = bulkSales.filter(s => {
+47:     const date = new Date(s.sale_date);
+48:     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+49:   });
+50:   const boxAmountMonth = salesThisMonth.reduce((sum, s) => sum + s.total_amount, 0);
+51:   const bulkAmountMonth = bulkSalesThisMonth.reduce((sum, s) => sum + s.total_amount, 0);
+52:   const totalSalesMonth = boxAmountMonth + bulkAmountMonth;
+53: 
+54:   const purchasesThisMonth = materialPurchases.filter(p => {
+55:     const date = new Date(p.purchase_date);
+56:     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+57:   });
+58:   const totalPurchasesMonth = purchasesThisMonth.reduce((sum, p) => sum + p.total_cost, 0);
+59: 
+60:   // Fixed charges monthly equivalent
+61:   const fixedChargesMonthly = fixedCharges
+62:     .filter(c => c.is_active)
+63:     .reduce((sum, c) => {
+64:       switch (c.frequency) {
+65:         case 'daily': return sum + c.amount * 30;
+66:         case 'weekly': return sum + c.amount * 4;
+67:         case 'monthly': return sum + c.amount;
+68:         case 'yearly': return sum + c.amount / 12;
+69:         default: return sum;
+70:       }
+71:     }, 0);
+72: 
+73:   const variableExpensesMonth = variableExpenses
+74:     .filter(e => {
+75:       const date = new Date(e.date);
+76:       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+77:     })
+78:     .reduce((sum, e) => sum + e.amount, 0);
+79: 
+80:   const utilitiesMonth = utilities
+81:     .filter(u => {
+82:       const start = new Date(u.period_start);
+83:       return start.getMonth() === currentMonth && start.getFullYear() === currentYear;
+84:     })
+85:     .reduce((sum, u) => sum + u.amount, 0);
+86: 
+87:   const laborMonth = laborCosts
+88:     .filter(l => l.period_month === currentMonth + 1 && l.period_year === currentYear)
+89:     .reduce((sum, l) => sum + l.total_cost, 0);
+90: 
+91:   const totalExpensesMonth = fixedChargesMonthly + variableExpensesMonth + utilitiesMonth + laborMonth;
+92:   const profitMonth = totalSalesMonth - (totalExpensesMonth + totalPurchasesMonth);
+93:   const profitToday = totalSalesToday - ((totalExpensesMonth + totalPurchasesMonth) / 30);
+94: 
+95:   // Production stats
+96:   const productionThisMonth = productionBatches.filter(b => {
+97:     const date = new Date(b.batch_date);
+98:     return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
 99:   });
-100: 
-101:   const dropdownMaterials = rawMaterials.filter(m =>
-102:     m.name.toLowerCase().includes(materialSearch.toLowerCase())
-103:   );
-104: 
-=== src/pages/MaterialsPage.tsx lignes 133-204 ===
-133:   function addPurchaseLine() {
-134:     setPurchaseForm(f => ({ ...f, lines: [...f.lines, emptyPurchaseLine(rawMaterials[0]?.id || '')] }));
-135:   }
-136:   function removePurchaseLine(idx: number) {
-137:     setPurchaseForm(f => ({ ...f, lines: f.lines.filter((_, i) => i !== idx) }));
-138:   }
-139:   function updatePurchaseLine(idx: number, field: keyof PurchaseLine, value: string | number) {
-140:     setPurchaseForm(f => ({
-141:       ...f,
-142:       lines: f.lines.map((l, i) => i === idx ? { ...l, [field]: value } : l),
-143:     }));
-144:   }
-145:   function onPurchaseMaterialSelect(idx: number, materialId: string) {
-146:     const mat = rawMaterials.find(m => m.id === materialId);
-147:     setPurchaseForm(f => ({
-148:       ...f,
-149:       lines: f.lines.map((l, i) => i === idx ? {
-150:         ...l, material_id: materialId, unit_cost: mat?.unit_cost ?? l.unit_cost,
-151:       } : l),
-152:     }));
-153:   }
-154: 
-155:   const handlePurchaseSubmit = async (e: React.FormEvent) => {
-156:     e.preventDefault();
-157:     if (purchaseForm.lines.length === 0) return;
-158:     try {
-159:       const groupId = `PURGRP-${Date.now()}`;
-160:       const total_cost = purchaseFormTotal;
-161:       const amount_paid = purchaseForm.payment_status === 'paid' ? total_cost
-162:         : purchaseForm.payment_status === 'partial' ? purchaseForm.amount_paid : 0;
-163: 
-164:       const newPurchases: MaterialPurchase[] = [];
-165:       for (const line of purchaseForm.lines) {
-166:         const lineTotal = line.quantity * line.unit_cost;
-167:         const lineAmountPaid = purchaseForm.payment_status === 'paid' ? lineTotal
-168:           : purchaseForm.payment_status === 'partial' ? (total_cost > 0 ? (amount_paid / total_cost) * lineTotal : 0) : 0;
-169: 
-170:         const newPurchase = await api.materialPurchasesService.create({
-171:           material_id: line.material_id,
-172:           quantity: line.quantity,
-173:           unit_cost: line.unit_cost,
-174:           total_cost: lineTotal,
-175:           purchase_date: purchaseForm.purchase_date,
-176:           invoice_number: purchaseForm.invoice_number || undefined,
-177:           notes: purchaseForm.notes || undefined,
-178:           payment_status: purchaseForm.payment_status,
-179:           amount_paid: lineAmountPaid,
-180:           purchase_group_id: groupId,
-181:         });
-182:         const material = rawMaterials.find(m => m.id === line.material_id);
-183:         newPurchases.push({ ...newPurchase, material });
-184: 
-185:         await api.rawMaterialsService.update(line.material_id, {
-186:           unit_cost: line.unit_cost,
-187:           last_purchase_date: purchaseForm.purchase_date
-188:         });
-189:       }
-190:       setMaterialPurchases([...newPurchases.reverse(), ...materialPurchases]);
-191:       setShowPurchaseModal(false);
-192:       setMaterialSearch('');
-193:       setPurchaseForm({
-194:         purchase_date: format(new Date(), 'yyyy-MM-dd'),
-195:         invoice_number: '', notes: '', payment_status: 'unpaid', amount_paid: 0,
-196:         lines: [emptyPurchaseLine(rawMaterials[0]?.id || '')],
-197:       });
-198:     } catch (error) {
-199:       console.error('Error saving purchase:', error);
-200:       alert('Erreur lors de l\'enregistrement de l\'achat.');
-201:     }
-202:   };
-203: 
-204:   const handleUpdateGroupPaymentStatus = async (groupKey: string, status: PaymentStatus, amountPaid?: number) => {
-=== src/pages/MaterialsPage.tsx lignes 229-270 ===
-229:   const handleDeletePurchase = async (id: string) => {
-230:     if (!confirm('Supprimer cet achat?')) return;
-231:     try {
-232:       await api.materialPurchasesService.delete(id);
-233:       setMaterialPurchases(materialPurchases.filter(p => p.id !== id));
-234:     } catch (error) {
-235:       console.error('Error deleting purchase:', error);
-236:     }
-237:   };
-238: 
-239:   const handleDeletePurchaseGroup = async (groupKey: string) => {
-240:     if (!confirm('Supprimer tous les achats de ce groupe?')) return;
-241:     try {
-242:       const groupPurchases = groupedPurchases.find(g => g.key === groupKey)?.purchases || [];
-243:       for (const p of groupPurchases) {
-244:         await api.materialPurchasesService.delete(p.id);
-245:       }
-246:       setMaterialPurchases(materialPurchases.filter(p => !groupPurchases.some(gp => gp.id === p.id)));
-247:     } catch (error) {
-248:       console.error('Error deleting group:', error);
-249:     }
-250:   };
-251: 
-252:   const openEditMaterial = (material: RawMaterial) => {
-253:     setEditingMaterial(material);
-254:     setMaterialForm({
-255:       name: material.name, unit: material.unit,
-256:       unit_cost: material.unit_cost, supplier: material.supplier || ''
-257:     });
-258:     setShowMaterialModal(true);
-259:   };
-260: 
-261:   const openNewPurchase = () => {
-262:     setMaterialSearch('');
-263:     setPurchaseForm({
-264:       purchase_date: format(new Date(), 'yyyy-MM-dd'),
-265:       invoice_number: '', notes: '', payment_status: 'unpaid', amount_paid: 0,
-266:       lines: [emptyPurchaseLine(rawMaterials[0]?.id || '')],
-267:     });
-268:     setShowPurchaseModal(true);
-269:   };
-270: 
-=== src/pages/MaterialsPage.tsx recherche /groupedPurchases|purchaseFormTotal|dropdownMaterials|purchaseResteAPayer/ ===
-101: const dropdownMaterials = rawMaterials.filter(m =>
-130: const purchaseFormTotal = purchaseForm.lines.reduce((s, l) => s + l.quantity * l.unit_cost, 0);
-131: const purchaseResteAPayer = purchaseFormTotal - purchaseForm.amount_paid;
-160: const total_cost = purchaseFormTotal;
-205: const groupPurchases = groupedPurchases.find(g => g.key === groupKey)?.purchases || [];
-242: const groupPurchases = groupedPurchases.find(g => g.key === groupKey)?.purchases || [];
-391: const groupedPurchases = useMemo(() => {
-425: function renderPurchasePaymentBadge(group: typeof groupedPurchases[number]) {
-554: {groupedPurchases.length === 0 && (
-560: {groupedPurchases.map(group => {
-1003: {dropdownMaterials.map(m => (
-1012: {dropdownMaterials.length === 0 && <p className="px-3 py-2 text-sm text-gray-400">Aucune matière trouvée</p>}
-1056: <span className="text-xl font-bold text-emerald-700">{purchaseFormTotal.toLocaleString()} DZD</span>
-1070: amount_paid: s === 'paid' ? purchaseFormTotal : s === 'unpaid' ? 0 : purchaseForm.amount_paid,
-1084: <span className="text-gray-600">Total: <strong>{purchaseFormTotal.toLocaleString()} DZD</strong></span>
-1085: <span className="text-orange-600">Reste: <strong>{purchaseResteAPayer.toLocaleString()} DZD</strong></span>
-1089: <input type="number" step="any" min="0" max={purchaseFormTotal} value={purchaseForm.amount_paid}
-=== src/pages/Dashboard.tsx recherche /purchases|bulkSales|shopSales|sales\b|charges|labor/i ===
-18: const { sales, bulkSales, productionBatches, materialPurchases, fixedCharges, variableExpenses, utilities, laborCosts, isLoading } = useApp();
-34: const salesToday = sales.filter(s => s.sale_date === todayStr);
-35: const bulkSalesToday = bulkSales.filter(s => s.sale_date === todayStr);
-37: const bulkAmountToday = bulkSalesToday.reduce((sum, s) => sum + s.total_amount, 0);
-42: const salesThisMonth = sales.filter(s => {
-46: const bulkSalesThisMonth = bulkSales.filter(s => {
-51: const bulkAmountMonth = bulkSalesThisMonth.reduce((sum, s) => sum + s.total_amount, 0);
-54: const purchasesThisMonth = materialPurchases.filter(p => {
-58: const totalPurchasesMonth = purchasesThisMonth.reduce((sum, p) => sum + p.total_cost, 0);
-60: // Fixed charges monthly equivalent
-61: const fixedChargesMonthly = fixedCharges
-87: const laborMonth = laborCosts
-91: const totalExpensesMonth = fixedChargesMonthly + variableExpensesMonth + utilitiesMonth + laborMonth;
-92: const profitMonth = totalSalesMonth - (totalExpensesMonth + totalPurchasesMonth);
-93: const profitToday = totalSalesToday - ((totalExpensesMonth + totalPurchasesMonth) / 30);
-103: // Sales chart data - last 7 days (box + bulk)
-110: const boxAmt = sales.filter(s => s.sale_date === dayStr).reduce((sum, s) => sum + s.total_amount, 0);
-111: const bulkAmt = bulkSales.filter(s => s.sale_date === dayStr).reduce((sum, s) => sum + s.total_amount, 0);
-131: // Production vs Sales comparison
-137: const daySalesCount = sales
-151: subtitle: `${boxesSoldToday} boîtes + ${bulkAmountToday > 0 ? bulkSalesToday.reduce((s, b) => s + b.quantity_kg, 0).toFixed(1) + 'kg vrac' : '0kg vrac'}`,
-180: value: `${(totalExpensesMonth + totalPurchasesMonth).toLocaleString()} DZD`,
-181: subtitle: `Achats: ${totalPurchasesMonth.toLocaleString()} DZD`,
-183: trend: totalPurchasesMonth < totalSalesMonth,
-184: trendValue: `Charges: ${totalExpensesMonth.toLocaleString()} DZD`,
-238: {/* Sales Trend */}
-269: {/* Production vs Sales */}
-334: {/* Recent Sales */}
-349: ...sales.slice(0, 4).map(s => ({ date: s.sale_date, type: 'boite' as const, detail: `${s.quantity} boîte(s) × ${s.box_size} pcs`, amount: s.total_amount })),
-350: ...bulkSales.slice(0, 3).map(s => ({ date: s.sale_date, type: 'vrac' as const, detail: `${s.quantity_kg} kg × ${s.price_per_kg.toLocaleString()} DZD/kg`, amount: s.total_amount }))
-370: {sales.length === 0 && bulkSales.length === 0 && (
-388: onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'bulksales' }))}
-=== src/pages/ReportsPage.tsx recherche /purchases|bulkSales|shopSales|sales\b/i ===
-14: const { sales, bulkSales, materialPurchases, fixedCharges, variableExpenses, utilities, laborCosts } = useApp();
-50: const monthBoxSales = sales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
-51: const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
-52: const revenue = monthBoxSales.reduce((sum, s) => sum + s.total_amount, 0)
-53: + monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0);
-55: const monthPurchases = materialPurchases.filter(p => p.purchase_date >= monthStart && p.purchase_date <= monthEnd);
-56: const expenses = monthPurchases.reduce((sum, p) => sum + p.total_cost, 0);
-67: }, [sales, bulkSales, materialPurchases]);
-69: // Daily sales chart (current month) — box + bulk
-78: const daySales = sales.filter(s => s.sale_date === dayStr);
-79: const dayBulk = bulkSales.filter(s => s.sale_date === dayStr);
-83: ventes: daySales.reduce((sum, s) => sum + s.total_amount, 0),
-85: transactions: daySales.length + dayBulk.length
-88: }, [sales, bulkSales]);
-93: const monthSales = sales.filter(s => {
-98: monthSales.forEach(s => {
-111: }, [sales]);
-117: const monthBoxSales = sales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
-118: const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
-119: const boxRevenue = monthBoxSales.reduce((sum, s) => sum + s.total_amount, 0);
-120: const bulkRevenue = monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0);
-124: const monthSales = monthBoxSales;
-126: const monthPurchases = materialPurchases.filter(p => p.purchase_date >= monthStart && p.purchase_date <= monthEnd);
-127: const totalPurchasesExpenses = monthPurchases.reduce((sum, p) => sum + p.total_cost, 0);
-157: const totalExpenses = totalPurchasesExpenses + fixedMonthly + variableMonthly + utilitiesMonthly + laborMonthly;
-162: { name: 'Matières Premières', value: totalPurchasesExpenses },
-217: <p className="text-2xl font-bold text-gray-900">{monthSales.length + monthBulkSales.length}</p>
-218: <p className="text-xs text-gray-400">{monthSales.reduce((sum, s) => sum + s.quantity, 0)} boîtes · {monthBulkSales.reduce((s, b) => s + b.quantity_kg, 0).toFixed(1)} kg vrac</p>
-278: {/* Daily Sales */}
-415: <td className="px-4 py-3 text-right text-gray-900">-{totalPurchasesExpenses.toLocaleString()} DZD</td>
-=== src/context/AppContext.tsx recherche /purchases|Purchases|bulkSales|BulkSales/ ===
-14: materialPurchases: MaterialPurchase[];
-23: bulkSales: BulkSale[];
-40: setMaterialPurchases: (purchases: MaterialPurchase[]) => void;
-49: setBulkSales: (sales: BulkSale[]) => void;
-65: materialPurchases: [],
-74: bulkSales: [],
-97: const cachedMaterialPurchases = offlineStorage.get<MaterialPurchase[]>('material_purchases') || [];
-106: const cachedBulkSales = offlineStorage.get<BulkSale[]>('bulk_sales') || [];
-114: const hasCachedData = cachedSales.length > 0 || cachedBulkSales.length > 0 || cachedRawMaterials.length > 0;
-120: materialPurchases: cachedMaterialPurchases,
-129: bulkSales: cachedBulkSales,
-154: materialPurchases,
-163: bulkSales,
-172: withTimeout(api.materialPurchasesService.getAll()).catch(() => cachedMaterialPurchases),
-181: withTimeout(api.bulkSalesService.getAll()).catch(() => cachedBulkSales),
-192: materialPurchases,
-201: bulkSales,
-288: const purchasesThisMonth = state.materialPurchases.filter(p => {
-292: const totalPurchasesMonth = purchasesThisMonth.reduce((sum, p) => sum + p.total_cost, 0);
-341: const totalExpensesMonth = fixedChargesMonthly + variableExpensesMonth + utilitiesMonth + laborMonth + totalPurchasesMonth;
-348: totalPurchasesMonth,
-363: setMaterialPurchases: (materialPurchases) => setState(s => ({ ...s, materialPurchases })),
-372: setBulkSales: (bulkSales) => setState(s => ({ ...s, bulkSales })),
+100:   const totalProduced = productionThisMonth.reduce((sum, b) => sum + b.produced_quantity, 0);
+=== src/pages/ReportsPage.tsx lignes 45-70 ===
+45:     for (let i = 11; i >= 0; i--) {
+46:       const month = subMonths(today, i);
+47:       const monthStart = format(startOfMonth(month), 'yyyy-MM-dd');
+48:       const monthEnd = format(endOfMonth(month), 'yyyy-MM-dd');
+49: 
+50:       const monthBoxSales = sales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
+51:       const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
+52:       const revenue = monthBoxSales.reduce((sum, s) => sum + s.total_amount, 0)
+53:                     + monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0);
+54: 
+55:       const monthPurchases = materialPurchases.filter(p => p.purchase_date >= monthStart && p.purchase_date <= monthEnd);
+56:       const expenses = monthPurchases.reduce((sum, p) => sum + p.total_cost, 0);
+57: 
+58:       data.push({
+59:         month: format(month, 'MMM', { locale: fr }),
+60:         fullMonth: format(month, 'MMMM yyyy', { locale: fr }),
+61:         revenus: revenue,
+62:         depenses: expenses,
+63:         benefice: revenue - expenses
+64:       });
+65:     }
+66:     return data;
+67:   }, [sales, bulkSales, materialPurchases]);
+68: 
+69:   // Daily sales chart (current month) — box + bulk
+70:   const dailySalesData = useMemo(() => {
+=== src/pages/ReportsPage.tsx lignes 114-165 ===
+114:   const monthStart = format(startOfMonth(today), 'yyyy-MM-dd');
+115:   const monthEnd = format(endOfMonth(today), 'yyyy-MM-dd');
+116: 
+117:   const monthBoxSales = sales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
+118:   const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
+119:   const boxRevenue = monthBoxSales.reduce((sum, s) => sum + s.total_amount, 0);
+120:   const bulkRevenue = monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0);
+121:   const totalRevenue = boxRevenue + bulkRevenue;
+122: 
+123:   // keep alias for table below
+124:   const monthSales = monthBoxSales;
+125: 
+126:   const monthPurchases = materialPurchases.filter(p => p.purchase_date >= monthStart && p.purchase_date <= monthEnd);
+127:   const totalPurchasesExpenses = monthPurchases.reduce((sum, p) => sum + p.total_cost, 0);
+128: 
+129:   const fixedMonthly = fixedCharges.filter(c => c.is_active).reduce((sum, c) => {
+130:     switch (c.frequency) {
+131:       case 'daily': return sum + c.amount * 30;
+132:       case 'weekly': return sum + c.amount * 4;
+133:       case 'monthly': return sum + c.amount;
+134:       case 'yearly': return sum + c.amount / 12;
+135:       default: return sum;
+136:     }
+137:   }, 0);
+138: 
+139:   const variableMonthly = variableExpenses
+140:     .filter(e => {
+141:       const date = new Date(e.date);
+142:       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+143:     })
+144:     .reduce((sum, e) => sum + e.amount, 0);
+145: 
+146:   const utilitiesMonthly = utilities
+147:     .filter(u => {
+148:       const start = new Date(u.period_start);
+149:       return start.getMonth() === currentMonth && start.getFullYear() === currentYear;
+150:     })
+151:     .reduce((sum, u) => sum + u.amount, 0);
+152: 
+153:   const laborMonthly = laborCosts
+154:     .filter(l => l.period_month === currentMonth + 1 && l.period_year === currentYear)
+155:     .reduce((sum, l) => sum + l.total_cost, 0);
+156: 
+157:   const totalExpenses = totalPurchasesExpenses + fixedMonthly + variableMonthly + utilitiesMonthly + laborMonthly;
+158:   const netProfit = totalRevenue - totalExpenses;
+159: 
+160:   // Expense breakdown for pie chart
+161:   const expenseBreakdown = [
+162:     { name: 'Matières Premières', value: totalPurchasesExpenses },
+163:     { name: 'Charges Fixes', value: fixedMonthly },
+164:     { name: 'Dép. Variables', value: variableMonthly },
+165:     { name: 'Énergie', value: utilitiesMonthly },
+=== src/context/AppContext.tsx recherche /shopSales|ShopSales|supplier|Supplier/ ===
+24: shopSales: ShopSale[];
+50: setShopSales: (sales: ShopSale[]) => void;
+75: shopSales: [],
+107: const cachedShopSales = offlineStorage.get<ShopSale[]>('shop_sales') || [];
+130: shopSales: cachedShopSales,
+164: shopSales,
+182: withTimeout(api.shopSalesService.getAll()).catch(() => cachedShopSales),
+202: shopSales,
+373: setShopSales: (shopSales) => setState(s => ({ ...s, shopSales })),
+=== src/services/api.ts recherche /supplierPurchasesService|suppliersService|shopSalesService|async getAll/ ===
+28: async getAll(): Promise<RawMaterial[]> {
+81: async getAll(): Promise<MaterialPurchase[]> {
+132: async getAll(): Promise<FixedCharge[]> {
+180: async getAll(): Promise<VariableExpense[]> {
+219: async getAll(): Promise<Utility[]> {
+258: async getAll(): Promise<LaborCost[]> {
+297: async getAll(): Promise<Packaging[]> {
+345: async getAll(): Promise<ProductionBatch[]> {
+396: async getAll(): Promise<Sale[]> {
+459: async getAll(): Promise<UnsoldProduct[]> {
+563: async getAll(): Promise<BulkSale[]> {
+670: async getAll(): Promise<RecipeItem[]> {
+720: export const shopSalesService = {
+721: async getAll(): Promise<ShopSale[]> {
+769: async getAll(): Promise<Customer[]> {
+1034: export const suppliersService = {
+1035: async getAll(): Promise<Supplier[]> {
+1081: export const supplierPurchasesService = {
+1172: async getAll(): Promise<Order[]> {
+=== src/types/index.ts lignes 301-324 ===
+301: 
+302: export interface SupplierPurchase {
+303:   id: string;
+304:   supplier_id: string;
+305:   purchase_date: string;
+306:   item_name: string;
+307:   quantity: number;
+308:   unit: string;
+309:   unit_cost: number;
+310:   total_amount: number;
+311:   amount_paid: number;
+312:   invoice_number?: string;
+313:   notes?: string;
+314:   created_at: string;
+315: }
+316: 
+317: export interface Order {
+318:   id: string;
+319:   customer_name: string;
+320:   customer_phone?: string;
+321:   product_description: string;
+322:   expected_date: string;
+323:   notes?: string;
+324:   status: 'pending' | 'delivered' | 'cancelled';
+=== src/types/index.ts lignes 219-236 ===
+219: 
+220: export interface ShopSale {
+221:   id: string;
+222:   sale_date: string;
+223:   quantity: number;
+224:   price_per_piece: number;
+225:   total_amount: number;
+226:   amount_paid?: number;
+227:   is_paid: boolean;
+228:   customer_name?: string;
+229:   customer_id?: string;
+230:   invoice_number?: string;
+231:   order_number?: string;
+232:   notes?: string;
+233:   created_at: string;
+234: }
+235: 
+236: export interface CompanySettings {
+=== src/pages/MaterialsPage.tsx lignes 338-372 ===
+338:     setSupplierForm({ name: s.name, category: s.category || '', phone: s.phone || '', address: s.address || '', notes: s.notes || '' });
+339:     setShowSupplierModal(true);
+340:   };
+341: 
+342:   const handleSupplierPurchaseSubmit = async (e: React.FormEvent) => {
+343:     e.preventDefault();
+344:     if (!selectedSupplier) return;
+345:     const total = supplierPurchaseForm.quantity * supplierPurchaseForm.unit_cost;
+346:     try {
+347:       if (editingSupplierPurchase) {
+348:         const updated = await api.supplierPurchasesService.update(editingSupplierPurchase.id, {
+349:           ...supplierPurchaseForm, total_amount: total, notes: supplierPurchaseForm.notes || undefined,
+350:           invoice_number: supplierPurchaseForm.invoice_number || undefined,
+351:         });
+352:         setSupplierPurchases(supplierPurchases.map(p => p.id === updated.id ? updated : p));
+353:       } else {
+354:         const created = await api.supplierPurchasesService.create({
+355:           ...supplierPurchaseForm, supplier_id: selectedSupplier.id, total_amount: total,
+356:           notes: supplierPurchaseForm.notes || undefined, invoice_number: supplierPurchaseForm.invoice_number || undefined,
+357:         });
+358:         setSupplierPurchases([created, ...supplierPurchases]);
+359:       }
+360:       setShowSupplierPurchaseModal(false);
+361:       setEditingSupplierPurchase(null);
+362:       setSupplierPurchaseForm({ item_name: '', quantity: 1, unit: 'kg', unit_cost: 0, purchase_date: format(new Date(), 'yyyy-MM-dd'), amount_paid: 0, invoice_number: '', notes: '' });
+363:     } catch (err) { console.error(err); }
+364:   };
+365: 
+366:   const handleDeleteSupplierPurchase = async (id: string) => {
+367:     if (!confirm('Supprimer cet achat ?')) return;
+368:     try { await api.supplierPurchasesService.delete(id); setSupplierPurchases(supplierPurchases.filter(p => p.id !== id)); }
+369:     catch (err) { console.error(err); }
+370:   };
+371: 
+372:   const handleSupplierVersement = async (p: SupplierPurchase) => {
+=== src/pages/MaterialsPage.tsx recherche /supplierPurchases|setSupplierPurchases|getBySupplier/ ===
+56: const [supplierPurchases, setSupplierPurchases] = useState<SupplierPurchase[]>([]);
+76: api.supplierPurchasesService.getBySupplier(selectedSupplier.id).then(setSupplierPurchases).catch(() => {});
+77: } else { setSupplierPurchases([]); }
+309: const total = supplierPurchases.reduce((s, p) => s + p.total_amount, 0);
+310: const paid = supplierPurchases.reduce((s, p) => s + p.amount_paid, 0);
+311: return { total, paid, reste: total - paid, count: supplierPurchases.length };
+312: }, [supplierPurchases]);
+348: const updated = await api.supplierPurchasesService.update(editingSupplierPurchase.id, {
+352: setSupplierPurchases(supplierPurchases.map(p => p.id === updated.id ? updated : p));
+354: const created = await api.supplierPurchasesService.create({
+358: setSupplierPurchases([created, ...supplierPurchases]);
+368: try { await api.supplierPurchasesService.delete(id); setSupplierPurchases(supplierPurchases.filter(p => p.id !== id)); }
+379: const updated = await api.supplierPurchasesService.update(p.id, { amount_paid: p.amount_paid + amount });
+380: setSupplierPurchases(supplierPurchases.map(x => x.id === p.id ? updated : x));
+778: {supplierPurchases.map(p => {
+798: {supplierPurchases.length > 0 && (
+809: {supplierPurchases.length === 0 && <div className="p-8 text-center text-gray-400">Aucun achat enregistré</div>}
