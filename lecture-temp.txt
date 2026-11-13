@@ -1,460 +1,339 @@
-=== src/pages/MaterialsPage.tsx recherche /function |const handle|useState|showPurchase|purchaseLines|PurchaseLine/ ===
-1: import React, { useState, useEffect, useMemo } from 'react';
-32: interface PurchaseLine {
-38: const emptyPurchaseLine = (materialId: string): PurchaseLine => ({ material_id: materialId, quantity: 1, unit_cost: 0 });
-40: export default function MaterialsPage() {
-46: const [activeTab, setActiveTab] = useState<'materials' | 'purchases' | 'suppliers' | 'stats'>('materials');
-47: const [searchTerm, setSearchTerm] = useState('');
-48: const [showMaterialModal, setShowMaterialModal] = useState(false);
-49: const [showPurchaseModal, setShowPurchaseModal] = useState(false);
-50: const [editingMaterial, setEditingMaterial] = useState<RawMaterial | null>(null);
-51: const [materialSearch, setMaterialSearch] = useState('');
-52: const [expandedPurchaseRow, setExpandedPurchaseRow] = useState<string | null>(null);
-54: const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-55: const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-56: const [supplierPurchases, setSupplierPurchases] = useState<SupplierPurchase[]>([]);
-57: const [showSupplierModal, setShowSupplierModal] = useState(false);
-58: const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
-59: const [showSupplierPurchaseModal, setShowSupplierPurchaseModal] = useState(false);
-60: const [editingSupplierPurchase, setEditingSupplierPurchase] = useState<SupplierPurchase | null>(null);
-62: const [supplierForm, setSupplierForm] = useState({ name: '', category: '', phone: '', address: '', notes: '' });
-63: const [supplierPurchaseForm, setSupplierPurchaseForm] = useState({
-68: const [statsPeriod, setStatsPeriod] = useState<'week' | 'month' | 'year'>('month');
-80: const [materialForm, setMaterialForm] = useState({
-85: const [purchaseForm, setPurchaseForm] = useState<{
-91: lines: PurchaseLine[];
-98: lines: [emptyPurchaseLine(rawMaterials[0]?.id || '')],
-105: const handleMaterialSubmit = async (e: React.FormEvent) => {
-133: function addPurchaseLine() {
-134: setPurchaseForm(f => ({ ...f, lines: [...f.lines, emptyPurchaseLine(rawMaterials[0]?.id || '')] }));
-136: function removePurchaseLine(idx: number) {
-139: function updatePurchaseLine(idx: number, field: keyof PurchaseLine, value: string | number) {
-145: function onPurchaseMaterialSelect(idx: number, materialId: string) {
-155: const handlePurchaseSubmit = async (e: React.FormEvent) => {
-196: lines: [emptyPurchaseLine(rawMaterials[0]?.id || '')],
-204: const handleUpdateGroupPaymentStatus = async (groupKey: string, status: PaymentStatus, amountPaid?: number) => {
-219: const handleDeleteMaterial = async (id: string) => {
-229: const handleDeletePurchase = async (id: string) => {
-239: const handleDeletePurchaseGroup = async (groupKey: string) => {
-266: lines: [emptyPurchaseLine(rawMaterials[0]?.id || '')],
-310: const handleSupplierSubmit = async (e: React.FormEvent) => {
-326: const handleDeleteSupplier = async (id: string) => {
-338: const handleSupplierPurchaseSubmit = async (e: React.FormEvent) => {
-362: const handleDeleteSupplierPurchase = async (id: string) => {
-368: const handleSupplierVersement = async (p: SupplierPurchase) => {
-425: function renderPurchasePaymentBadge(group: typeof groupedPurchases[number]) {
-960: {showPurchaseModal && (
-987: <button type="button" onClick={addPurchaseLine}
-1032: onChange={e => updatePurchaseLine(idx, 'quantity', parseFloat(e.target.value) || 0)}
-1038: onChange={e => updatePurchaseLine(idx, 'unit_cost', parseFloat(e.target.value) || 0)}
-1045: <button type="button" onClick={() => removePurchaseLine(idx)}
-=== src/pages/MaterialsPage.tsx lignes 985-1135 ===
-985:                 <div className="flex items-center justify-between">
-986:                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Produits de l'achat</p>
-987:                   <button type="button" onClick={addPurchaseLine}
-988:                     className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-medium hover:bg-emerald-600 transition-colors">
-989:                     <Plus size={14} /> Ajouter un produit
-990:                   </button>
-991:                 </div>
-992: 
-993:                 {/* Searchable material list */}
-994:                 <div className="relative mb-2">
-995:                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-996:                   <input type="text" placeholder="Rechercher une matière..." value={materialSearch}
-997:                     onChange={e => setMaterialSearch(e.target.value)}
-998:                     className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500" />
-999:                 </div>
-1000: 
-1001:                 {/* Material quick-select grid (compact) */}
-1002:                 <div className="max-h-32 overflow-y-auto border rounded-lg divide-y divide-gray-100 mb-2">
-1003:                   {dropdownMaterials.map(m => (
-1004:                     <button key={m.id} type="button"
-1005:                       onClick={() => {
-1006:                         setPurchaseForm(f => ({ ...f, lines: [...f.lines, { material_id: m.id, quantity: 1, unit_cost: m.unit_cost }] }));
-1007:                       }}
-1008:                       className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 text-gray-700 transition-colors">
-1009:                       {m.name} <span className="text-gray-400">({m.unit}) — {m.unit_cost.toLocaleString()} DZD</span>
-1010:                     </button>
-1011:                   ))}
-1012:                   {dropdownMaterials.length === 0 && <p className="px-3 py-2 text-sm text-gray-400">Aucune matière trouvée</p>}
-1013:                 </div>
-1014: 
-1015:                 {/* Active lines */}
-1016:                 <div className="space-y-2">
-1017:                   {purchaseForm.lines.map((line, idx) => {
-1018:                     const mat = rawMaterials.find(m => m.id === line.material_id);
-1019:                     return (
-1020:                       <div key={idx} className="flex items-center gap-2 bg-white rounded-lg p-2 border border-gray-200">
-1021:                         <div className="flex-1 min-w-0">
-1022:                           {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Matière</label>}
-1023:                           <select value={line.material_id}
-1024:                             onChange={e => onPurchaseMaterialSelect(idx, e.target.value)}
-1025:                             className="w-full px-2 py-1.5 border rounded text-sm focus:ring-1 focus:ring-amber-500">
-1026:                             {rawMaterials.map(m => <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>)}
-1027:                           </select>
-1028:                         </div>
-1029:                         <div className="w-20 flex-shrink-0">
-1030:                           {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Qté</label>}
-1031:                           <input type="number" step="any" min="0" required value={line.quantity}
-1032:                             onChange={e => updatePurchaseLine(idx, 'quantity', parseFloat(e.target.value) || 0)}
-1033:                             className="w-full px-2 py-1.5 border rounded text-sm" />
-1034:                         </div>
-1035:                         <div className="w-24 flex-shrink-0">
-1036:                           {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Prix/U</label>}
-1037:                           <input type="number" step="any" min="0" required value={line.unit_cost}
-1038:                             onChange={e => updatePurchaseLine(idx, 'unit_cost', parseFloat(e.target.value) || 0)}
-1039:                             className="w-full px-2 py-1.5 border rounded text-sm" />
-1040:                         </div>
-1041:                         <div className="text-right w-20 flex-shrink-0">
-1042:                           {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Total</label>}
-1043:                           <p className="text-sm font-bold text-gray-900 py-1.5">{(line.quantity * line.unit_cost).toLocaleString()}</p>
-1044:                         </div>
-1045:                         <button type="button" onClick={() => removePurchaseLine(idx)}
-1046:                           className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0">
-1047:                           <Trash2 size={14} />
-1048:                         </button>
-1049:                       </div>
-1050:                     );
-1051:                   })}
-1052:                 </div>
-1053: 
-1054:                 <div className="bg-emerald-50 rounded-lg p-3 flex justify-between items-center">
-1055:                   <span className="text-sm text-emerald-700 font-medium">Total général:</span>
-1056:                   <span className="text-xl font-bold text-emerald-700">{purchaseFormTotal.toLocaleString()} DZD</span>
-1057:                 </div>
-1058:               </div>
-1059: 
-1060:               {/* Payment status */}
-1061:               <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-1062:                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Paiement</p>
-1063:                 <div>
-1064:                   <label className="block text-sm font-medium text-gray-700 mb-2">Statut de paiement</label>
-1065:                   <div className="flex gap-2">
-1066:                     {(['paid', 'unpaid', 'partial'] as PaymentStatus[]).map(s => (
-1067:                       <button key={s} type="button"
-1068:                         onClick={() => setPurchaseForm({
-1069:                           ...purchaseForm, payment_status: s,
-1070:                           amount_paid: s === 'paid' ? purchaseFormTotal : s === 'unpaid' ? 0 : purchaseForm.amount_paid,
-1071:                         })}
-1072:                         className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-1073:                           purchaseForm.payment_status === s ? STATUS_STYLES[s] : 'bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100'
-1074:                         }`}>
-1075:                         <span className={`inline-block w-2 h-2 rounded-full mr-2 ${STATUS_DOT[s]}`} />
-1076:                         {STATUS_LABELS[s]}
-1077:                       </button>
-1078:                     ))}
-1079:                   </div>
-1080:                 </div>
-1081:                 {purchaseForm.payment_status === 'partial' && (
-1082:                   <div className="bg-orange-50 rounded-lg p-3 border border-orange-100 space-y-2">
-1083:                     <div className="flex justify-between text-sm">
-1084:                       <span className="text-gray-600">Total: <strong>{purchaseFormTotal.toLocaleString()} DZD</strong></span>
-1085:                       <span className="text-orange-600">Reste: <strong>{purchaseResteAPayer.toLocaleString()} DZD</strong></span>
-1086:                     </div>
-1087:                     <div>
-1088:                       <label className="block text-xs font-medium text-gray-600 mb-1">Montant déjà versé (DZD)</label>
-1089:                       <input type="number" step="any" min="0" max={purchaseFormTotal} value={purchaseForm.amount_paid}
-1090:                         onChange={e => setPurchaseForm({ ...purchaseForm, amount_paid: parseFloat(e.target.value) || 0 })}
-1091:                         className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-orange-500" />
-1092:                     </div>
-1093:                   </div>
-1094:                 )}
-1095:                 <div>
-1096:                   <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optionnel)</label>
-1097:                   <textarea value={purchaseForm.notes} onChange={e => setPurchaseForm({ ...purchaseForm, notes: e.target.value })}
-1098:                     className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500" rows={2} />
-1099:                 </div>
-1100:               </div>
-1101: 
-1102:               <div className="flex justify-end gap-2 pt-2">
-1103:                 <button type="button" onClick={() => setShowPurchaseModal(false)}
-1104:                   className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm">Annuler</button>
-1105:                 <button type="submit"
-1106:                   className="px-5 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 font-medium text-sm">
-1107:                   Enregistrer l'achat
-1108:                 </button>
-1109:               </div>
-1110:             </form>
-1111:           </div>
-1112:         </div>
-1113:       )}
-1114:     </div>
-1115:   );
-1116: }
-1117: 
-=== src/pages/MaterialsPage.tsx recherche /[dD]elete|remove/ ===
-136: function removePurchaseLine(idx: number) {
-219: const handleDeleteMaterial = async (id: string) => {
-222: await api.rawMaterialsService.delete(id);
-229: const handleDeletePurchase = async (id: string) => {
-232: await api.materialPurchasesService.delete(id);
-239: const handleDeletePurchaseGroup = async (groupKey: string) => {
-244: await api.materialPurchasesService.delete(p.id);
-326: const handleDeleteSupplier = async (id: string) => {
-328: try { await api.suppliersService.delete(id); setSuppliers(suppliers.filter(s => s.id !== id)); if (selectedSupplier?.id === id) setSelectedSupplier(null); }
-362: const handleDeleteSupplierPurchase = async (id: string) => {
-364: try { await api.supplierPurchasesService.delete(id); setSupplierPurchases(supplierPurchases.filter(p => p.id !== id)); }
-539: <button onClick={() => handleDeleteMaterial(material.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Supprimer"><Trash2 size={16} /></button>
-592: <button onClick={() => handleDeletePurchaseGroup(group.key)}
-788: <button onClick={() => handleDeleteSupplierPurchase(p.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg" title="Supprimer"><Trash2 size={15} /></button>
-1045: <button type="button" onClick={() => removePurchaseLine(idx)}
-=== src/pages/BulkSalesPage.tsx lignes 1055-1230 ===
+=== src/pages/BulkSalesPage.tsx lignes 1025-1056 ===
+1025:                 ) : (
+1026:                   <div className="text-center py-6 text-gray-400 text-sm">
+1027:                     Aucun article. Ajoutez des articles ou utilisez les boutons de tarifs ci-dessus.
+1028:                   </div>
+1029:                 )}
+1030: 
+1031:                 <div className="flex justify-end gap-2 pt-2">
+1032:                   <button onClick={() => setShowFactureModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Annuler</button>
+1033:                   <button onClick={printFactureFromModal} disabled={factureItems.length === 0}
+1034:                     className="flex items-center gap-2 px-5 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 disabled:opacity-50">
+1035:                     <Printer size={16} /> Imprimer la Facture
+1036:                   </button>
+1037:                 </div>
+1038:               </div>
+1039:             </div>
+1040:           </div>
+1041:         )}
+1042: 
+1043:         {/* Sale Modal — multi-line product table + payment status */}
+1044:         {showSaleModal && (
+1045:           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+1046:             <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+1047:               <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
+1048:                 <h2 className="text-lg font-semibold">{editGroup ? "Modifier l'opération" : 'Nouvelle Vente'}</h2>
+1049:                 <button onClick={() => setShowSaleModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+1050:               </div>
+1051:               <form onSubmit={handleSaleSubmit} className="p-4 space-y-3">
+1052:                 {/* Date */}
+1053:                 <div className="grid grid-cols-2 gap-3">
+1054:                   <div>
 1055:                     <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
 1056:                     <input type="date" required value={saleDate} onChange={e => setSaleDate(e.target.value)}
-1057:                       className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm" />
-1058:                   </div>
-1059:                   <div className="flex items-end">
-1060:                     <p className="text-sm text-gray-500">Client: <strong className="text-gray-900">{selectedCustomer?.name}</strong></p>
-1061:                   </div>
-1062:                 </div>
-1063: 
-1064:                 {/* Multi-line product table */}
-1065:                 <div>
-1066:                   <div className="flex items-center justify-between mb-1.5">
-1067:                     <label className="block text-sm font-medium text-gray-700">Produits</label>
-1068:                     <button type="button" onClick={addSaleLine}
-1069:                       className="flex items-center gap-1 text-sm text-emerald-600 hover:text-emerald-700 font-medium">
-1070:                       <Plus size={16} /> Ajouter une ligne
-1071:                     </button>
-1072:                   </div>
-1073:                   <div className="border border-gray-200 rounded-xl overflow-hidden">
-1074:                     <table className="w-full">
-1075:                       <thead className="bg-gray-50">
-1076:                         <tr>
-1077:                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-600">Produit</th>
-1078:                           <th className="px-2 py-2 text-right text-xs font-medium text-gray-600 w-20">Qté</th>
-1079:                           <th className="px-2 py-2 text-right text-xs font-medium text-gray-600 w-24">Prix U.</th>
-1080:                           <th className="px-2 py-2 text-right text-xs font-medium text-gray-600 w-24">Total</th>
-1081:                           <th className="w-8" />
-1082:                         </tr>
-1083:                       </thead>
-1084:                       <tbody className="divide-y divide-gray-100">
-1085:                         {saleLines.map((line, idx) => {
-1086:                           return (
-1087:                             <tr key={idx}>
-1088:                               <td className="px-2 py-1.5">
-1089:                                 <select value={line.type} onChange={e => updateSaleLine(idx, 'type', e.target.value)}
-1090:                                   className="w-full px-2 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500">
-1091:                                   {SALE_TYPES.map(t => (
-1092:                                     <option key={t.id} value={t.id}>{t.label}</option>
-1093:                                   ))}
-1094:                                 </select>
-1095:                               </td>
-1096:                               <td className="px-2 py-1.5">
-1097:                                 <input type="number" step="any" step={line.type === 'vrac' ? 'any' : '1'} min="0" value={line.quantity}
-1098:                                   onChange={e => updateSaleLine(idx, 'quantity', e.target.value)}
-1099:                                   className="w-full px-2 py-1.5 border rounded-lg text-sm text-right focus:ring-2 focus:ring-emerald-500" />
-1100:                               </td>
-1101:                               <td className="px-2 py-1.5">
-1102:                                 <input type="number" min="0" step="any" value={line.unit_price}
-1103:                                   onChange={e => updateSaleLine(idx, 'unit_price', e.target.value)}
-1104:                                   className="w-full px-2 py-1.5 border rounded-lg text-sm text-right font-bold text-amber-700 focus:ring-2 focus:ring-emerald-500" />
-1105:                               </td>
-1106:                               <td className="px-2 py-1.5 text-right text-sm font-bold text-gray-900">
-1107:                                 {(line.quantity * line.unit_price).toLocaleString()}
-1108:                               </td>
-1109:                               <td className="px-1 py-1.5">
-1110:                                 <button type="button" onClick={() => removeSaleLine(idx)}
-1111:                                   disabled={saleLines.length <= 1}
-1112:                                   className="p-1 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-30 disabled:hover:bg-transparent"
-1113:                                   title="Supprimer la ligne">
-1114:                                   <Trash2 size={14} />
-1115:                                 </button>
-1116:                               </td>
-1117:                             </tr>
-1118:                           );
-1119:                         })}
-1120:                       </tbody>
-1121:                       <tfoot className="bg-gray-50">
-1122:                         <tr>
-1123:                           <td colSpan={3} className="px-2 py-2 text-right text-sm font-semibold text-gray-700">Total Général</td>
-1124:                           <td className="px-2 py-2 text-right text-base font-bold text-emerald-700">{saleTotal.toLocaleString()} DA</td>
-1125:                           <td />
-1126:                         </tr>
-1127:                       </tfoot>
-1128:                     </table>
-1129:                   </div>
-1130:                 </div>
-1131: 
-1132:                 {/* Payment status buttons */}
-1133:                 <div>
-1134:                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Situation de paiement</label>
-1135:                   <div className="flex gap-2">
-1136:                     {(['paid', 'unpaid', 'partial'] as const).map(s => (
-1137:                       <button key={s} type="button"
-1138:                         onClick={() => {
-1139:                           setPaymentStatus(s);
-1140:                           if (s === 'paid') setAmountPaid(saleTotal);
-1141:                           else if (s === 'unpaid') setAmountPaid(0);
-1142:                           else if (amountPaid <= 0 || amountPaid >= saleTotal) {
-1143:                             setAmountPaid(Math.max(1, Math.round(saleTotal / 2)));
-1144:                           }
-1145:                         }}
-1146:                         className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-1147:                           paymentStatus === s
-1148:                             ? s === 'paid' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-1149:                               : s === 'unpaid' ? 'bg-red-100 text-red-700 border border-red-200'
-1150:                               : 'bg-orange-100 text-orange-700 border border-orange-200'
-1151:                             : 'bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100'
-1152:                         }`}>
-1153:                         <span className={`inline-block w-2 h-2 rounded-full mr-1.5 ${
-1154:                           s === 'paid' ? 'bg-emerald-500' : s === 'unpaid' ? 'bg-red-500' : 'bg-orange-500'
-1155:                         }`} />
-1156:                         {s === 'paid' ? 'Payé' : s === 'unpaid' ? 'Non payé' : 'Versement'}
-1157:                       </button>
-1158:                     ))}
-1159:                   </div>
-1160:                 </div>
-1161: 
-1162:                 {/* Partial payment amount */}
-1163:                 {paymentStatus === 'partial' && (
-1164:                   <div>
-1165:                     <label className="block text-sm font-medium text-gray-700 mb-1">Montant versé (DA)</label>
-1166:                     <input type="number" min="1" max={Math.max(1, saleTotal - 1)}
-1167:                       value={amountPaid || ''}
-1168:                       onChange={e => setAmountPaid(parseFloat(e.target.value) || 0)}
-1169:                       required
-1170:                       placeholder="Saisir le montant versé"
-1171:                       className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-orange-500 text-sm" />
-1172:                     <p className="text-sm text-orange-600 mt-1">
-1173:                       Reste à payer : <strong>{saleReste.toLocaleString()} DA</strong>
-1174:                     </p>
-1175:                     {amountPaid >= saleTotal && saleTotal > 0 && (
-1176:                       <p className="text-xs text-red-500 mt-1">
-1177:                         Le montant versé doit être inférieur au total ({saleTotal.toLocaleString()} DA). Sinon, choisissez « Payé ».
-1178:                       </p>
-1179:                     )}
-1180:                     {amountPaid <= 0 && (
-1181:                       <p className="text-xs text-red-500 mt-1">
-1182:                         Le montant versé doit être supérieur à 0 DA. Sinon, choisissez « Non payé ».
-1183:                       </p>
-1184:                     )}
-1185:                   </div>
-1186:                 )}
-1187: 
-1188:                 {/* Notes */}
-1189:                 <div>
-1190:                   <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optionnel)</label>
-1191:                   <textarea value={saleNotes} rows={2} onChange={e => setSaleNotes(e.target.value)}
-1192:                     className="w-full px-3 py-2 border rounded-lg text-sm" />
-1193:                 </div>
-1194: 
-1195:                 {/* Summary */}
-1196:                 <div className="bg-emerald-50 p-3 rounded-xl flex justify-between items-center text-sm">
-1197:                   <span className="text-emerald-800">Total : <strong>{saleTotal.toLocaleString()} DA</strong></span>
-1198:                   {paymentStatus === 'paid' && (
-1199:                     <span className="text-emerald-700 font-medium">Payé intégralement</span>
-1200:                   )}
-1201:                   {paymentStatus === 'partial' && (
-1202:                     <span className="text-orange-600 font-medium">Versé : {amountPaid.toLocaleString()} DA · Reste : {saleReste.toLocaleString()} DA</span>
-1203:                   )}
-1204:                   {paymentStatus === 'unpaid' && (
-1205:                     <span className="text-red-600 font-medium">Non payé : {saleTotal.toLocaleString()} DA</span>
-1206:                   )}
-1207:                 </div>
-1208: 
-1209:                 <div className="flex justify-end gap-2 pt-1">
-1210:                   <button type="button" onClick={() => setShowSaleModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm">Annuler</button>
-1211:                   <button type="submit" disabled={savingSale || saleLines.length === 0}
-1212:                     className="px-5 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium disabled:opacity-60">
-1213:                     {savingSale ? 'Enregistrement...' : editGroup ? 'Modifier' : 'Enregistrer la vente'}
-1214:                   </button>
-1215:                 </div>
-1216:               </form>
-1217:             </div>
-1218:           </div>
-1219:         )}
-1220:       </div>
-1221:     );
-1222:   }
-1223: 
-1224:   // ═══════════════════════════════════════════════
-1225:   // CUSTOMER LIST VIEW
-1226:   // ═══════════════════════════════════════════════
-1227:   const globalTotal = Object.values(allCustomerStats).reduce((s, v) => s + v.total, 0);
-1228:   const globalReste = Object.values(allCustomerStats).reduce((s, v) => s + v.reste, 0);
-1229: 
-1230:   return (
-=== src/pages/BulkSalesPage.tsx lignes 470-500 ===
-470:   };
-471: 
-472:   const handleDeleteGroup = async (group: GroupedSale) => {
-473:     const count = group.items.length;
-474:     const confirmMsg = count > 1
-475:       ? `Supprimer cette vente de ${count} produits ?`
-476:       : 'Supprimer cette vente ?';
-477:     if (!confirm(confirmMsg)) return;
-478: 
-479:     try {
-480:       for (const s of group.items) {
-481:         const meta = SALE_TYPES.find(t => t.id === s.type)!;
-482:         if (meta.table === 'bulk') {
-483:           await api.bulkSalesService.delete(s.id);
-484:         } else if (meta.table === 'sales') {
-485:           await api.salesService.delete(s.id);
-486:         } else {
-487:           await api.shopSalesService.delete(s.id);
-488:         }
-489:       }
-490:       const itemIds = new Set(group.items.map(i => i.id));
-491:       setBulkSales(bulkSales.filter(x => !itemIds.has(x.id)));
-492:       setSales(sales.filter(x => !itemIds.has(x.id)));
-493:       setShopSales(shopSales.filter(x => !itemIds.has(x.id)));
-494:     } catch (err) {
-495:       console.error(err);
-496:     }
-497:   };
-498: 
-499:   const buildDocHTML = (docType: 'bon' | 'facture', items: { label: string; quantity: number; unit_price: number; total: number }[], totalGeneral: number, verse: number) => {
-500:     if (!selectedCustomer) return '';
-=== src/services/api.ts recherche /[dD]elete/ ===
-4: import { offlineCreate, offlineUpdate, offlineDelete, purgeFromLocal, mergeWithLocal, addToTombstone } from '../lib/offlineDb';
-66: async delete(id: string): Promise<void> {
-68: offlineDelete<RawMaterial>('raw_materials', id);
-72: const { error } = await supabase.from('raw_materials').delete().eq('id', id);
-117: async delete(id: string): Promise<void> {
-119: offlineDelete<MaterialPurchase>('material_purchases', id);
-123: const { error } = await supabase.from('material_purchases').delete().eq('id', id);
-165: async delete(id: string): Promise<void> {
-167: offlineDelete<FixedCharge>('fixed_charges', id);
-171: const { error } = await supabase.from('fixed_charges').delete().eq('id', id);
-204: async delete(id: string): Promise<void> {
-206: offlineDelete<VariableExpense>('variable_expenses', id);
-210: const { error } = await supabase.from('variable_expenses').delete().eq('id', id);
-243: async delete(id: string): Promise<void> {
-245: offlineDelete<Utility>('utilities', id);
-249: const { error } = await supabase.from('utilities').delete().eq('id', id);
-282: async delete(id: string): Promise<void> {
-284: offlineDelete<LaborCost>('labor_costs', id);
-288: const { error } = await supabase.from('labor_costs').delete().eq('id', id);
-330: async delete(id: string): Promise<void> {
-332: offlineDelete<Packaging>('packaging', id);
-336: const { error } = await supabase.from('packaging').delete().eq('id', id);
-381: async delete(id: string): Promise<void> {
-383: offlineDelete<ProductionBatch>('production_batches', id);
-387: const { error } = await supabase.from('production_batches').delete().eq('id', id);
-429: async delete(id: string): Promise<void> {
-431: offlineDelete<Sale>('sales', id);
-435: const { error } = await supabase.from('sales').delete().eq('id', id);
-483: async delete(id: string): Promise<void> {
-485: offlineDelete<UnsoldProduct>('unsold_products', id);
-489: const { error } = await supabase.from('unsold_products').delete().eq('id', id);
-596: async delete(id: string): Promise<void> {
-598: offlineDelete<BulkSale>('bulk_sales', id);
-602: const { error } = await supabase.from('bulk_sales').delete().eq('id', id);
-706: async delete(id: string): Promise<void> {
-708: offlineDelete<RecipeItem>('recipe_items', id);
-712: const { error } = await supabase.from('recipe_items').delete().eq('id', id);
-754: async delete(id: string): Promise<void> {
-756: offlineDelete<ShopSale>('shop_sales', id);
-760: const { error } = await supabase.from('shop_sales').delete().eq('id', id);
-=== utilisation de purchases / bulkSales / bulk_sales / shopSales dans src/pages ===
-src/pages/BulkSalesPage.tsx : 0 / 17 / 0 / 14
-src/pages/Dashboard.tsx : 2 / 11 / 0 / 0
-src/pages/HistoryPage.tsx : 7 / 0 / 0 / 0
-src/pages/MaterialsPage.tsx : 22 / 0 / 0 / 0
-src/pages/ReportsPage.tsx : 0 / 6 / 0 / 0
-=== utilisation de purchases / bulkSales / bulk_sales / shopSales dans src/context ===
-src/context/AppContext.tsx : 4 / 8 / 1 / 8
-=== utilisation de purchases / bulkSales / bulk_sales / shopSales dans src/lib ===
-src/lib/syncEngine.ts : 4 / 0 / 2 / 0
+=== src/pages/MaterialsPage.tsx lignes 925-986 ===
+925:             <div className="flex items-center justify-between p-4 border-b">
+926:               <h2 className="text-lg font-semibold">{editingMaterial ? 'Modifier' : 'Nouvelle'} Matière</h2>
+927:               <button onClick={() => setShowMaterialModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+928:             </div>
+929:             <form onSubmit={handleMaterialSubmit} className="p-4 space-y-4">
+930:               <div><label className="block text-sm font-medium text-gray-700 mb-1">Nom</label>
+931:                 <input type="text" required value={materialForm.name} onChange={e => setMaterialForm({ ...materialForm, name: e.target.value })}
+932:                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500" placeholder="Ex: Poudre d'amande" /></div>
+933:               <div className="grid grid-cols-2 gap-4">
+934:                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Unité</label>
+935:                   <select value={materialForm.unit} onChange={e => setMaterialForm({ ...materialForm, unit: e.target.value })}
+936:                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500">
+937:                     <option value="kg">Kilogramme (kg)</option>
+938:                     <option value="g">Gramme (g)</option>
+939:                     <option value="L">Litre (L)</option>
+940:                     <option value="ml">Millilitre (ml)</option>
+941:                     <option value="unité">Unité</option>
+942:                   </select></div>
+943:                 <div><label className="block text-sm font-medium text-gray-700 mb-1">Prix/Unité (DZD)</label>
+944:                   <input type="number" step="any" min="0" required value={materialForm.unit_cost} onChange={e => setMaterialForm({ ...materialForm, unit_cost: parseFloat(e.target.value) || 0 })}
+945:                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500" /></div>
+946:               </div>
+947:               <div><label className="block text-sm font-medium text-gray-700 mb-1">Fournisseur (optionnel)</label>
+948:                 <input type="text" value={materialForm.supplier} onChange={e => setMaterialForm({ ...materialForm, supplier: e.target.value })}
+949:                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500" placeholder="Nom du fournisseur" /></div>
+950:               <div className="flex justify-end gap-2 pt-4">
+951:                 <button type="button" onClick={() => setShowMaterialModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">Annuler</button>
+952:                 <button type="submit" className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors">{editingMaterial ? 'Modifier' : 'Ajouter'}</button>
+953:               </div>
+954:             </form>
+955:           </div>
+956:         </div>
+957:       )}
+958: 
+959:       {/* Multi-line Purchase Modal */}
+960:       {showPurchaseModal && (
+961:         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+962:           <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+963:             <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
+964:               <h2 className="text-lg font-semibold">Nouvel Achat</h2>
+965:               <button onClick={() => setShowPurchaseModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+966:             </div>
+967:             <form onSubmit={handlePurchaseSubmit} className="p-5 space-y-4">
+968: 
+969:               {/* Date + invoice */}
+970:               <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+971:                 <div className="grid grid-cols-2 gap-3">
+972:                   <div><label className="block text-sm font-medium text-gray-700 mb-1">Date d'achat</label>
+973:                     <input type="date" required value={purchaseForm.purchase_date}
+974:                       onChange={e => setPurchaseForm({ ...purchaseForm, purchase_date: e.target.value })}
+975:                       className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500" /></div>
+976:                   <div><label className="block text-sm font-medium text-gray-700 mb-1">N° Facture (optionnel)</label>
+977:                     <input type="text" value={purchaseForm.invoice_number}
+978:                       onChange={e => setPurchaseForm({ ...purchaseForm, invoice_number: e.target.value })}
+979:                       className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500" /></div>
+980:                 </div>
+981:               </div>
+982: 
+983:               {/* Multi-line products */}
+984:               <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+985:                 <div className="flex items-center justify-between">
+986:                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Produits de l'achat</p>
+=== src/pages/MaterialsPage.tsx lignes 85-104 ===
+85:   const [purchaseForm, setPurchaseForm] = useState<{
+86:     purchase_date: string;
+87:     invoice_number: string;
+88:     notes: string;
+89:     payment_status: PaymentStatus;
+90:     amount_paid: number;
+91:     lines: PurchaseLine[];
+92:   }>({
+93:     purchase_date: format(new Date(), 'yyyy-MM-dd'),
+94:     invoice_number: '',
+95:     notes: '',
+96:     payment_status: 'unpaid',
+97:     amount_paid: 0,
+98:     lines: [emptyPurchaseLine(rawMaterials[0]?.id || '')],
+99:   });
+100: 
+101:   const dropdownMaterials = rawMaterials.filter(m =>
+102:     m.name.toLowerCase().includes(materialSearch.toLowerCase())
+103:   );
+104: 
+=== src/pages/MaterialsPage.tsx lignes 133-204 ===
+133:   function addPurchaseLine() {
+134:     setPurchaseForm(f => ({ ...f, lines: [...f.lines, emptyPurchaseLine(rawMaterials[0]?.id || '')] }));
+135:   }
+136:   function removePurchaseLine(idx: number) {
+137:     setPurchaseForm(f => ({ ...f, lines: f.lines.filter((_, i) => i !== idx) }));
+138:   }
+139:   function updatePurchaseLine(idx: number, field: keyof PurchaseLine, value: string | number) {
+140:     setPurchaseForm(f => ({
+141:       ...f,
+142:       lines: f.lines.map((l, i) => i === idx ? { ...l, [field]: value } : l),
+143:     }));
+144:   }
+145:   function onPurchaseMaterialSelect(idx: number, materialId: string) {
+146:     const mat = rawMaterials.find(m => m.id === materialId);
+147:     setPurchaseForm(f => ({
+148:       ...f,
+149:       lines: f.lines.map((l, i) => i === idx ? {
+150:         ...l, material_id: materialId, unit_cost: mat?.unit_cost ?? l.unit_cost,
+151:       } : l),
+152:     }));
+153:   }
+154: 
+155:   const handlePurchaseSubmit = async (e: React.FormEvent) => {
+156:     e.preventDefault();
+157:     if (purchaseForm.lines.length === 0) return;
+158:     try {
+159:       const groupId = `PURGRP-${Date.now()}`;
+160:       const total_cost = purchaseFormTotal;
+161:       const amount_paid = purchaseForm.payment_status === 'paid' ? total_cost
+162:         : purchaseForm.payment_status === 'partial' ? purchaseForm.amount_paid : 0;
+163: 
+164:       const newPurchases: MaterialPurchase[] = [];
+165:       for (const line of purchaseForm.lines) {
+166:         const lineTotal = line.quantity * line.unit_cost;
+167:         const lineAmountPaid = purchaseForm.payment_status === 'paid' ? lineTotal
+168:           : purchaseForm.payment_status === 'partial' ? (total_cost > 0 ? (amount_paid / total_cost) * lineTotal : 0) : 0;
+169: 
+170:         const newPurchase = await api.materialPurchasesService.create({
+171:           material_id: line.material_id,
+172:           quantity: line.quantity,
+173:           unit_cost: line.unit_cost,
+174:           total_cost: lineTotal,
+175:           purchase_date: purchaseForm.purchase_date,
+176:           invoice_number: purchaseForm.invoice_number || undefined,
+177:           notes: purchaseForm.notes || undefined,
+178:           payment_status: purchaseForm.payment_status,
+179:           amount_paid: lineAmountPaid,
+180:           purchase_group_id: groupId,
+181:         });
+182:         const material = rawMaterials.find(m => m.id === line.material_id);
+183:         newPurchases.push({ ...newPurchase, material });
+184: 
+185:         await api.rawMaterialsService.update(line.material_id, {
+186:           unit_cost: line.unit_cost,
+187:           last_purchase_date: purchaseForm.purchase_date
+188:         });
+189:       }
+190:       setMaterialPurchases([...newPurchases.reverse(), ...materialPurchases]);
+191:       setShowPurchaseModal(false);
+192:       setMaterialSearch('');
+193:       setPurchaseForm({
+194:         purchase_date: format(new Date(), 'yyyy-MM-dd'),
+195:         invoice_number: '', notes: '', payment_status: 'unpaid', amount_paid: 0,
+196:         lines: [emptyPurchaseLine(rawMaterials[0]?.id || '')],
+197:       });
+198:     } catch (error) {
+199:       console.error('Error saving purchase:', error);
+200:       alert('Erreur lors de l\'enregistrement de l\'achat.');
+201:     }
+202:   };
+203: 
+204:   const handleUpdateGroupPaymentStatus = async (groupKey: string, status: PaymentStatus, amountPaid?: number) => {
+=== src/pages/MaterialsPage.tsx lignes 229-270 ===
+229:   const handleDeletePurchase = async (id: string) => {
+230:     if (!confirm('Supprimer cet achat?')) return;
+231:     try {
+232:       await api.materialPurchasesService.delete(id);
+233:       setMaterialPurchases(materialPurchases.filter(p => p.id !== id));
+234:     } catch (error) {
+235:       console.error('Error deleting purchase:', error);
+236:     }
+237:   };
+238: 
+239:   const handleDeletePurchaseGroup = async (groupKey: string) => {
+240:     if (!confirm('Supprimer tous les achats de ce groupe?')) return;
+241:     try {
+242:       const groupPurchases = groupedPurchases.find(g => g.key === groupKey)?.purchases || [];
+243:       for (const p of groupPurchases) {
+244:         await api.materialPurchasesService.delete(p.id);
+245:       }
+246:       setMaterialPurchases(materialPurchases.filter(p => !groupPurchases.some(gp => gp.id === p.id)));
+247:     } catch (error) {
+248:       console.error('Error deleting group:', error);
+249:     }
+250:   };
+251: 
+252:   const openEditMaterial = (material: RawMaterial) => {
+253:     setEditingMaterial(material);
+254:     setMaterialForm({
+255:       name: material.name, unit: material.unit,
+256:       unit_cost: material.unit_cost, supplier: material.supplier || ''
+257:     });
+258:     setShowMaterialModal(true);
+259:   };
+260: 
+261:   const openNewPurchase = () => {
+262:     setMaterialSearch('');
+263:     setPurchaseForm({
+264:       purchase_date: format(new Date(), 'yyyy-MM-dd'),
+265:       invoice_number: '', notes: '', payment_status: 'unpaid', amount_paid: 0,
+266:       lines: [emptyPurchaseLine(rawMaterials[0]?.id || '')],
+267:     });
+268:     setShowPurchaseModal(true);
+269:   };
+270: 
+=== src/pages/MaterialsPage.tsx recherche /groupedPurchases|purchaseFormTotal|dropdownMaterials|purchaseResteAPayer/ ===
+101: const dropdownMaterials = rawMaterials.filter(m =>
+130: const purchaseFormTotal = purchaseForm.lines.reduce((s, l) => s + l.quantity * l.unit_cost, 0);
+131: const purchaseResteAPayer = purchaseFormTotal - purchaseForm.amount_paid;
+160: const total_cost = purchaseFormTotal;
+205: const groupPurchases = groupedPurchases.find(g => g.key === groupKey)?.purchases || [];
+242: const groupPurchases = groupedPurchases.find(g => g.key === groupKey)?.purchases || [];
+391: const groupedPurchases = useMemo(() => {
+425: function renderPurchasePaymentBadge(group: typeof groupedPurchases[number]) {
+554: {groupedPurchases.length === 0 && (
+560: {groupedPurchases.map(group => {
+1003: {dropdownMaterials.map(m => (
+1012: {dropdownMaterials.length === 0 && <p className="px-3 py-2 text-sm text-gray-400">Aucune matière trouvée</p>}
+1056: <span className="text-xl font-bold text-emerald-700">{purchaseFormTotal.toLocaleString()} DZD</span>
+1070: amount_paid: s === 'paid' ? purchaseFormTotal : s === 'unpaid' ? 0 : purchaseForm.amount_paid,
+1084: <span className="text-gray-600">Total: <strong>{purchaseFormTotal.toLocaleString()} DZD</strong></span>
+1085: <span className="text-orange-600">Reste: <strong>{purchaseResteAPayer.toLocaleString()} DZD</strong></span>
+1089: <input type="number" step="any" min="0" max={purchaseFormTotal} value={purchaseForm.amount_paid}
+=== src/pages/Dashboard.tsx recherche /purchases|bulkSales|shopSales|sales\b|charges|labor/i ===
+18: const { sales, bulkSales, productionBatches, materialPurchases, fixedCharges, variableExpenses, utilities, laborCosts, isLoading } = useApp();
+34: const salesToday = sales.filter(s => s.sale_date === todayStr);
+35: const bulkSalesToday = bulkSales.filter(s => s.sale_date === todayStr);
+37: const bulkAmountToday = bulkSalesToday.reduce((sum, s) => sum + s.total_amount, 0);
+42: const salesThisMonth = sales.filter(s => {
+46: const bulkSalesThisMonth = bulkSales.filter(s => {
+51: const bulkAmountMonth = bulkSalesThisMonth.reduce((sum, s) => sum + s.total_amount, 0);
+54: const purchasesThisMonth = materialPurchases.filter(p => {
+58: const totalPurchasesMonth = purchasesThisMonth.reduce((sum, p) => sum + p.total_cost, 0);
+60: // Fixed charges monthly equivalent
+61: const fixedChargesMonthly = fixedCharges
+87: const laborMonth = laborCosts
+91: const totalExpensesMonth = fixedChargesMonthly + variableExpensesMonth + utilitiesMonth + laborMonth;
+92: const profitMonth = totalSalesMonth - (totalExpensesMonth + totalPurchasesMonth);
+93: const profitToday = totalSalesToday - ((totalExpensesMonth + totalPurchasesMonth) / 30);
+103: // Sales chart data - last 7 days (box + bulk)
+110: const boxAmt = sales.filter(s => s.sale_date === dayStr).reduce((sum, s) => sum + s.total_amount, 0);
+111: const bulkAmt = bulkSales.filter(s => s.sale_date === dayStr).reduce((sum, s) => sum + s.total_amount, 0);
+131: // Production vs Sales comparison
+137: const daySalesCount = sales
+151: subtitle: `${boxesSoldToday} boîtes + ${bulkAmountToday > 0 ? bulkSalesToday.reduce((s, b) => s + b.quantity_kg, 0).toFixed(1) + 'kg vrac' : '0kg vrac'}`,
+180: value: `${(totalExpensesMonth + totalPurchasesMonth).toLocaleString()} DZD`,
+181: subtitle: `Achats: ${totalPurchasesMonth.toLocaleString()} DZD`,
+183: trend: totalPurchasesMonth < totalSalesMonth,
+184: trendValue: `Charges: ${totalExpensesMonth.toLocaleString()} DZD`,
+238: {/* Sales Trend */}
+269: {/* Production vs Sales */}
+334: {/* Recent Sales */}
+349: ...sales.slice(0, 4).map(s => ({ date: s.sale_date, type: 'boite' as const, detail: `${s.quantity} boîte(s) × ${s.box_size} pcs`, amount: s.total_amount })),
+350: ...bulkSales.slice(0, 3).map(s => ({ date: s.sale_date, type: 'vrac' as const, detail: `${s.quantity_kg} kg × ${s.price_per_kg.toLocaleString()} DZD/kg`, amount: s.total_amount }))
+370: {sales.length === 0 && bulkSales.length === 0 && (
+388: onClick={() => window.dispatchEvent(new CustomEvent('navigate', { detail: 'bulksales' }))}
+=== src/pages/ReportsPage.tsx recherche /purchases|bulkSales|shopSales|sales\b/i ===
+14: const { sales, bulkSales, materialPurchases, fixedCharges, variableExpenses, utilities, laborCosts } = useApp();
+50: const monthBoxSales = sales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
+51: const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
+52: const revenue = monthBoxSales.reduce((sum, s) => sum + s.total_amount, 0)
+53: + monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0);
+55: const monthPurchases = materialPurchases.filter(p => p.purchase_date >= monthStart && p.purchase_date <= monthEnd);
+56: const expenses = monthPurchases.reduce((sum, p) => sum + p.total_cost, 0);
+67: }, [sales, bulkSales, materialPurchases]);
+69: // Daily sales chart (current month) — box + bulk
+78: const daySales = sales.filter(s => s.sale_date === dayStr);
+79: const dayBulk = bulkSales.filter(s => s.sale_date === dayStr);
+83: ventes: daySales.reduce((sum, s) => sum + s.total_amount, 0),
+85: transactions: daySales.length + dayBulk.length
+88: }, [sales, bulkSales]);
+93: const monthSales = sales.filter(s => {
+98: monthSales.forEach(s => {
+111: }, [sales]);
+117: const monthBoxSales = sales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
+118: const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
+119: const boxRevenue = monthBoxSales.reduce((sum, s) => sum + s.total_amount, 0);
+120: const bulkRevenue = monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0);
+124: const monthSales = monthBoxSales;
+126: const monthPurchases = materialPurchases.filter(p => p.purchase_date >= monthStart && p.purchase_date <= monthEnd);
+127: const totalPurchasesExpenses = monthPurchases.reduce((sum, p) => sum + p.total_cost, 0);
+157: const totalExpenses = totalPurchasesExpenses + fixedMonthly + variableMonthly + utilitiesMonthly + laborMonthly;
+162: { name: 'Matières Premières', value: totalPurchasesExpenses },
+217: <p className="text-2xl font-bold text-gray-900">{monthSales.length + monthBulkSales.length}</p>
+218: <p className="text-xs text-gray-400">{monthSales.reduce((sum, s) => sum + s.quantity, 0)} boîtes · {monthBulkSales.reduce((s, b) => s + b.quantity_kg, 0).toFixed(1)} kg vrac</p>
+278: {/* Daily Sales */}
+415: <td className="px-4 py-3 text-right text-gray-900">-{totalPurchasesExpenses.toLocaleString()} DZD</td>
+=== src/context/AppContext.tsx recherche /purchases|Purchases|bulkSales|BulkSales/ ===
+14: materialPurchases: MaterialPurchase[];
+23: bulkSales: BulkSale[];
+40: setMaterialPurchases: (purchases: MaterialPurchase[]) => void;
+49: setBulkSales: (sales: BulkSale[]) => void;
+65: materialPurchases: [],
+74: bulkSales: [],
+97: const cachedMaterialPurchases = offlineStorage.get<MaterialPurchase[]>('material_purchases') || [];
+106: const cachedBulkSales = offlineStorage.get<BulkSale[]>('bulk_sales') || [];
+114: const hasCachedData = cachedSales.length > 0 || cachedBulkSales.length > 0 || cachedRawMaterials.length > 0;
+120: materialPurchases: cachedMaterialPurchases,
+129: bulkSales: cachedBulkSales,
+154: materialPurchases,
+163: bulkSales,
+172: withTimeout(api.materialPurchasesService.getAll()).catch(() => cachedMaterialPurchases),
+181: withTimeout(api.bulkSalesService.getAll()).catch(() => cachedBulkSales),
+192: materialPurchases,
+201: bulkSales,
+288: const purchasesThisMonth = state.materialPurchases.filter(p => {
+292: const totalPurchasesMonth = purchasesThisMonth.reduce((sum, p) => sum + p.total_cost, 0);
+341: const totalExpensesMonth = fixedChargesMonthly + variableExpensesMonth + utilitiesMonth + laborMonth + totalPurchasesMonth;
+348: totalPurchasesMonth,
+363: setMaterialPurchases: (materialPurchases) => setState(s => ({ ...s, materialPurchases })),
+372: setBulkSales: (bulkSales) => setState(s => ({ ...s, bulkSales })),

@@ -1094,7 +1094,7 @@ export default function BulkSalesPage() {
                                 </select>
                               </td>
                               <td className="px-2 py-1.5">
-                                <input type="number" step="any" step={line.type === 'vrac' ? 'any' : '1'} min="0" value={line.quantity}
+                                <input type="number" step={line.type === 'vrac' ? 'any' : '1'} min="0" value={line.quantity}
                                   onChange={e => updateSaleLine(idx, 'quantity', e.target.value)}
                                   className="w-full px-2 py-1.5 border rounded-lg text-sm text-right focus:ring-2 focus:ring-emerald-500" />
                               </td>
