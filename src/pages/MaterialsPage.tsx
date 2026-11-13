@@ -95,7 +95,7 @@ export default function MaterialsPage() {
     notes: '',
     payment_status: 'unpaid',
     amount_paid: 0,
-    lines: [emptyPurchaseLine(rawMaterials[0]?.id || '')],
+    lines: [],
   });
 
   const dropdownMaterials = rawMaterials.filter(m =>
@@ -152,6 +152,10 @@ export default function MaterialsPage() {
     }));
   }
 
+  void addPurchaseLine;
+  void onPurchaseMaterialSelect;
+  void emptyPurchaseLine;
+
   const handlePurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (purchaseForm.lines.length === 0) return;
@@ -193,7 +197,7 @@ export default function MaterialsPage() {
       setPurchaseForm({
         purchase_date: format(new Date(), 'yyyy-MM-dd'),
         invoice_number: '', notes: '', payment_status: 'unpaid', amount_paid: 0,
-        lines: [emptyPurchaseLine(rawMaterials[0]?.id || '')],
+        lines: [],
       });
     } catch (error) {
       console.error('Error saving purchase:', error);
@@ -263,7 +267,7 @@ export default function MaterialsPage() {
     setPurchaseForm({
       purchase_date: format(new Date(), 'yyyy-MM-dd'),
       invoice_number: '', notes: '', payment_status: 'unpaid', amount_paid: 0,
-      lines: [emptyPurchaseLine(rawMaterials[0]?.id || '')],
+      lines: [],
     });
     setShowPurchaseModal(true);
   };
@@ -958,154 +962,148 @@ export default function MaterialsPage() {
 
       {/* Multi-line Purchase Modal */}
       {showPurchaseModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 md:p-4">
+          <div className="bg-white rounded-2xl w-full max-w-6xl h-[94vh] shadow-xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3 border-b bg-white">
               <h2 className="text-lg font-semibold">Nouvel Achat</h2>
-              <button onClick={() => setShowPurchaseModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+              <button type="button" onClick={() => setShowPurchaseModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
             </div>
-            <form onSubmit={handlePurchaseSubmit} className="p-5 space-y-4">
+            <form onSubmit={handlePurchaseSubmit} className="flex-1 min-h-0 flex flex-col md:flex-row">
 
-              {/* Date + invoice */}
-              <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">Date d'achat</label>
-                    <input type="date" required value={purchaseForm.purchase_date}
-                      onChange={e => setPurchaseForm({ ...purchaseForm, purchase_date: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500" /></div>
-                  <div><label className="block text-sm font-medium text-gray-700 mb-1">N° Facture (optionnel)</label>
-                    <input type="text" value={purchaseForm.invoice_number}
-                      onChange={e => setPurchaseForm({ ...purchaseForm, invoice_number: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500" /></div>
+              {/* Gauche : liste des matières premières */}
+              <div className="md:w-80 md:flex-shrink-0 max-h-56 md:max-h-none flex flex-col border-b md:border-b-0 md:border-r bg-gray-50 min-h-0">
+                <div className="p-3 border-b bg-gray-50">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Matières premières</p>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                    <input type="text" placeholder="Rechercher une matière..." value={materialSearch}
+                      onChange={e => setMaterialSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 bg-white" />
+                  </div>
                 </div>
-              </div>
-
-              {/* Multi-line products */}
-              <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Produits de l'achat</p>
-                  <button type="button" onClick={addPurchaseLine}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-medium hover:bg-emerald-600 transition-colors">
-                    <Plus size={14} /> Ajouter un produit
-                  </button>
-                </div>
-
-                {/* Searchable material list */}
-                <div className="relative mb-2">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                  <input type="text" placeholder="Rechercher une matière..." value={materialSearch}
-                    onChange={e => setMaterialSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500" />
-                </div>
-
-                {/* Material quick-select grid (compact) */}
-                <div className="max-h-32 overflow-y-auto border rounded-lg divide-y divide-gray-100 mb-2">
-                  {dropdownMaterials.map(m => (
-                    <button key={m.id} type="button"
-                      onClick={() => {
-                        setPurchaseForm(f => ({ ...f, lines: [...f.lines, { material_id: m.id, quantity: 1, unit_cost: m.unit_cost }] }));
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 text-gray-700 transition-colors">
-                      {m.name} <span className="text-gray-400">({m.unit}) — {m.unit_cost.toLocaleString()} DZD</span>
-                    </button>
-                  ))}
-                  {dropdownMaterials.length === 0 && <p className="px-3 py-2 text-sm text-gray-400">Aucune matière trouvée</p>}
-                </div>
-
-                {/* Active lines */}
-                <div className="space-y-2">
-                  {purchaseForm.lines.map((line, idx) => {
-                    const mat = rawMaterials.find(m => m.id === line.material_id);
+                <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+                  {dropdownMaterials.map(m => {
+                    const added = purchaseForm.lines.some(l => l.material_id === m.id);
                     return (
-                      <div key={idx} className="flex items-center gap-2 bg-white rounded-lg p-2 border border-gray-200">
-                        <div className="flex-1 min-w-0">
-                          {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Matière</label>}
-                          <select value={line.material_id}
-                            onChange={e => onPurchaseMaterialSelect(idx, e.target.value)}
-                            className="w-full px-2 py-1.5 border rounded text-sm focus:ring-1 focus:ring-amber-500">
-                            {rawMaterials.map(m => <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>)}
-                          </select>
-                        </div>
-                        <div className="w-20 flex-shrink-0">
-                          {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Qté</label>}
-                          <input type="number" step="any" min="0" required value={line.quantity}
-                            onChange={e => updatePurchaseLine(idx, 'quantity', parseFloat(e.target.value) || 0)}
-                            className="w-full px-2 py-1.5 border rounded text-sm" />
-                        </div>
-                        <div className="w-24 flex-shrink-0">
-                          {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Prix/U</label>}
-                          <input type="number" step="any" min="0" required value={line.unit_cost}
-                            onChange={e => updatePurchaseLine(idx, 'unit_cost', parseFloat(e.target.value) || 0)}
-                            className="w-full px-2 py-1.5 border rounded text-sm" />
-                        </div>
-                        <div className="text-right w-20 flex-shrink-0">
-                          {idx === 0 && <label className="block text-xs text-gray-500 mb-0.5">Total</label>}
-                          <p className="text-sm font-bold text-gray-900 py-1.5">{(line.quantity * line.unit_cost).toLocaleString()}</p>
-                        </div>
-                        <button type="button" onClick={() => removePurchaseLine(idx)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg flex-shrink-0">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                      <button key={m.id} type="button" disabled={added}
+                        onClick={() => setPurchaseForm(f => ({ ...f, lines: [...f.lines, { material_id: m.id, quantity: 1, unit_cost: m.unit_cost }] }))}
+                        className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${added ? 'bg-emerald-50 text-emerald-700' : 'bg-white hover:bg-amber-50 text-gray-700'}`}>
+                        <span className="font-medium">{added ? '✓ ' : ''}{m.name}</span>
+                        <span className="block text-xs text-gray-400">{m.unit} · {m.unit_cost.toLocaleString()} DZD</span>
+                      </button>
                     );
                   })}
-                </div>
-
-                <div className="bg-emerald-50 rounded-lg p-3 flex justify-between items-center">
-                  <span className="text-sm text-emerald-700 font-medium">Total général:</span>
-                  <span className="text-xl font-bold text-emerald-700">{purchaseFormTotal.toLocaleString()} DZD</span>
+                  {dropdownMaterials.length === 0 && <p className="px-3 py-3 text-sm text-gray-400">Aucune matière trouvée</p>}
                 </div>
               </div>
 
-              {/* Payment status */}
-              <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Paiement</p>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Statut de paiement</label>
-                  <div className="flex gap-2">
-                    {(['paid', 'unpaid', 'partial'] as PaymentStatus[]).map(s => (
-                      <button key={s} type="button"
-                        onClick={() => setPurchaseForm({
-                          ...purchaseForm, payment_status: s,
-                          amount_paid: s === 'paid' ? purchaseFormTotal : s === 'unpaid' ? 0 : purchaseForm.amount_paid,
-                        })}
-                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                          purchaseForm.payment_status === s ? STATUS_STYLES[s] : 'bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100'
-                        }`}>
-                        <span className={`inline-block w-2 h-2 rounded-full mr-2 ${STATUS_DOT[s]}`} />
-                        {STATUS_LABELS[s]}
-                      </button>
-                    ))}
+              {/* Centre : l'opération */}
+              <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+                <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Date d'achat</label>
+                      <input type="date" required value={purchaseForm.purchase_date}
+                        onChange={e => setPurchaseForm({ ...purchaseForm, purchase_date: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500" /></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-1">N° Facture (optionnel)</label>
+                      <input type="text" value={purchaseForm.invoice_number}
+                        onChange={e => setPurchaseForm({ ...purchaseForm, invoice_number: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500" /></div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Produits de l'achat</p>
+                    {purchaseForm.lines.length === 0 ? (
+                      <div className="border-2 border-dashed rounded-xl py-10 text-center text-sm text-gray-400">
+                        Cliquez sur une matière première dans la liste de gauche pour l'ajouter à l'achat.
+                      </div>
+                    ) : (
+                      <div className="border border-gray-200 rounded-xl overflow-hidden">
+                        <div className="grid grid-cols-12 gap-2 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-600">
+                          <div className="col-span-5">Matière</div>
+                          <div className="col-span-2 text-right">Qté</div>
+                          <div className="col-span-2 text-right">Prix/U</div>
+                          <div className="col-span-2 text-right">Total</div>
+                          <div className="col-span-1" />
+                        </div>
+                        <div className="divide-y divide-gray-100">
+                          {purchaseForm.lines.map((line, idx) => {
+                            const mat = rawMaterials.find(m => m.id === line.material_id);
+                            return (
+                              <div key={line.material_id + '-' + idx} className="grid grid-cols-12 gap-2 items-center px-3 py-2">
+                                <div className="col-span-5 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 truncate">{mat?.name || 'Matière'}</p>
+                                  <p className="text-xs text-gray-400">{mat?.unit}</p>
+                                </div>
+                                <div className="col-span-2">
+                                  <input type="number" step="any" min="0" required value={line.quantity}
+                                    onChange={e => updatePurchaseLine(idx, 'quantity', parseFloat(e.target.value) || 0)}
+                                    className="w-full px-2 py-1.5 border rounded text-sm text-right focus:ring-1 focus:ring-amber-500" />
+                                </div>
+                                <div className="col-span-2">
+                                  <input type="number" step="any" min="0" required value={line.unit_cost}
+                                    onChange={e => updatePurchaseLine(idx, 'unit_cost', parseFloat(e.target.value) || 0)}
+                                    className="w-full px-2 py-1.5 border rounded text-sm text-right focus:ring-1 focus:ring-amber-500" />
+                                </div>
+                                <div className="col-span-2 text-right text-sm font-bold text-gray-900">{(line.quantity * line.unit_cost).toLocaleString()}</div>
+                                <div className="col-span-1 text-right">
+                                  <button type="button" onClick={() => removePurchaseLine(idx)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={14} /></button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-                {purchaseForm.payment_status === 'partial' && (
-                  <div className="bg-orange-50 rounded-lg p-3 border border-orange-100 space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Total: <strong>{purchaseFormTotal.toLocaleString()} DZD</strong></span>
-                      <span className="text-orange-600">Reste: <strong>{purchaseResteAPayer.toLocaleString()} DZD</strong></span>
+
+                {/* Bas : paiement, total, boutons (toujours visibles) */}
+                <div className="border-t bg-white p-3 space-y-2">
+                  <div className="flex flex-col lg:flex-row lg:items-center gap-2">
+                    <div className="flex gap-2 flex-1">
+                      {(['paid', 'unpaid', 'partial'] as PaymentStatus[]).map(s => (
+                        <button key={s} type="button"
+                          onClick={() => setPurchaseForm({
+                            ...purchaseForm, payment_status: s,
+                            amount_paid: s === 'paid' ? purchaseFormTotal : s === 'unpaid' ? 0 : purchaseForm.amount_paid,
+                          })}
+                          className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                            purchaseForm.payment_status === s ? STATUS_STYLES[s] : 'bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100'
+                          }`}>
+                          <span className={`inline-block w-2 h-2 rounded-full mr-2 ${STATUS_DOT[s]}`} />
+                          {STATUS_LABELS[s]}
+                        </button>
+                      ))}
                     </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Montant déjà versé (DZD)</label>
+                    <div className="text-right whitespace-nowrap">
+                      <span className="text-sm text-gray-500 mr-2">Total général :</span>
+                      <span className="text-xl font-bold text-emerald-700">{purchaseFormTotal.toLocaleString()} DZD</span>
+                    </div>
+                  </div>
+                  {purchaseForm.payment_status === 'partial' && (
+                    <div className="bg-orange-50 rounded-lg p-2 border border-orange-100 flex flex-col sm:flex-row sm:items-center gap-2">
+                      <label className="text-xs font-medium text-gray-600">Montant déjà versé (DZD)</label>
                       <input type="number" step="any" min="0" max={purchaseFormTotal} value={purchaseForm.amount_paid}
                         onChange={e => setPurchaseForm({ ...purchaseForm, amount_paid: parseFloat(e.target.value) || 0 })}
-                        className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-orange-500" />
+                        className="sm:w-40 px-3 py-1.5 border rounded-lg text-sm focus:ring-2 focus:ring-orange-500" />
+                      <span className="text-sm text-orange-600 sm:ml-auto">Reste : <strong>{purchaseResteAPayer.toLocaleString()} DZD</strong></span>
+                    </div>
+                  )}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <input type="text" placeholder="Notes (optionnel)" value={purchaseForm.notes}
+                      onChange={e => setPurchaseForm({ ...purchaseForm, notes: e.target.value })}
+                      className="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500" />
+                    <div className="flex gap-2 justify-end">
+                      <button type="button" onClick={() => setShowPurchaseModal(false)}
+                        className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm">Annuler</button>
+                      <button type="submit" disabled={purchaseForm.lines.length === 0}
+                        className="px-5 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 font-medium text-sm disabled:opacity-50">
+                        Enregistrer l'achat
+                      </button>
                     </div>
                   </div>
-                )}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optionnel)</label>
-                  <textarea value={purchaseForm.notes} onChange={e => setPurchaseForm({ ...purchaseForm, notes: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-amber-500" rows={2} />
                 </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowPurchaseModal(false)}
-                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm">Annuler</button>
-                <button type="submit"
-                  className="px-5 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 font-medium text-sm">
-                  Enregistrer l'achat
-                </button>
               </div>
             </form>
           </div>

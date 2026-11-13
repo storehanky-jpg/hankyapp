@@ -1043,7 +1043,7 @@ export default function BulkSalesPage() {
         {/* Sale Modal — multi-line product table + payment status */}
         {showSaleModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl w-full max-w-3xl shadow-xl max-h-[95vh] overflow-y-auto">
               <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
                 <h2 className="text-lg font-semibold">{editGroup ? "Modifier l'opération" : 'Nouvelle Vente'}</h2>
                 <button onClick={() => setShowSaleModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
@@ -1206,7 +1206,7 @@ export default function BulkSalesPage() {
                   )}
                 </div>
 
-                <div className="flex justify-end gap-2 pt-1">
+                <div className="flex justify-end gap-2 pt-2 pb-1 sticky bottom-0 bg-white border-t -mx-4 px-4 mt-2">
                   <button type="button" onClick={() => setShowSaleModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm">Annuler</button>
                   <button type="submit" disabled={savingSale || saleLines.length === 0}
                     className="px-5 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 text-sm font-medium disabled:opacity-60">
