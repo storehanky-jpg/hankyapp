@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
+import {
   ArrowLeft, Plus, Trash2, Edit2, X, Save, Phone, Mail, MapPin,
   CheckCircle, XCircle, Scale, Package, Store, Tag, Search, Building2, FileText
 } from 'lucide-react';
