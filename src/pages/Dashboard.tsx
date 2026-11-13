@@ -4,7 +4,7 @@ import {
   ChefHat, Calendar, ArrowUp, ArrowDown, AlertCircle
 } from 'lucide-react';
 import {
-  AreaChart,  Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, PieChart, Pie, Cell, Legend
 } from 'recharts';
 import { format, subDays, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
