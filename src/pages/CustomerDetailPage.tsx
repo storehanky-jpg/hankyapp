@@ -3,7 +3,7 @@ import {
   ArrowLeft, Plus, Trash2, Edit2, X, Save, Phone, Mail, MapPin,
   CheckCircle, XCircle, Scale, Package, Store, Tag, Search, Building2, FileText
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import  { useApp } from '../context/AppContext';
 import * as api from '../services/api';
 import type { Customer, CustomerProduct } from '../types';
 
