@@ -165,7 +165,7 @@ export default function Dashboard() {
     {
       title: "Chiffre d'Affaires Mensuel",
       value: `${totalSalesMonth.toLocaleString()} DZD`,
-      subtitle: `Boîtes: ${boxAmountMonth.toLocaleString()} · Vrac: ${bulkAmountMonth.toLocaleString()} DZD`,
+      subtitle: `Boîtes: ${boxAmountMonth.toLocaleString()} · Vrac: ${bulkAmountMonth.toLocaleString()} · Magasin: ${shopAmountMonth.toLocaleString()} DZD`,
       icon: <DollarSign size={24} />,
       trend: profitMonth >= 0,
       trendValue: `${Math.abs(profitMonth).toLocaleString()} DZD`,

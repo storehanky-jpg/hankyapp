@@ -211,7 +211,7 @@ export default function ReportsPage() {
             <span className="text-sm text-gray-500">Chiffre d'Affaires</span>
           </div>
           <p className="text-2xl font-bold text-gray-900">{totalRevenue.toLocaleString()} DZD</p>
-          <p className="text-xs text-gray-400 mt-1">Boîtes: {boxRevenue.toLocaleString()} · Vrac: {bulkRevenue.toLocaleString()}</p>
+          <p className="text-xs text-gray-400 mt-1">Boîtes: {boxRevenue.toLocaleString()} · Vrac: {bulkRevenue.toLocaleString()} · Magasin: {shopRevenue.toLocaleString()}</p>
         </div>
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3 mb-2">
@@ -411,6 +411,7 @@ export default function ReportsPage() {
                 <td className="px-4 py-3 text-gray-600">Ventes en vrac</td>
                 <td className="px-4 py-3 text-right font-medium text-emerald-600">+{bulkRevenue.toLocaleString()} DZD</td>
               </tr>
+              <tr className="hover:bg-gray-50"><td className="px-4 py-3 text-gray-600">Ventes magasin</td><td className="px-4 py-3 text-right font-medium text-emerald-600">+{shopRevenue.toLocaleString()} DZD</td></tr>
               <tr className="bg-emerald-50">
                 <td className="px-4 py-3 font-bold text-emerald-800">Chiffre d'Affaires Global</td>
                 <td className="px-4 py-3 text-right font-bold text-emerald-700 text-lg">{totalRevenue.toLocaleString()} DZD</td>

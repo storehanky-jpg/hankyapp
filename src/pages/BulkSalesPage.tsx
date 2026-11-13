@@ -87,10 +87,24 @@ export default function BulkSalesPage() {
 
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId) || null;
 
+  const resolveCustomerId = (cid: string | null | undefined, cname: string | null | undefined): string => {
+    if (cid && customers.some(c => c.id === cid)) return cid;
+    const clean = (x: string | null | undefined) => (x || '').toLowerCase().replace(/n\/p/g, '').replace(/['’.]/g, '').replace(/\s+/g, ' ').trim();
+    const n = clean(cname);
+    if (n.length >= 3) {
+      const exact = customers.filter(c => clean(c.name) === n);
+      if (exact.length === 1) return exact[0].id;
+      const part = customers.filter(c => { const cn = clean(c.name); return cn.length >= 3 && (cn.includes(n) || n.includes(cn)); });
+      if (part.length === 1) return part[0].id;
+    }
+    return cid || cname || '';
+  };
+  const matchSel = (cid: string | null | undefined, cname: string | null | undefined) => resolveCustomerId(cid, cname) === selectedCustomerId;
+
   const customerSales = useMemo<UnifiedSale[]>(() => {
     if (!selectedCustomerId) return [];
     const result: UnifiedSale[] = [];
-    bulkSales.filter(s => s.customer_id === selectedCustomerId || s.customer_name === selectedCustomer?.name).forEach(s => {
+    bulkSales.filter(s => matchSel(s.customer_id, s.customer_name)).forEach(s => {
       result.push({
         id: s.id, type: 'vrac', sale_date: s.sale_date,
         label: 'Macaron en Vrac', quantity: s.quantity_kg,
@@ -99,7 +113,7 @@ export default function BulkSalesPage() {
         notes: s.notes, raw: s,
       });
     });
-    sales.filter(s => s.customer_id === selectedCustomerId || s.customer_name === selectedCustomer?.name).forEach(s => {
+    sales.filter(s => matchSel(s.customer_id, s.customer_name)).forEach(s => {
       const st: SaleType = s.box_size === 20 ? 'boite20' : s.box_size === 10 ? 'boite10' : 'boite6';
       result.push({
         id: s.id, type: st, sale_date: s.sale_date,
@@ -109,7 +123,7 @@ export default function BulkSalesPage() {
         notes: s.notes, raw: s,
       });
     });
-    shopSales.filter(s => s.customer_id === selectedCustomerId || s.customer_name === selectedCustomer?.name).forEach(s => {
+    shopSales.filter(s => matchSel(s.customer_id, s.customer_name)).forEach(s => {
       result.push({
         id: s.id, type: 'magasin', sale_date: s.sale_date,
         label: 'Coques Magasin', quantity: s.quantity,
@@ -131,7 +145,7 @@ export default function BulkSalesPage() {
   const allCustomerStats = useMemo(() => {
     const map: Record<string, { total: number; paid: number; reste: number; count: number }> = {};
     const addSale = (cid: string | undefined, cname: string | undefined, total: number, paid: number) => {
-      const key = cid || cname || '';
+      const key = resolveCustomerId(cid, cname);
       if (!key) return;
       if (!map[key]) map[key] = { total: 0, paid: 0, reste: 0, count: 0 };
       map[key].total += total;
