@@ -11,7 +11,7 @@ export interface BulkSale {
   customer_id?: string;
   invoice_number?: string;
   order_number?: string;
-  not es?: string;
+  notes?: string;
   created_at: string;
 }
 
