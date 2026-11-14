@@ -15,7 +15,7 @@ export default function ReportsPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year' | 'custom'>('month');
   const [repRef, setRepRef] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [repFrom, setRepFrom] = useState('');
-  const [repTo, setRepTo] = useState('');
+  const [repTo, setRepTo] = useS tate('');
 
   const today = new Date();
   const currentMonth = today.getMonth();
