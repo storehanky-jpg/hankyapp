@@ -10,11 +10,17 @@ function rep(de, vers, nom) {
   if (n !== 1) stop(nom + ' : ' + n + ' occurrence(s) au lieu de 1');
   t = t.replace(de, () => vers);
 }
-function repRe(re, vers, nom) {
-  const m = t.match(new RegExp(re.source, 'g'));
-  const n = m ? m.length : 0;
-  if (n !== 1) stop(nom + ' : ' + n + ' occurrence(s) au lieu de 1');
-  t = t.replace(re, () => vers);
+function seg(repere, debut, fin, vers, doit, nom) {
+  const n = t.split(repere).length - 1;
+  if (n !== 1) stop(nom + ' : ' + n + ' occurrence(s) du repere');
+  const s = t.indexOf(repere);
+  const i = t.indexOf(debut, s);
+  if (i < 0) stop(nom + ' : debut introuvable');
+  const e0 = t.indexOf(fin, i);
+  if (e0 < 0) stop(nom + ' : fin introuvable');
+  const e = e0 + fin.length;
+  if (!t.slice(i, e).includes(doit)) stop(nom + ' : contenu inattendu');
+  t = t.slice(0, i) + vers + t.slice(e);
 }
 
 rep("import { format, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, subDays } from 'date-fns';",
@@ -60,15 +66,43 @@ const bloc = [
 ].join('\n');
 t = t.slice(0, a) + bloc + t.slice(b + endTxt.length);
 
-repRe(/eachDayOfInterval\(\{\s*start: startOfMonth\(today\),\s*end: today\s*\}\)/,
-  "eachDayOfInterval({ start: periodRange.fromDate, end: periodRange.toDate })", 'graphique par jour');
+seg('eachDayOfInterval({', 'eachDayOfInterval({', '})', 'eachDayOfInterval({ start: periodRange.fromDate, end: periodRange.toDate })', 'startOfMonth(today)', 'graphique par jour');
 rep("  }, [sales, bulkSales, shopSales]);", "  }, [sales, bulkSales, shopSales, periodRange]);", 'deps graphique jour');
 
-repRe(/const monthSales = sales\.filter\(s => \{\s*const date = new Date\(s\.sale_date\);\s*return date\.getMonth\(\) === currentMonth && date\.getFullYear\(\) === currentYear;\s*\}\);/,
-  "const monthSales = sales.filter(s => s.sale_date >= periodRange.from && s.sale_date <= periodRange.to);", 'repartition boites');
+seg('const monthSales = sales.filter(s => {', 'const monthSales = sales.filter(s => {', '});', 'const monthSales = sales.filter(s => s.sale_date >= periodRange.from && s.sale_date <= periodRange.to);', 'currentMonth', 'repartition boites');
 rep("  }, [sales]);", "  }, [sales, periodRange]);", 'deps repartition boites');
 
 rep("const monthStart = format(startOfMonth(today), 'yyyy-MM-dd');", "const monthStart = periodRange.from;", 'debut periode');
 rep("const monthEnd = format(endOfMonth(today), 'yyyy-MM-dd');", "const monthEnd = periodRange.to;", 'fin periode');
 
-rep("const fixedMonthly = fixedCharges.filter(c => c.is_active).reduce((sum, c) => {", "const fixedBase = fixedCharges.filter(c => c.is_active).reduce((sum, c) => {",
+rep("const fixedMonthly = fixedCharges.filter(c => c.is_active).reduce((sum, c) => {", "const fixedBase = fixedCharges.filter(c => c.is_active).reduce((sum, c) => {", 'charges fixes base');
+rep("const variableMonthly = variableExpenses", "const fixedMonthly = fixedBase * periodRange.factor;\n\n  const variableMonthly = variableExpenses", 'charges fixes prorata');
+
+seg('const variableMonthly = variableExpenses', '.filter(e => {', '})', ".filter(e => { const d = (e.date || '').slice(0, 10); return d >= monthStart && d <= monthEnd; })", 'currentMonth', 'depenses variables');
+seg('const utilitiesMonthly = utilities', '.filter(u => {', '})', ".filter(u => { const d = (u.period_start || '').slice(0, 10); return d >= monthStart && d <= monthEnd; })", 'currentMonth', 'gaz electricite');
+seg('const laborMonthly = laborCosts', 'const laborMonthly = laborCosts', '0);',
+  "const laborMonthly = laborCosts.reduce((sum, l) => { const ms = new Date(l.period_year, l.period_month - 1, 1); const me = new Date(l.period_year, l.period_month, 0); const da = ms > periodRange.fromDate ? ms : periodRange.fromDate; const db = me < periodRange.toDate ? me : periodRange.toDate; if (db < da) return sum; return sum + l.total_cost * (differenceInCalendarDays(db, da) + 1) / me.getDate(); }, 0);",
+  'currentMonth', 'main oeuvre');
+
+rep("{(['week', 'month', 'year'] as const).map(period => (", "{(['week', 'month', 'year', 'custom'] as const).map(period => (", 'boutons');
+rep("{period === 'week' ? 'Semaine' : period === 'month' ? 'Mois' : 'Année'}", "{period === 'week' ? 'Semaine' : period === 'month' ? 'Mois' : period === 'year' ? 'Année' : 'Du ... au ...'}", 'libelles');
+
+const ctrl = [
+"<div className='flex flex-wrap items-center gap-3 bg-white rounded-xl border border-gray-200 px-4 py-3'>",
+"        {selectedPeriod === 'custom' ? (",
+"          <>",
+"            <label className='text-sm text-gray-600'>Du <input type='date' value={repFrom} onChange={e => setRepFrom(e.target.value)} className='ml-1 px-2 py-1 border rounded-lg text-sm' /></label>",
+"            <label className='text-sm text-gray-600'>Au <input type='date' value={repTo} onChange={e => setRepTo(e.target.value)} className='ml-1 px-2 py-1 border rounded-lg text-sm' /></label>",
+"          </>",
+"        ) : (",
+"          <label className='text-sm text-gray-600'>Choisir la date <input type='date' value={repRef} onChange={e => setRepRef(e.target.value)} className='ml-1 px-2 py-1 border rounded-lg text-sm' /></label>",
+"        )}",
+"        <span className='text-sm font-medium text-amber-700'>Du {format(periodRange.fromDate, 'EEE dd/MM/yyyy', { locale: fr })} au {format(periodRange.toDate, 'EEE dd/MM/yyyy', { locale: fr })}</span>",
+"      </div>",
+"",
+"      {/* KPIs */}"
+].join('\n');
+rep('{/* KPIs */}', ctrl, 'zone KPIs');
+
+fs.writeFileSync(F, t);
+console.log('OK : rapports avec Semaine sam-jeu, calendrier et periode Du-au');
