@@ -204,6 +204,7 @@ export default function BulkSalesPage() {
   }, [customerSales]);
 
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
+  const [daySearch, setDaySearch] = useState('');
   const toggleExpand = (dateKey: string) => {
     setExpandedDates(prev => ({ ...prev, [dateKey]: !prev[dateKey] }));
   };
@@ -769,6 +770,13 @@ export default function BulkSalesPage() {
 
         {activeTab === 'ventes' && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className='px-4 py-3 border-b border-gray-100'>
+              <div className='flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2'>
+                <Search size={16} className='text-gray-400' />
+                <input type='text' value={daySearch} onChange={e => setDaySearch(e.target.value)} placeholder='Rechercher une journee de vente (ex : 12/11 ou 12/11/2026)...' className='flex-1 bg-transparent outline-none text-sm' />
+                {daySearch && (<button type='button' onClick={() => setDaySearch('')} className='text-xs text-gray-400 hover:text-gray-600'>Effacer</button>)}
+              </div>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
@@ -785,7 +793,7 @@ export default function BulkSalesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {groupedSales.map(group => {
+                  {groupedSales.filter(g => { const q = daySearch.trim().toLowerCase(); if (!q) return true; return (format(new Date(g.sale_date), 'dd/MM/yyyy') + ' ' + g.sale_date + ' ' + g.productSummary).toLowerCase().includes(q); }).map(group => {
                     const isExpanded = !!expandedDates[group.sale_date];
                     return (
                       <React.Fragment key={group.id}>

@@ -1,198 +1,74 @@
-=== src/pages/BulkSalesPage.tsx motif ligne 169 ===
-168:   // Group sales by date for display
-169:   const groupedSales = useMemo<GroupedSale[]>(() => {
-170:     const map = new Map<string, UnifiedSale[]>();
-171:     for (const s of customerSales) {
-172:       const existing = map.get(s.sale_date);
-173:       if (existing) {
-174:         existing.push(s);
-175:       } else {
-176:         map.set(s.sale_date, [s]);
-177:       }
-178:     }
-179:     const groups: GroupedSale[] = [];
-180:     map.forEach((items, dateKey) => {
-181:       const total_quantity = items.reduce((sum, item) => sum + item.quantity, 0);
-182:       const total_amount = items.reduce((sum, item) => sum + item.total_amount, 0);
-183:       const amount_paid = items.reduce((sum, item) => sum + item.amount_paid, 0);
-184:       const reste = Math.max(0, total_amount - amount_paid);
-185:       const productSummary = items
-186:         .map(item => `${item.label} x${item.quantity}${item.type === 'vrac' ? ' kg' : ''}`)
-187:         .join(' · ');
-188:       const status: 'paid' | 'unpaid' | 'partial' =
-189:         reste <= 0 ? 'paid' : amount_paid <= 0 ? 'unpaid' : 'partial';
-190: 
-191:       groups.push({
-192:         id: dateKey,
-193:         sale_date: dateKey,
-194:         items,
-195:         productSummary,
-196:         total_quantity,
-197:         total_amount,
-198:         amount_paid,
-199:         reste,
-200:         status,
-201:       });
-202:     });
-203:     return groups.sort((a, b) => b.sale_date.localeCompare(a.sale_date));
-204:   }, [customerSales]);
-205: 
-206:   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
-207:   const toggleExpand = (dateKey: string) => {
-208:     setExpandedDates(prev => ({ ...prev, [dateKey]: !prev[dateKey] }));
-209:   };
-=== src/pages/BulkSalesPage.tsx motif ligne 724 ===
-723:           <button onClick={() => setActiveTab('ventes')}
-724:             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'ventes' ? 'bg-emerald-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}>
-725:             <ShoppingBag size={15} /> Ventes
-726:           </button>
-727:           <button onClick={() => setActiveTab('tarifs')}
-728:             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'tarifs' ? 'bg-emerald-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}>
-729:             <Tag size={15} /> Tarifs
-730:           </button>
-731:         </div>
-732: 
-733:         {/* Tab content */}
-734:         {activeTab === 'tarifs' && (
-735:           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-736:             <div className="px-5 py-4 border-b border-gray-100">
-737:               <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-738:                 <Tag size={18} className="text-emerald-600" /> Tarifs enregistrés
-739:               </h3>
-740:               <p className="text-xs text-gray-400 mt-0.5">Modifiables depuis la section Clients</p>
-741:             </div>
-742:             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4">
-743:               {SALE_TYPES.map(t => {
-744:                 const cp = selectedCustomer.prices?.find(p => p.product_type === t.id);
-745:                 const price = cp ? Number(cp.unit_price) : DEFAULT_PRICES[t.id];
-746:                 const unitLabel = cp?.unit_label || (t.id === 'vrac' ? 'kg' : t.id === 'magasin' ? 'pcs' : 'boîte');
-747:                 const c = colorMap[t.color];
-748:                 const isCustom = cp && Number(cp.unit_price) !== DEFAULT_PRICES[t.id];
-749:                 return (
-750:                   <div key={t.id} className={`rounded-xl p-4 border ${c.border} ${c.light} relative overflow-hidden`}>
-751:                     <div className="flex items-center justify-between mb-2">
-752:                       <div className={`w-10 h-10 rounded-lg ${c.solid} flex items-center justify-center`}>
-753:                         {t.icon}
-754:                       </div>
-=== src/pages/BulkSalesPage.tsx motif ligne 770 ===
-769: 
-770:         {activeTab === 'ventes' && (
-771:           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-772:             <div className="overflow-x-auto">
-773:               <table className="w-full">
-774:                 <thead className="bg-gray-50">
-775:                   <tr>
-776:                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Date</th>
-777:                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Produit</th>
-778:                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Qté</th>
-779:                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Prix</th>
-780:                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Total</th>
-781:                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Versé</th>
-782:                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Reste</th>
-783:                     <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">Statut</th>
-784:                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Actions</th>
-785:                   </tr>
-786:                 </thead>
-787:                 <tbody className="divide-y divide-gray-100">
-788:                   {groupedSales.map(group => {
-789:                     const isExpanded = !!expandedDates[group.sale_date];
-790:                     return (
-791:                       <React.Fragment key={group.id}>
-792:                         <tr
-793:                           onClick={() => toggleExpand(group.sale_date)}
-794:                           className="hover:bg-gray-50 cursor-pointer select-none transition-colors"
-795:                         >
-796:                           <td className="px-4 py-3 text-gray-700 text-sm whitespace-nowrap">
-797:                             <div className="flex items-center gap-1.5 font-medium">
-798:                               <span className="text-gray-400">
-799:                                 {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-800:                               </span>
-=== src/pages/ReportsPage.tsx motif ligne 22 ===
-18:   const currentMonth = today.getMonth();
-19:   const currentYear = today.getFullYear();
-20: 
-21:   // Calculate date range based on period
-22:   const dateRange = useMemo(() => {
-23:     switch (selectedPeriod) {
-24:       case 'week':
-25:         return {
-26:           start: subDays(today, 7),
-27:           end: today
-28:         };
-29:       case 'month':
-30:         return {
-31:           start: startOfMonth(today),
-32:           end: endOfMonth(today)
-=== src/pages/ReportsPage.tsx lignes 66-93 ===
-66:     }
-67:     return data;
-68:   }, [sales, bulkSales, shopSales, materialPurchases]);
-69: 
-70:   // Daily sales chart (current month) — box + bulk
-71:   const dailySalesData = useMemo(() => {
-72:     const days = eachDayOfInterval({
-73:       start: startOfMonth(today),
-74:       end: today
-75:     });
-76: 
-77:     return days.map(day => {
-78:       const dayStr = format(day, 'yyyy-MM-dd');
-79:       const daySales = sales.filter(s => s.sale_date === dayStr);
-80:       const dayBulk = bulkSales.filter(s => s.sale_date === dayStr);
-81:       const dayShop = shopSales.filter(s => s.sale_date === dayStr);
-82:       return {
-83:         date: format(day, 'dd'),
-84:         dayName: format(day, 'EEE', { locale: fr }),
-85:         ventes: daySales.reduce((sum, s) => sum + s.total_amount, 0),
-86:         vrac: dayBulk.reduce((sum, s) => sum + s.total_amount, 0),
-87:         magasin: dayShop.reduce((sum, s) => sum + s.total_amount, 0),
-88:         transactions: daySales.length + dayBulk.length + dayShop.length
-89:       };
-90:     });
-91:   }, [sales, bulkSales, shopSales]);
-92: 
-93:   // Box size distribution
-=== src/pages/ReportsPage.tsx lignes 410-470 ===
-410:               <tr className="hover:bg-gray-50">
-411:                 <td className="px-4 py-3 text-gray-600">Ventes en vrac</td>
-412:                 <td className="px-4 py-3 text-right font-medium text-emerald-600">+{bulkRevenue.toLocaleString()} DZD</td>
-413:               </tr>
-414:               <tr className="hover:bg-gray-50"><td className="px-4 py-3 text-gray-600">Ventes magasin</td><td className="px-4 py-3 text-right font-medium text-emerald-600">+{shopRevenue.toLocaleString()} DZD</td></tr>
-415:               <tr className="bg-emerald-50">
-416:                 <td className="px-4 py-3 font-bold text-emerald-800">Chiffre d'Affaires Global</td>
-417:                 <td className="px-4 py-3 text-right font-bold text-emerald-700 text-lg">{totalRevenue.toLocaleString()} DZD</td>
-418:               </tr>
-419:               <tr className="hover:bg-gray-50">
-420:                 <td className="px-4 py-3 text-gray-600">Achats matières premières</td>
-421:                 <td className="px-4 py-3 text-right text-gray-900">-{totalPurchasesExpenses.toLocaleString()} DZD</td>
-422:               </tr>
-423:               <tr className="hover:bg-gray-50">
-424:                 <td className="px-4 py-3 text-gray-600">Charges fixes</td>
-425:                 <td className="px-4 py-3 text-right text-gray-900">-{fixedMonthly.toLocaleString()} DZD</td>
-426:               </tr>
-427:               <tr className="hover:bg-gray-50">
-428:                 <td className="px-4 py-3 text-gray-600">Dépenses variables</td>
-429:                 <td className="px-4 py-3 text-right text-gray-900">-{variableMonthly.toLocaleString()} DZD</td>
-430:               </tr>
-431:               <tr className="hover:bg-gray-50">
-432:                 <td className="px-4 py-3 text-gray-600">Gaz/Électricité</td>
-433:                 <td className="px-4 py-3 text-right text-gray-900">-{utilitiesMonthly.toLocaleString()} DZD</td>
-434:               </tr>
-435:               <tr className="hover:bg-gray-50">
-436:                 <td className="px-4 py-3 text-gray-600">Main d'œuvre</td>
-437:                 <td className="px-4 py-3 text-right text-gray-900">-{laborMonthly.toLocaleString()} DZD</td>
-438:               </tr>
-439:               <tr className="bg-gray-50 font-bold">
-440:                 <td className="px-4 py-3 text-gray-900">Bénéfice Net</td>
-441:                 <td className={`px-4 py-3 text-right ${netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-442:                   {netProfit.toLocaleString()} DZD
-443:                 </td>
-444:               </tr>
-445:             </tbody>
-446:           </table>
-447:         </div>
-448:       </div>
-449:     </div>
-450:   );
-451: }
-452: 
+=== ReportsPage lignes 100-172 ===
+100: 
+101:     monthSales.forEach(s => {
+102:       if (!sizeMap[s.box_size]) {
+103:         sizeMap[s.box_size] = { count: 0, amount: 0 };
+104:       }
+105:       sizeMap[s.box_size].count += s.quantity;
+106:       sizeMap[s.box_size].amount += s.total_amount;
+107:     });
+108: 
+109:     return Object.entries(sizeMap).map(([size, data]) => ({
+110:       name: `${size} pcs`,
+111:       value: data.count,
+112:       amount: data.amount
+113:     }));
+114:   }, [sales]);
+115: 
+116:   // Revenue vs Expenses
+117:   const monthStart = format(startOfMonth(today), 'yyyy-MM-dd');
+118:   const monthEnd = format(endOfMonth(today), 'yyyy-MM-dd');
+119: 
+120:   const monthBoxSales = sales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
+121:   const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
+122:   const boxRevenue = monthBoxSales.reduce((sum, s) => sum + s.total_amount, 0);
+123:   const bulkRevenue = monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0);
+124:   const shopRevenue = shopSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd).reduce((sum, s) => sum + s.total_amount, 0);
+125:   const totalRevenue = boxRevenue + bulkRevenue + shopRevenue;
+126: 
+127:   // keep alias for table below
+128:   const monthSales = monthBoxSales;
+129: 
+130:   const monthPurchases = materialPurchases.filter(p => p.purchase_date >= monthStart && p.purchase_date <= monthEnd);
+131:   const totalPurchasesExpenses = monthPurchases.reduce((sum, p) => sum + p.total_cost, 0);
+132: 
+133:   const fixedMonthly = fixedCharges.filter(c => c.is_active).reduce((sum, c) => {
+134:     switch (c.frequency) {
+135:       case 'daily': return sum + c.amount * 30;
+136:       case 'weekly': return sum + c.amount * 4;
+137:       case 'monthly': return sum + c.amount;
+138:       case 'yearly': return sum + c.amount / 12;
+139:       default: return sum;
+140:     }
+141:   }, 0);
+142: 
+143:   const variableMonthly = variableExpenses
+144:     .filter(e => {
+145:       const date = new Date(e.date);
+146:       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+147:     })
+148:     .reduce((sum, e) => sum + e.amount, 0);
+149: 
+150:   const utilitiesMonthly = utilities
+151:     .filter(u => {
+152:       const start = new Date(u.period_start);
+153:       return start.getMonth() === currentMonth && start.getFullYear() === currentYear;
+154:     })
+155:     .reduce((sum, u) => sum + u.amount, 0);
+156: 
+157:   const laborMonthly = laborCosts
+158:     .filter(l => l.period_month === currentMonth + 1 && l.period_year === currentYear)
+159:     .reduce((sum, l) => sum + l.total_cost, 0);
+160: 
+161:   const totalExpenses = totalPurchasesExpenses + fixedMonthly + variableMonthly + utilitiesMonthly + laborMonthly;
+162:   const netProfit = totalRevenue - totalExpenses;
+163: 
+164:   // Expense breakdown for pie chart
+165:   const expenseBreakdown = [
+166:     { name: 'Matières Premières', value: totalPurchasesExpenses },
+167:     { name: 'Charges Fixes', value: fixedMonthly },
+168:     { name: 'Dép. Variables', value: variableMonthly },
+169:     { name: 'Énergie', value: utilitiesMonthly },
+170:     { name: 'Main d\'œuvre', value: laborMonthly }
+171:   ].filter(e => e.value > 0);
+172: 
