@@ -48,6 +48,7 @@ export default function ChargesPage() {
   });
 
   // Labor form
+  const [laborMonthlySalary, setLaborMonthlySalary] = useState(0);
   const [laborForm, setLaborForm] = useState({
     employee_name: '',
     daily_wage: 0,
@@ -81,7 +82,7 @@ export default function ChargesPage() {
           break;
         }
         case 'labor': {
-          const total_cost = laborForm.daily_wage * laborForm.worked_days;
+          const total_cost = Math.round(laborForm.daily_wage * laborForm.worked_days * 100) / 100;
           const newLabor = await api.laborCostsService.create({ ...laborForm, total_cost });
           setLaborCosts([newLabor, ...laborCosts]);
           break;
@@ -147,6 +148,7 @@ export default function ChargesPage() {
     setVariableForm({ name: '', amount: 0, date: format(new Date(), 'yyyy-MM-dd'), category: '', notes: '' });
     setUtilityForm({ type: 'electricity', amount: 0, period_start: format(new Date(), 'yyyy-MM-dd'), period_end: format(new Date(), 'yyyy-MM-dd'), consumption: 0, unit: 'kWh' });
     setLaborForm({ employee_name: '', daily_wage: 0, worked_days: 0, period_month: new Date().getMonth() + 1, period_year: new Date().getFullYear() });
+    setLaborMonthlySalary(0);
   };
 
   // Calculate monthly totals
@@ -449,12 +451,12 @@ export default function ChargesPage() {
                 {laborCosts.map(labor => (
                   <tr key={labor.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium text-gray-900">{labor.employee_name}</td>
-                    <td className="px-4 py-3 text-right text-gray-600">{labor.daily_wage.toLocaleString()} DZD</td>
+                    <td className="px-4 py-3 text-right text-gray-600">{labor.daily_wage.toLocaleString(undefined, { maximumFractionDigits: 3 })} DZD</td>
                     <td className="px-4 py-3 text-right text-gray-600">{labor.worked_days}</td>
                     <td className="px-4 py-3 text-gray-600">
                       {labor.period_month}/{labor.period_year}
                     </td>
-                    <td className="px-4 py-3 text-right font-medium text-gray-900">{labor.total_cost.toLocaleString()} DZD</td>
+                    <td className="px-4 py-3 text-right font-medium text-gray-900">{labor.total_cost.toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end">
                         <button onClick={() => handleDelete(labor.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg">
@@ -701,11 +703,15 @@ export default function ChargesPage() {
                       className="w-full px-3 py-2 border rounded-lg"
                     />
                   </div>
+                  <div>
+                    <label className='block text-sm font-medium text-gray-700 mb-1'>Salaire mensuel (optionnel, divise par 26 jours)</label>
+                    <input type='number' step='any' min='0' value={laborMonthlySalary || ''} onChange={e => { const m = parseFloat(e.target.value) || 0; setLaborMonthlySalary(m); setLaborForm({ ...laborForm, daily_wage: m / 26 }); }} placeholder='ex : 45000' className='w-full px-3 py-2 border rounded-lg' />
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Salaire/jour (DZD)</label>
                       <input
-                        type="number"
+                        type="number" step="any"
                         min="0"
                         required
                         value={laborForm.daily_wage}
@@ -756,7 +762,7 @@ export default function ChargesPage() {
                   </div>
                   <div className="bg-amber-50 p-3 rounded-lg">
                     <p className="text-sm text-amber-800">
-                      Total: <span className="font-bold">{(laborForm.daily_wage * laborForm.worked_days).toLocaleString()} DZD</span>
+                      Total: <span className="font-bold">{(Math.round(laborForm.daily_wage * laborForm.worked_days * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</span>
                     </p>
                   </div>
                 </>
