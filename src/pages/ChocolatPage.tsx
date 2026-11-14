@@ -9,7 +9,7 @@ const DEFAULT_GANACHE_PER_KG: Record<string, number> = {
   'Lait': 100,
   'Pâte de fruits': 150
 };
-const DEFAULT_GANACHE_PRICES: Record<string, number> = {
+const D EFAULT_GANACHE_PRICES: Record<string, number> = {
   'Lait': 100,
   'Pâte de fruits': 600
 };
