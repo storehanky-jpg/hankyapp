@@ -11,7 +11,7 @@ import {
 
 type PaymentStatus = 'paid' | 'unpaid' | 'partial';
 
-const STATUS_LABELS: Record<PaymentStatus, string> = {
+const  STATUS_LABELS: Record<PaymentStatus, string> = {
   paid: 'Payé',
   unpaid: 'Non payé',
   partial: 'Versement',
