@@ -1,30 +1,39 @@
-=== src/services/api.ts ligne 80 ===
-80: export const materialPurchasesService = {
-81:   async getAll(): Promise<MaterialPurchase[]> {
-82:     if (!isOnline()) {
-83:       return offlineStorage.get<MaterialPurchase[]>('material_purchases') || [];
-84:     }
-85:     try {
-86:       const { data, error } = await supabase
-87:         .from('material_purchases')
-88:         .select('*, material:raw_materials(*)')
-89:         .order('purchase_date', { ascending: false });
-90:       if (error) throw error;
-91:       const merged = mergeWithLocal<MaterialPurchase>('material_purchases', data);
-92:       offlineStorage.set('material_purchases', merged);
-93:       return merged;
-=== src/services/api.ts ligne 257 ===
-257: export const laborCostsService = {
-258:   async getAll(): Promise<LaborCost[]> {
-259:     if (!isOnline()) {
-260:       return offlineStorage.get<LaborCost[]>('labor_costs') || [];
-261:     }
-262:     try {
-263:       const { data, error } = await supabase.from('labor_costs').select('*').order('created_at', { ascending: false });
-264:       if (error) throw error;
-265:       const merged = mergeWithLocal<LaborCost>('labor_costs', data);
-266:       offlineStorage.set('labor_costs', merged);
-267:       return merged;
-268:     } catch {
-269:       return offlineStorage.get<LaborCost[]>('labor_costs') || [];
-270:     }
+export const laborCostsService = {
+  async getAll(): Promise<LaborCost[]> {
+    if (!isOnline()) {
+      return offlineStorage.get<LaborCost[]>('labor_costs') || [];
+    }
+    try {
+      const { data, error } = await supabase.from('labor_costs').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      const merged = mergeWithLocal<LaborCost>('labor_costs', data);
+      offlineStorage.set('labor_costs', merged);
+      return merged;
+    } catch {
+      return offlineStorage.get<LaborCost[]>('labor_costs') || [];
+    }
+  },
+
+  async create(labor: Omit<LaborCost, 'id' | 'created_at'>): Promise<LaborCost> {
+    if (!isOnline()) {
+      return offlineCreate<LaborCost>('labor_costs', labor);
+    }
+    const { data, error } = await supabase.from('labor_costs').insert(labor).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async delete(id: string): Promise<void> {
+    if (!isOnline()) {
+      offlineDelete<LaborCost>('labor_costs', id);
+      addToTombstone('labor_costs', id);
+      return;
+    }
+    const { error } = await supabase.from('labor_costs').delete().eq('id', id);
+    if (error) throw error;
+    purgeFromLocal<LaborCost>('labor_costs', id);
+    addToTombstone('labor_costs', id);
+  }
+};
+
+// Packaging
