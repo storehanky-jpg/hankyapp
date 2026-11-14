@@ -11,7 +11,7 @@ import type {
 
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-function getCachedData<T>(key: string): { data: T | null; timestamp: number } | null {
+function getCachedData< T>(key: string): { data: T | null; timestamp: number } | null {
   const cached = offlineStorage.get<{ data: T; timestamp: number }>(`cache_${key}`);
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
     return cached;
