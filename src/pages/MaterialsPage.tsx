@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit2, Trash2, Search, Package, ShoppingCart, X, Truck, ChevronRight, ChevronDown, ChevronUp, Wallet, ArrowLeft, BarChart3, TrendingUp, Layers, CheckCircle, XCircle } from 'lucide-react';
-import { format, startOfWeek, startOfMonth, startOfYear, subWeeks, subMonths, subYears, isAfter } from 'date-fns';
+import { format, startOfWeek, startOfMonth, startOfYear, subWeeks, subMonths, subYears, isAfter, endOfMonth, endOfYear, addDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
@@ -68,7 +68,10 @@ export default function MaterialsPage() {
     purchase_date: format(new Date(), 'yyyy-MM-dd'), amount_paid: 0, invoice_number: '', notes: ''
   });
 
-  const [statsPeriod, setStatsPeriod] = useState<'week' | 'month' | 'year'>('month');
+  const [statsPeriod, setStatsPeriod] = useState<'week' | 'month' | 'year' | 'custom'>('month');
+  const [statsRefDate, setStatsRefDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [statsFrom, setStatsFrom] = useState('');
+  const [statsTo, setStatsTo] = useState('');
 
   useEffect(() => {
     api.suppliersService.getAll().then(setSuppliers).catch(() => {});
@@ -305,14 +308,23 @@ export default function MaterialsPage() {
     })
     .reduce((sum, p) => sum + p.total_cost, 0);
 
-  const statsData = useMemo(() => {
-    const now = new Date();
-    let startDate: Date;
-    if (statsPeriod === 'week') startDate = startOfWeek(now, { weekStartsOn: 1 });
-    else if (statsPeriod === 'month') startDate = startOfMonth(now);
-    else startDate = startOfYear(now);
+  const statsRange = useMemo(() => {
+    const ref = statsRefDate ? new Date(statsRefDate + 'T12:00:00') : new Date();
+    let s: Date;
+    let e: Date;
+    if (statsPeriod === 'week') { s = startOfWeek(ref, { weekStartsOn: 6 }); e = addDays(s, 5); }
+    else if (statsPeriod === 'month') { s = startOfMonth(ref); e = endOfMonth(ref); }
+    else if (statsPeriod === 'year') { s = startOfYear(ref); e = endOfYear(ref); }
+    else { s = statsFrom ? new Date(statsFrom + 'T12:00:00') : startOfMonth(ref); e = statsTo ? new Date(statsTo + 'T12:00:00') : ref; }
+    return { from: format(s, 'yyyy-MM-dd'), to: format(e, 'yyyy-MM-dd') };
+  }, [statsPeriod, statsRefDate, statsFrom, statsTo]);
+  void isAfter;
 
-    const periodPurchases = materialPurchases.filter(p => isAfter(new Date(p.purchase_date), startDate));
+  const statsData = useMemo(() => {
+    const periodPurchases = materialPurchases.filter(p => {
+      const d = (p.purchase_date || '').slice(0, 10);
+      return d >= statsRange.from && d <= statsRange.to;
+    });
     const byMaterial: Record<string, { name: string; quantity: number; cost: number; unit: string }> = {};
     for (const p of periodPurchases) {
       const key = p.material_id;
@@ -323,12 +335,12 @@ export default function MaterialsPage() {
       byMaterial[key].cost += p.total_cost;
     }
     const chartData = Object.values(byMaterial)
-      .sort((a, b) => b.quantity - a.quantity)
+      .sort((x, y) => y.quantity - x.quantity)
       .map(d => ({ name: d.name, Quantité: d.quantity, Coût: d.cost, unit: d.unit }));
     const totalQuantity = chartData.reduce((s, d) => s + d.Quantité, 0);
     const totalCost = chartData.reduce((s, d) => s + d.Coût, 0);
     return { chartData, totalQuantity, totalCost, count: periodPurchases.length };
-  }, [materialPurchases, statsPeriod]);
+  }, [materialPurchases, statsRange]);
 
   const supplierStats = useMemo(() => {
     const total = supplierPurchases.reduce((s, p) => s + p.total_amount, 0);
@@ -686,20 +698,31 @@ export default function MaterialsPage() {
       {activeTab === 'stats' && (
         <div className="space-y-6">
           <div className="flex gap-2">
-            {(['week', 'month', 'year'] as const).map(p => (
+            {(['week', 'month', 'year', 'custom'] as const).map(p => (
               <button key={p} onClick={() => setStatsPeriod(p)}
                 className={`px-4 py-2 rounded-xl font-medium transition-all ${
                   statsPeriod === p ? 'bg-amber-500 text-white shadow-sm' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
                 }`}>
-                {p === 'week' ? 'Cette semaine' : p === 'month' ? 'Ce mois' : 'Cette année'}
+                {p === 'week' ? 'Semaine' : p === 'month' ? 'Mois' : p === 'year' ? 'Année' : 'Du ... au ...'}
               </button>
             ))}
+          </div>
+          <div className='flex flex-wrap items-center gap-3 bg-white rounded-xl border border-gray-200 px-4 py-3'>
+            {statsPeriod === 'custom' ? (
+              <>
+                <label className='text-sm text-gray-600'>Du <input type='date' value={statsFrom} onChange={e => setStatsFrom(e.target.value)} className='ml-1 px-2 py-1 border rounded-lg text-sm' /></label>
+                <label className='text-sm text-gray-600'>Au <input type='date' value={statsTo} onChange={e => setStatsTo(e.target.value)} className='ml-1 px-2 py-1 border rounded-lg text-sm' /></label>
+              </>
+            ) : (
+              <label className='text-sm text-gray-600'>Choisir la date <input type='date' value={statsRefDate} onChange={e => setStatsRefDate(e.target.value)} className='ml-1 px-2 py-1 border rounded-lg text-sm' /></label>
+            )}
+            <span className='text-sm font-medium text-amber-700'>Du {format(new Date(statsRange.from + 'T12:00:00'), 'EEE dd/MM/yyyy', { locale: fr })} au {format(new Date(statsRange.to + 'T12:00:00'), 'EEE dd/MM/yyyy', { locale: fr })}</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-amber-100 rounded-lg"><BarChart3 size={20} className="text-amber-600" /></div>
-                <div><p className="text-sm text-gray-500">Achats ({statsPeriod === 'week' ? 'semaine' : statsPeriod === 'month' ? 'mois' : 'année'})</p><p className="text-xl font-bold text-gray-900">{statsData.count}</p></div>
+                <div><p className="text-sm text-gray-500">Achats ({statsPeriod === 'week' ? 'semaine' : statsPeriod === 'month' ? 'mois' : statsPeriod === 'year' ? 'année' : 'période'})</p><p className="text-xl font-bold text-gray-900">{statsData.count}</p></div>
               </div>
             </div>
             <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
