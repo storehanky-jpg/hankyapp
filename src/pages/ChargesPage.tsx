@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Edit2, Trash2, Zap, Flame, Users, Receipt, X } from 'lucide-react';
 import { format } from 'date-fns';
-import { useApp } from '../context/AppContext';
+import {  useApp } from '../context/AppContext';
 import * as api from '../services/api';
 import type { FixedCharge, VariableExpense, Utility, LaborCost } from '../types';
 
