@@ -279,6 +279,15 @@ export const laborCostsService = {
     return data;
   },
 
+  async update(id: string, charge: Partial<LaborCost>): Promise<LaborCost> {
+    if (!isOnline()) {
+      return offlineUpdate<LaborCost>('labor_costs', id, charge);
+    }
+    const { data, error } = await supabase.from('labor_costs').update(charge).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+  },
+
   async delete(id: string): Promise<void> {
     if (!isOnline()) {
       offlineDelete<LaborCost>('labor_costs', id);

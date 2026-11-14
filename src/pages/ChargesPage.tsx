@@ -49,6 +49,11 @@ export default function ChargesPage() {
 
   // Labor form
   const [laborMonthlySalary, setLaborMonthlySalary] = useState(0);
+  const [acompteTarget, setAcompteTarget] = useState<LaborCost | null>(null);
+  const [acompteAmount, setAcompteAmount] = useState(0);
+  const [editLaborItem, setEditLaborItem] = useState<LaborCost | null>(null);
+  const [editLaborMonthly, setEditLaborMonthly] = useState(0);
+  const [editLaborForm, setEditLaborForm] = useState({ employee_name: '', daily_wage: 0, worked_days: 0, period_month: new Date().getMonth() + 1, period_year: new Date().getFullYear() });
   const [laborForm, setLaborForm] = useState({
     employee_name: '',
     daily_wage: 0,
@@ -117,6 +122,39 @@ export default function ChargesPage() {
       }
     } catch (error) {
       console.error('Error deleting:', error);
+    }
+  };
+
+  const handleSaveAcompte = async () => {
+    if (!acompteTarget) return;
+    try {
+      const value = Math.min(Math.max(0, acompteAmount), acompteTarget.total_cost);
+      const updated = await api.laborCostsService.update(acompteTarget.id, { advance_paid: value });
+      setLaborCosts(laborCosts.map(l => l.id === acompteTarget.id ? { ...l, ...updated, advance_paid: value } : l));
+      setAcompteTarget(null);
+    } catch (error) {
+      console.error('Error saving advance:', error);
+      alert('Erreur lors de l enregistrement de l acompte.');
+    }
+  };
+
+  const openEditLabor = (l: LaborCost) => {
+    setEditLaborItem(l);
+    setEditLaborForm({ employee_name: l.employee_name, daily_wage: l.daily_wage, worked_days: l.worked_days, period_month: l.period_month, period_year: l.period_year });
+    setEditLaborMonthly(0);
+  };
+
+  const handleSaveEditLabor = async () => {
+    if (!editLaborItem) return;
+    try {
+      const total_cost = Math.round(editLaborForm.daily_wage * editLaborForm.worked_days * 100) / 100;
+      const advance_paid = Math.min(editLaborItem.advance_paid || 0, total_cost);
+      const updated = await api.laborCostsService.update(editLaborItem.id, { ...editLaborForm, total_cost, advance_paid });
+      setLaborCosts(laborCosts.map(l => l.id === editLaborItem.id ? { ...l, ...updated, ...editLaborForm, total_cost, advance_paid } : l));
+      setEditLaborItem(null);
+    } catch (error) {
+      console.error('Error saving labor edit:', error);
+      alert('Erreur lors de la modification de l employe.');
     }
   };
 
@@ -433,6 +471,73 @@ export default function ChargesPage() {
           </div>
         )}
 
+        {acompteTarget && (
+          <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'>
+            <div className='bg-white rounded-2xl w-full max-w-md p-6 space-y-4'>
+              <div className='flex items-center justify-between'>
+                <h3 className='text-lg font-bold text-gray-900'>Acompte - {acompteTarget.employee_name}</h3>
+                <button type='button' onClick={() => setAcompteTarget(null)} className='text-sm text-gray-400 hover:text-gray-600'>Fermer</button>
+              </div>
+              <div className='text-sm text-gray-600'>Salaire total : <strong>{acompteTarget.total_cost.toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</strong></div>
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-1'>Acompte total verse (DZD)</label>
+                <input type='number' step='any' min='0' value={acompteAmount || ''} onChange={e => setAcompteAmount(parseFloat(e.target.value) || 0)} className='w-full px-3 py-2 border rounded-lg' />
+              </div>
+              <div className='bg-amber-50 p-3 rounded-lg text-sm text-amber-800'>Reste à payer : <strong>{Math.max(0, acompteTarget.total_cost - acompteAmount).toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</strong></div>
+              <div className='flex justify-end gap-2'>
+                <button type='button' onClick={() => setAcompteTarget(null)} className='px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg'>Annuler</button>
+                <button type='button' onClick={handleSaveAcompte} className='px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600'>Enregistrer</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {editLaborItem && (
+          <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'>
+            <div className='bg-white rounded-2xl w-full max-w-md p-6 space-y-4 max-h-[95vh] overflow-y-auto'>
+              <div className='flex items-center justify-between'>
+                <h3 className='text-lg font-bold text-gray-900'>Modifier - {editLaborItem.employee_name}</h3>
+                <button type='button' onClick={() => setEditLaborItem(null)} className='text-sm text-gray-400 hover:text-gray-600'>Fermer</button>
+              </div>
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-1'>Nom de l employe</label>
+                <input type='text' value={editLaborForm.employee_name} onChange={e => setEditLaborForm({ ...editLaborForm, employee_name: e.target.value })} className='w-full px-3 py-2 border rounded-lg' />
+              </div>
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-1'>Salaire mensuel (optionnel, divise par 26 jours)</label>
+                <input type='number' step='any' min='0' value={editLaborMonthly || ''} onChange={e => { const m = parseFloat(e.target.value) || 0; setEditLaborMonthly(m); setEditLaborForm({ ...editLaborForm, daily_wage: m / 26 }); }} placeholder='ex : 45000' className='w-full px-3 py-2 border rounded-lg' />
+              </div>
+              <div className='grid grid-cols-2 gap-4'>
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-1'>Salaire/jour (DZD)</label>
+                  <input type='number' step='any' min='0' value={editLaborForm.daily_wage} onChange={e => setEditLaborForm({ ...editLaborForm, daily_wage: parseFloat(e.target.value) || 0 })} className='w-full px-3 py-2 border rounded-lg' />
+                </div>
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-1'>Jours travailles</label>
+                  <input type='number' min='0' max='31' value={editLaborForm.worked_days} onChange={e => setEditLaborForm({ ...editLaborForm, worked_days: parseInt(e.target.value) || 0 })} className='w-full px-3 py-2 border rounded-lg' />
+                </div>
+              </div>
+              <div className='grid grid-cols-2 gap-4'>
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-1'>Mois</label>
+                  <select value={editLaborForm.period_month} onChange={e => setEditLaborForm({ ...editLaborForm, period_month: parseInt(e.target.value) })} className='w-full px-3 py-2 border rounded-lg'>
+                    {Array.from({ length: 12 }, (_, i) => (<option key={i} value={i + 1}>{new Date(0, i).toLocaleDateString('fr', { month: 'long' })}</option>))}
+                  </select>
+                </div>
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-1'>Annee</label>
+                  <input type='number' min='2020' max='2030' value={editLaborForm.period_year} onChange={e => setEditLaborForm({ ...editLaborForm, period_year: parseInt(e.target.value) || new Date().getFullYear() })} className='w-full px-3 py-2 border rounded-lg' />
+                </div>
+              </div>
+              <div className='bg-amber-50 p-3 rounded-lg text-sm text-amber-800'>Total : <strong>{(Math.round(editLaborForm.daily_wage * editLaborForm.worked_days * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</strong></div>
+              <div className='flex justify-end gap-2'>
+                <button type='button' onClick={() => setEditLaborItem(null)} className='px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg'>Annuler</button>
+                <button type='button' onClick={handleSaveEditLabor} className='px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600'>Enregistrer</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Labor Costs */}
         {activeTab === 'labor' && (
           <div className="overflow-x-auto">
@@ -444,6 +549,8 @@ export default function ChargesPage() {
                   <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Jours</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Période</th>
                   <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Total</th>
+                  <th className='px-4 py-3 text-right text-sm font-medium text-gray-600'>Acompte</th>
+                  <th className='px-4 py-3 text-right text-sm font-medium text-gray-600'>Reste à payer</th>
                   <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Actions</th>
                 </tr>
               </thead>
@@ -457,8 +564,12 @@ export default function ChargesPage() {
                       {labor.period_month}/{labor.period_year}
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-gray-900">{labor.total_cost.toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</td>
+                    <td className='px-4 py-3 text-right text-emerald-600'>{(labor.advance_paid || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</td>
+                    <td className='px-4 py-3 text-right font-medium text-red-600'>{Math.max(0, labor.total_cost - (labor.advance_paid || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end">
+                        <button type='button' onClick={() => { setAcompteTarget(labor); setAcompteAmount(labor.advance_paid || 0); }} className='px-2.5 py-1 mr-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg'>Acompte</button>
+                        <button type='button' onClick={() => openEditLabor(labor)} className='px-2.5 py-1 mr-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg'>Modifier</button>
                         <button onClick={() => handleDelete(labor.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg">
                           <Trash2 size={16} />
                         </button>

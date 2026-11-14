@@ -99,6 +99,7 @@ export interface LaborCost {
   period_year: number;
   total_cost: number;
   created_at: string;
+  advance_paid?: number;
 }
 
 export interface Packaging {
