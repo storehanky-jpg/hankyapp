@@ -1,21 +1,113 @@
-=== src/pages/ReportsPage.tsx lignes 1-45 ===
-1: import React, { useMemo, useState } from 'react';
-2: import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, BarChart3, PieChart as PieChartIcon, X } from 'lucide-react';
-3: import {
-4:   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-5:   BarChart, Bar, PieChart, Pie, Cell, Legend, LineChart, Line
-6: } from 'recharts';
-7: import { format, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, subDays } from 'date-fns';
-8: import { fr } from 'date-fns/locale';
-9: import { useApp } from '../context/AppContext';
-10: 
-11: const COLORS = ['#f59e0b', '#ea580c', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444'];
-12: 
-13: export default function ReportsPage() {
-14:   const { sales, bulkSales, shopSales, materialPurchases, fixedCharges, variableExpenses, utilities, laborCosts } = useApp();
-15:   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year'>('month');
-16: 
-17:   const today = new Date();
+=== src/pages/BulkSalesPage.tsx motif ligne 169 ===
+168:   // Group sales by date for display
+169:   const groupedSales = useMemo<GroupedSale[]>(() => {
+170:     const map = new Map<string, UnifiedSale[]>();
+171:     for (const s of customerSales) {
+172:       const existing = map.get(s.sale_date);
+173:       if (existing) {
+174:         existing.push(s);
+175:       } else {
+176:         map.set(s.sale_date, [s]);
+177:       }
+178:     }
+179:     const groups: GroupedSale[] = [];
+180:     map.forEach((items, dateKey) => {
+181:       const total_quantity = items.reduce((sum, item) => sum + item.quantity, 0);
+182:       const total_amount = items.reduce((sum, item) => sum + item.total_amount, 0);
+183:       const amount_paid = items.reduce((sum, item) => sum + item.amount_paid, 0);
+184:       const reste = Math.max(0, total_amount - amount_paid);
+185:       const productSummary = items
+186:         .map(item => `${item.label} x${item.quantity}${item.type === 'vrac' ? ' kg' : ''}`)
+187:         .join(' · ');
+188:       const status: 'paid' | 'unpaid' | 'partial' =
+189:         reste <= 0 ? 'paid' : amount_paid <= 0 ? 'unpaid' : 'partial';
+190: 
+191:       groups.push({
+192:         id: dateKey,
+193:         sale_date: dateKey,
+194:         items,
+195:         productSummary,
+196:         total_quantity,
+197:         total_amount,
+198:         amount_paid,
+199:         reste,
+200:         status,
+201:       });
+202:     });
+203:     return groups.sort((a, b) => b.sale_date.localeCompare(a.sale_date));
+204:   }, [customerSales]);
+205: 
+206:   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({});
+207:   const toggleExpand = (dateKey: string) => {
+208:     setExpandedDates(prev => ({ ...prev, [dateKey]: !prev[dateKey] }));
+209:   };
+=== src/pages/BulkSalesPage.tsx motif ligne 724 ===
+723:           <button onClick={() => setActiveTab('ventes')}
+724:             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'ventes' ? 'bg-emerald-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}>
+725:             <ShoppingBag size={15} /> Ventes
+726:           </button>
+727:           <button onClick={() => setActiveTab('tarifs')}
+728:             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'tarifs' ? 'bg-emerald-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}>
+729:             <Tag size={15} /> Tarifs
+730:           </button>
+731:         </div>
+732: 
+733:         {/* Tab content */}
+734:         {activeTab === 'tarifs' && (
+735:           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+736:             <div className="px-5 py-4 border-b border-gray-100">
+737:               <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+738:                 <Tag size={18} className="text-emerald-600" /> Tarifs enregistrés
+739:               </h3>
+740:               <p className="text-xs text-gray-400 mt-0.5">Modifiables depuis la section Clients</p>
+741:             </div>
+742:             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4">
+743:               {SALE_TYPES.map(t => {
+744:                 const cp = selectedCustomer.prices?.find(p => p.product_type === t.id);
+745:                 const price = cp ? Number(cp.unit_price) : DEFAULT_PRICES[t.id];
+746:                 const unitLabel = cp?.unit_label || (t.id === 'vrac' ? 'kg' : t.id === 'magasin' ? 'pcs' : 'boîte');
+747:                 const c = colorMap[t.color];
+748:                 const isCustom = cp && Number(cp.unit_price) !== DEFAULT_PRICES[t.id];
+749:                 return (
+750:                   <div key={t.id} className={`rounded-xl p-4 border ${c.border} ${c.light} relative overflow-hidden`}>
+751:                     <div className="flex items-center justify-between mb-2">
+752:                       <div className={`w-10 h-10 rounded-lg ${c.solid} flex items-center justify-center`}>
+753:                         {t.icon}
+754:                       </div>
+=== src/pages/BulkSalesPage.tsx motif ligne 770 ===
+769: 
+770:         {activeTab === 'ventes' && (
+771:           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+772:             <div className="overflow-x-auto">
+773:               <table className="w-full">
+774:                 <thead className="bg-gray-50">
+775:                   <tr>
+776:                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Date</th>
+777:                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Produit</th>
+778:                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Qté</th>
+779:                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Prix</th>
+780:                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Total</th>
+781:                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Versé</th>
+782:                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Reste</th>
+783:                     <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">Statut</th>
+784:                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Actions</th>
+785:                   </tr>
+786:                 </thead>
+787:                 <tbody className="divide-y divide-gray-100">
+788:                   {groupedSales.map(group => {
+789:                     const isExpanded = !!expandedDates[group.sale_date];
+790:                     return (
+791:                       <React.Fragment key={group.id}>
+792:                         <tr
+793:                           onClick={() => toggleExpand(group.sale_date)}
+794:                           className="hover:bg-gray-50 cursor-pointer select-none transition-colors"
+795:                         >
+796:                           <td className="px-4 py-3 text-gray-700 text-sm whitespace-nowrap">
+797:                             <div className="flex items-center gap-1.5 font-medium">
+798:                               <span className="text-gray-400">
+799:                                 {isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+800:                               </span>
+=== src/pages/ReportsPage.tsx motif ligne 22 ===
 18:   const currentMonth = today.getMonth();
 19:   const currentYear = today.getFullYear();
 20: 
@@ -31,93 +123,76 @@
 30:         return {
 31:           start: startOfMonth(today),
 32:           end: endOfMonth(today)
-33:         };
-34:       case 'year':
-35:         return {
-36:           start: new Date(currentYear, 0, 1),
-37:           end: new Date(currentYear, 11, 31)
-38:         };
-39:     }
-40:   }, [selectedPeriod]);
-41: 
-42:   // Monthly revenue data (last 12 months) — box + bulk
-43:   const monthlyRevenueData = useMemo(() => {
-44:     const data = [];
-45:     for (let i = 11; i >= 0; i--) {
-=== src/pages/ReportsPage.tsx lignes 173-198 ===
-173:   return (
-174:     <div className="space-y-6">
-175:       {/* Header */}
-176:       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-177:         <div>
-178:           <h1 className="text-2xl font-bold text-gray-900">Rapports & Statistiques</h1>
-179:           <p className="text-gray-500">Analyse des performances</p>
-180:         </div>
-181:         <div className="flex bg-white rounded-xl shadow-sm border border-gray-100 p-1">
-182:           {(['week', 'month', 'year'] as const).map(period => (
-183:             <button
-184:               key={period}
-185:               onClick={() => setSelectedPeriod(period)}
-186:               className={`px-4 py-2 rounded-lg font-medium transition-all ${
-187:                 selectedPeriod === period
-188:                   ? 'bg-amber-500 text-white shadow-sm'
-189:                   : 'text-gray-600 hover:bg-gray-50'
-190:               }`}
-191:             >
-192:               {period === 'week' ? 'Semaine' : period === 'month' ? 'Mois' : 'Année'}
-193:             </button>
-194:           ))}
-195:         </div>
-196:       </div>
-197: 
-198:       {/* KPIs */}
-=== src/pages/BulkSalesPage.tsx (motifs) ===
-...
-1067:                 <div className="grid grid-cols-2 gap-3">
-1068:                   <div>
-1069:                     <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-1070:                     <input type="date" required value={saleDate} onChange={e => setSaleDate(e.target.value)}
-1071:                       className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm" />
-1072:                   </div>
-1073:                   <div className="flex items-end">
-1074:                     <p className="text-sm text-gray-500">Client: <strong className="text-gray-900">{selectedCustomer?.name}</strong></p>
-1075:                   </div>
-1076:                 </div>
-=== src/pages/CustomerDetailPage.tsx (motifs) ===
-=== src/pages/MaterialsPage.tsx (motifs) ===
-...
-430: 
-431:   // Group purchases by purchase_date (all purchases on same day = one row)
-432:   const groupedPurchases = useMemo(() => {
-433:     const groups: {
-434:       key: string; purchases: MaterialPurchase[]; purchase_date: string;
-435:       total: number; amount_paid: number; reste: number; count: number;
-436:       payment_status: PaymentStatus;
-437:     }[] = [];
-438:     const groupMap: Record<string, number> = {};
-439: 
-440:     for (const p of filteredPurchases) {
-441:       const key = p.purchase_date;
-442:       if (groupMap[key] === undefined) {
-443:         groupMap[key] = groups.length;
-444:         groups.push({
-445:           key, purchases: [], purchase_date: p.purchase_date,
-446:           total: 0, amount_paid: 0, reste: 0, count: 0, payment_status: 'paid',
-...
-545:           className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${activeTab === 'materials' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>Matières Premières</button>
-546:         <button onClick={() => setActiveTab('purchases')}
-547:           className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${activeTab === 'purchases' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>Historique Achats</button>
-548:         <button onClick={() => setActiveTab('stats')}
-549:           className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${activeTab === 'stats' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>Statistiques</button>
-550:         <button onClick={() => setActiveTab('suppliers')}
-551:           className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${activeTab === 'suppliers' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>Fournisseurs</button>
-552:       </div>
-553: 
-554:       {/* Materials Table */}
-555:       {activeTab === 'materials' && (
-556:         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-557:           <div className="overflow-x-auto">
-558:             <table className="w-full">
-559:               <thead className="bg-gray-50">
-560:                 <tr>
-561:                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Nom</th>
+=== src/pages/ReportsPage.tsx lignes 66-93 ===
+66:     }
+67:     return data;
+68:   }, [sales, bulkSales, shopSales, materialPurchases]);
+69: 
+70:   // Daily sales chart (current month) — box + bulk
+71:   const dailySalesData = useMemo(() => {
+72:     const days = eachDayOfInterval({
+73:       start: startOfMonth(today),
+74:       end: today
+75:     });
+76: 
+77:     return days.map(day => {
+78:       const dayStr = format(day, 'yyyy-MM-dd');
+79:       const daySales = sales.filter(s => s.sale_date === dayStr);
+80:       const dayBulk = bulkSales.filter(s => s.sale_date === dayStr);
+81:       const dayShop = shopSales.filter(s => s.sale_date === dayStr);
+82:       return {
+83:         date: format(day, 'dd'),
+84:         dayName: format(day, 'EEE', { locale: fr }),
+85:         ventes: daySales.reduce((sum, s) => sum + s.total_amount, 0),
+86:         vrac: dayBulk.reduce((sum, s) => sum + s.total_amount, 0),
+87:         magasin: dayShop.reduce((sum, s) => sum + s.total_amount, 0),
+88:         transactions: daySales.length + dayBulk.length + dayShop.length
+89:       };
+90:     });
+91:   }, [sales, bulkSales, shopSales]);
+92: 
+93:   // Box size distribution
+=== src/pages/ReportsPage.tsx lignes 410-470 ===
+410:               <tr className="hover:bg-gray-50">
+411:                 <td className="px-4 py-3 text-gray-600">Ventes en vrac</td>
+412:                 <td className="px-4 py-3 text-right font-medium text-emerald-600">+{bulkRevenue.toLocaleString()} DZD</td>
+413:               </tr>
+414:               <tr className="hover:bg-gray-50"><td className="px-4 py-3 text-gray-600">Ventes magasin</td><td className="px-4 py-3 text-right font-medium text-emerald-600">+{shopRevenue.toLocaleString()} DZD</td></tr>
+415:               <tr className="bg-emerald-50">
+416:                 <td className="px-4 py-3 font-bold text-emerald-800">Chiffre d'Affaires Global</td>
+417:                 <td className="px-4 py-3 text-right font-bold text-emerald-700 text-lg">{totalRevenue.toLocaleString()} DZD</td>
+418:               </tr>
+419:               <tr className="hover:bg-gray-50">
+420:                 <td className="px-4 py-3 text-gray-600">Achats matières premières</td>
+421:                 <td className="px-4 py-3 text-right text-gray-900">-{totalPurchasesExpenses.toLocaleString()} DZD</td>
+422:               </tr>
+423:               <tr className="hover:bg-gray-50">
+424:                 <td className="px-4 py-3 text-gray-600">Charges fixes</td>
+425:                 <td className="px-4 py-3 text-right text-gray-900">-{fixedMonthly.toLocaleString()} DZD</td>
+426:               </tr>
+427:               <tr className="hover:bg-gray-50">
+428:                 <td className="px-4 py-3 text-gray-600">Dépenses variables</td>
+429:                 <td className="px-4 py-3 text-right text-gray-900">-{variableMonthly.toLocaleString()} DZD</td>
+430:               </tr>
+431:               <tr className="hover:bg-gray-50">
+432:                 <td className="px-4 py-3 text-gray-600">Gaz/Électricité</td>
+433:                 <td className="px-4 py-3 text-right text-gray-900">-{utilitiesMonthly.toLocaleString()} DZD</td>
+434:               </tr>
+435:               <tr className="hover:bg-gray-50">
+436:                 <td className="px-4 py-3 text-gray-600">Main d'œuvre</td>
+437:                 <td className="px-4 py-3 text-right text-gray-900">-{laborMonthly.toLocaleString()} DZD</td>
+438:               </tr>
+439:               <tr className="bg-gray-50 font-bold">
+440:                 <td className="px-4 py-3 text-gray-900">Bénéfice Net</td>
+441:                 <td className={`px-4 py-3 text-right ${netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+442:                   {netProfit.toLocaleString()} DZD
+443:                 </td>
+444:               </tr>
+445:             </tbody>
+446:           </table>
+447:         </div>
+448:       </div>
+449:     </div>
+450:   );
+451: }
+452: 
