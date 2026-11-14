@@ -1,2 +1,13 @@
-DEBUT
-OK : 2 defauts vrac, 16 champs decimaux, 5 fichiers
+SyntaxError: Unexpected token '}'
+    at new Function (<anonymous>)
+    at _0x2886e5 (https://zp1v56uxy8rdx5ypatb0ockcb9tr6a-oci3.w-credentialless-staticblitz.com/blitz.0df13572.js:31:901712)
+    at new _0x3bce74 (https://zp1v56uxy8rdx5ypatb0ockcb9tr6a-oci3.w-credentialless-staticblitz.com/blitz.0df13572.js:31:904705)
+    at _0x1fc826 (https://zp1v56uxy8rdx5ypatb0ockcb9tr6a-oci3.w-credentialless-staticblitz.com/blitz.0df13572.js:31:891990)
+    at _0xcf9dbf (https://zp1v56uxy8rdx5ypatb0ockcb9tr6a-oci3.w-credentialless-staticblitz.com/blitz.0df13572.js:31:899743)
+    at wrapSafe (https://zp1v56uxy8rdx5ypatb0ockcb9tr6a-oci3.w-credentialless-staticblitz.com/builtins.1d010431.js:173:14246)
+    at Module._compile (https://zp1v56uxy8rdx5ypatb0ockcb9tr6a-oci3.w-credentialless-staticblitz.com/builtins.1d010431.js:173:19463)
+    at Module._extensions..js (https://zp1v56uxy8rdx5ypatb0ockcb9tr6a-oci3.w-credentialless-staticblitz.com/builtins.1d010431.js:173:21324)
+    at Module.load (https://zp1v56uxy8rdx5ypatb0ockcb9tr6a-oci3.w-credentialless-staticblitz.com/builtins.1d010431.js:173:18947)
+    at Module._load (https://zp1v56uxy8rdx5ypatb0ockcb9tr6a-oci3.w-credentialless-staticblitz.com/builtins.1d010431.js:173:16431)
+
+Node.js v24.22.2
