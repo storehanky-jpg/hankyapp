@@ -1,74 +1,500 @@
-=== ReportsPage lignes 100-172 ===
-100: 
-101:     monthSales.forEach(s => {
-102:       if (!sizeMap[s.box_size]) {
-103:         sizeMap[s.box_size] = { count: 0, amount: 0 };
-104:       }
-105:       sizeMap[s.box_size].count += s.quantity;
-106:       sizeMap[s.box_size].amount += s.total_amount;
-107:     });
-108: 
-109:     return Object.entries(sizeMap).map(([size, data]) => ({
-110:       name: `${size} pcs`,
-111:       value: data.count,
-112:       amount: data.amount
-113:     }));
-114:   }, [sales]);
-115: 
-116:   // Revenue vs Expenses
-117:   const monthStart = format(startOfMonth(today), 'yyyy-MM-dd');
-118:   const monthEnd = format(endOfMonth(today), 'yyyy-MM-dd');
-119: 
-120:   const monthBoxSales = sales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
-121:   const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
-122:   const boxRevenue = monthBoxSales.reduce((sum, s) => sum + s.total_amount, 0);
-123:   const bulkRevenue = monthBulkSales.reduce((sum, s) => sum + s.total_amount, 0);
-124:   const shopRevenue = shopSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd).reduce((sum, s) => sum + s.total_amount, 0);
-125:   const totalRevenue = boxRevenue + bulkRevenue + shopRevenue;
-126: 
-127:   // keep alias for table below
-128:   const monthSales = monthBoxSales;
-129: 
-130:   const monthPurchases = materialPurchases.filter(p => p.purchase_date >= monthStart && p.purchase_date <= monthEnd);
-131:   const totalPurchasesExpenses = monthPurchases.reduce((sum, p) => sum + p.total_cost, 0);
-132: 
-133:   const fixedMonthly = fixedCharges.filter(c => c.is_active).reduce((sum, c) => {
-134:     switch (c.frequency) {
-135:       case 'daily': return sum + c.amount * 30;
-136:       case 'weekly': return sum + c.amount * 4;
-137:       case 'monthly': return sum + c.amount;
-138:       case 'yearly': return sum + c.amount / 12;
-139:       default: return sum;
-140:     }
-141:   }, 0);
-142: 
-143:   const variableMonthly = variableExpenses
-144:     .filter(e => {
-145:       const date = new Date(e.date);
-146:       return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-147:     })
-148:     .reduce((sum, e) => sum + e.amount, 0);
-149: 
-150:   const utilitiesMonthly = utilities
-151:     .filter(u => {
-152:       const start = new Date(u.period_start);
-153:       return start.getMonth() === currentMonth && start.getFullYear() === currentYear;
-154:     })
-155:     .reduce((sum, u) => sum + u.amount, 0);
-156: 
-157:   const laborMonthly = laborCosts
-158:     .filter(l => l.period_month === currentMonth + 1 && l.period_year === currentYear)
-159:     .reduce((sum, l) => sum + l.total_cost, 0);
-160: 
-161:   const totalExpenses = totalPurchasesExpenses + fixedMonthly + variableMonthly + utilitiesMonthly + laborMonthly;
-162:   const netProfit = totalRevenue - totalExpenses;
-163: 
-164:   // Expense breakdown for pie chart
-165:   const expenseBreakdown = [
-166:     { name: 'Matières Premières', value: totalPurchasesExpenses },
-167:     { name: 'Charges Fixes', value: fixedMonthly },
-168:     { name: 'Dép. Variables', value: variableMonthly },
-169:     { name: 'Énergie', value: utilitiesMonthly },
-170:     { name: 'Main d\'œuvre', value: laborMonthly }
-171:   ].filter(e => e.value > 0);
-172: 
+Pages concernees : ChargesPage.tsx
+
+=== ChargesPage.tsx (787 lignes) ===
+...
+3: import { format } from 'date-fns';
+4: import { useApp } from '../context/AppContext';
+5: import * as api from '../services/api';
+6: import type { FixedCharge, VariableExpense, Utility, LaborCost } from '../types';
+7: 
+8: type Tab = 'fixed' | 'variable' | 'utilities' | 'labor';
+9: 
+10: export default function ChargesPage() {
+11:   const {
+12:     fixedCharges, setFixedCharges,
+13:     variableExpenses, setVariableExpenses,
+14:     utilities, setUtilities,
+15:     laborCosts, setLaborCosts
+16:   } = useApp();
+17: 
+18:   const [activeTab, setActiveTab] = useState<Tab>('fixed');
+19:   const [showModal, setShowModal] = useState(false);
+20:   const [editingItem, setEditingItem] = useState<FixedCharge | VariableExpense | Utility | LaborCost | null>(null);
+21: 
+22:   // Fixed charges form
+23:   const [fixedForm, setFixedForm] = useState({
+24:     name: '',
+25:     amount: 0,
+...
+47:     unit: 'kWh'
+48:   });
+49: 
+50:   // Labor form
+51:   const [laborForm, setLaborForm] = useState({
+52:     employee_name: '',
+53:     daily_wage: 0,
+54:     worked_days: 0,
+55:     period_month: new Date().getMonth() + 1,
+56:     period_year: new Date().getFullYear()
+57:   });
+58: 
+...
+80:           setUtilities([newUtility, ...utilities]);
+81:           break;
+82:         }
+83:         case 'labor': {
+84:           const total_cost = laborForm.daily_wage * laborForm.worked_days;
+85:           const newLabor = await api.laborCostsService.create({ ...laborForm, total_cost });
+86:           setLaborCosts([newLabor, ...laborCosts]);
+87:           break;
+88:         }
+89:       }
+90:       closeModal();
+91:     } catch (error) {
+...
+109:           await api.utilitiesService.delete(id);
+110:           setUtilities(utilities.filter(u => u.id !== id));
+111:           break;
+112:         case 'labor':
+113:           await api.laborCostsService.delete(id);
+114:           setLaborCosts(laborCosts.filter(l => l.id !== id));
+115:           break;
+116:       }
+117:     } catch (error) {
+118:       console.error('Error deleting:', error);
+119:     }
+120:   };
+121: 
+122:   const openModal = (item?: FixedCharge | VariableExpense | Utility | LaborCost) => {
+123:     if (item) {
+124:       setEditingItem(item);
+125:       if (activeTab === 'fixed') {
+126:         const fc = item as FixedCharge;
+127:         setFixedForm({
+...
+146:     setFixedForm({ name: '', amount: 0, frequency: 'monthly', category: '', is_active: true });
+147:     setVariableForm({ name: '', amount: 0, date: format(new Date(), 'yyyy-MM-dd'), category: '', notes: '' });
+148:     setUtilityForm({ type: 'electricity', amount: 0, period_start: format(new Date(), 'yyyy-MM-dd'), period_end: format(new Date(), 'yyyy-MM-dd'), consumption: 0, unit: 'kWh' });
+149:     setLaborForm({ employee_name: '', daily_wage: 0, worked_days: 0, period_month: new Date().getMonth() + 1, period_year: new Date().getFullYear() });
+150:   };
+151: 
+152:   // Calculate monthly totals
+153:   const fixedMonthly = fixedCharges
+154:     .filter(c => c.is_active)
+...
+179:     })
+180:     .reduce((sum, u) => sum + u.amount, 0);
+181: 
+182:   const laborMonthly = laborCosts
+183:     .filter(l => l.period_month === currentMonth + 1 && l.period_year === currentYear)
+184:     .reduce((sum, l) => sum + l.total_cost, 0);
+185: 
+186:   const totalChargesMonthly = fixedMonthly + variableMonthly + utilitiesMonthly + laborMonthly;
+187: 
+188:   const tabs = [
+189:     { id: 'fixed' as Tab, label: 'Charges Fixes', icon: <Receipt size={18} />, count: fixedCharges.length },
+190:     { id: 'variable' as Tab, label: 'Dépenses Variables', icon: <Zap size={18} />, count: variableExpenses.length },
+191:     { id: 'utilities' as Tab, label: 'Gaz/Électricité', icon: <Flame size={18} />, count: utilities.length },
+192:     { id: 'labor' as Tab, label: 'Main d\'œuvre', icon: <Users size={18} />, count: laborCosts.length }
+193:   ];
+194: 
+195:   return (
+196:     <div className="space-y-6">
+197:       {/* Header */}
+...
+253:               <Users size={20} className="text-purple-600" />
+254:             </div>
+255:             <div>
+256:               <p className="text-sm text-gray-500">Main d'œuvre</p>
+257:               <p className="text-lg font-bold text-gray-900">{laborMonthly.toLocaleString()} DZD</p>
+258:               <p className="text-xs text-gray-400">ce mois</p>
+259:             </div>
+260:           </div>
+261:         </div>
+262:       </div>
+...
+431:           </div>
+432:         )}
+433: 
+434:         {/* Labor Costs */}
+435:         {activeTab === 'labor' && (
+436:           <div className="overflow-x-auto">
+437:             <table className="w-full">
+438:               <thead className="bg-gray-50">
+439:                 <tr>
+440:                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Employé</th>
+...
+446:                 </tr>
+447:               </thead>
+448:               <tbody className="divide-y divide-gray-100">
+449:                 {laborCosts.map(labor => (
+450:                   <tr key={labor.id} className="hover:bg-gray-50">
+451:                     <td className="px-4 py-3 font-medium text-gray-900">{labor.employee_name}</td>
+452:                     <td className="px-4 py-3 text-right text-gray-600">{labor.daily_wage.toLocaleString()} DZD</td>
+453:                     <td className="px-4 py-3 text-right text-gray-600">{labor.worked_days}</td>
+454:                     <td className="px-4 py-3 text-gray-600">
+455:                       {labor.period_month}/{labor.period_year}
+456:                     </td>
+457:                     <td className="px-4 py-3 text-right font-medium text-gray-900">{labor.total_cost.toLocaleString()} DZD</td>
+458:                     <td className="px-4 py-3">
+459:                       <div className="flex justify-end">
+460:                         <button onClick={() => handleDelete(labor.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg">
+461:                           <Trash2 size={16} />
+462:                         </button>
+463:                       </div>
+464:                     </td>
+465:                   </tr>
+...
+473:         {((activeTab === 'fixed' && fixedCharges.length === 0) ||
+474:           (activeTab === 'variable' && variableExpenses.length === 0) ||
+475:           (activeTab === 'utilities' && utilities.length === 0) ||
+476:           (activeTab === 'labor' && laborCosts.length === 0)) && (
+477:           <div className="p-8 text-center text-gray-400">
+478:             Aucune donnée
+479:           </div>
+480:         )}
+481:       </div>
+...
+689:                 </>
+690:               )}
+691: 
+692:               {activeTab === 'labor' && (
+693:                 <>
+694:                   <div>
+695:                     <label className="block text-sm font-medium text-gray-700 mb-1">Nom de l'employé</label>
+696:                     <input
+697:                       type="text"
+698:                       required
+699:                       value={laborForm.employee_name}
+700:                       onChange={e => setLaborForm({ ...laborForm, employee_name: e.target.value })}
+701:                       className="w-full px-3 py-2 border rounded-lg"
+702:                     />
+703:                   </div>
+704:                   <div className="grid grid-cols-2 gap-4">
+705:                     <div>
+...
+708:                         type="number"
+709:                         min="0"
+710:                         required
+711:                         value={laborForm.daily_wage}
+712:                         onChange={e => setLaborForm({ ...laborForm, daily_wage: parseFloat(e.target.value) || 0 })}
+713:                         className="w-full px-3 py-2 border rounded-lg"
+714:                       />
+715:                     </div>
+716:                     <div>
+717:                       <label className="block text-sm font-medium text-gray-700 mb-1">Jours travaillés</label>
+...
+720:                         min="0"
+721:                         max="31"
+722:                         required
+723:                         value={laborForm.worked_days}
+724:                         onChange={e => setLaborForm({ ...laborForm, worked_days: parseInt(e.target.value) || 0 })}
+725:                         className="w-full px-3 py-2 border rounded-lg"
+726:                       />
+727:                     </div>
+728:                   </div>
+729:                   <div className="grid grid-cols-2 gap-4">
+730:                     <div>
+731:                       <label className="block text-sm font-medium text-gray-700 mb-1">Mois</label>
+732:                       <select
+733:                         value={laborForm.period_month}
+734:                         onChange={e => setLaborForm({ ...laborForm, period_month: parseInt(e.target.value) })}
+735:                         className="w-full px-3 py-2 border rounded-lg"
+736:                       >
+737:                         {Array.from({ length: 12 }, (_, i) => (
+738:                           <option key={i} value={i + 1}>
+739:                             {new Date(0, i).toLocaleDateString('fr', { month: 'long' })}
+...
+748:                         min="2020"
+749:                         max="2030"
+750:                         required
+751:                         value={laborForm.period_year}
+752:                         onChange={e => setLaborForm({ ...laborForm, period_year: parseInt(e.target.value) || currentYear })}
+753:                         className="w-full px-3 py-2 border rounded-lg"
+754:                       />
+755:                     </div>
+756:                   </div>
+757:                   <div className="bg-amber-50 p-3 rounded-lg">
+758:                     <p className="text-sm text-amber-800">
+759:                       Total: <span className="font-bold">{(laborForm.daily_wage * laborForm.worked_days).toLocaleString()} DZD</span>
+760:                     </p>
+761:                   </div>
+762:                 </>
+763:               )}
+764: 
+
+=== types : LaborCost ===
+93: export interface LaborCost {
+94:   id: string;
+95:   employee_name: string;
+96:   daily_wage: number;
+97:   worked_days: number;
+98:   period_month: number;
+99:   period_year: number;
+100:   total_cost: number;
+101:   created_at: string;
+102: }
+103: 
+104: export interface Packaging {
+105:   id: string;
+106:   name: string;
+107:   box_size: number;
+108:   unit_cost: number;
+
+=== migration 20260614184938_001_initial_schema.sql ===
+-- Matières premières
+CREATE TABLE raw_materials (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  unit text NOT NULL,
+  unit_cost numeric NOT NULL,
+  last_purchase_date date,
+  supplier text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Achats de matières premières
+CREATE TABLE material_purchases (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  material_id uuid REFERENCES raw_materials(id) ON DELETE CASCADE,
+  quantity numeric NOT NULL,
+  unit_cost numeric NOT NULL,
+  total_cost numeric NOT NULL,
+  purchase_date date NOT NULL,
+  invoice_number text,
+  notes text,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Charges fixes
+CREATE TABLE fixed_charges (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  amount numeric NOT NULL,
+  frequency text NOT NULL CHECK (frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
+  category text,
+  is_active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Charges variables
+CREATE TABLE variable_expenses (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  amount numeric NOT NULL,
+  date date NOT NULL,
+  category text,
+  notes text,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Gaz et électricité
+CREATE TABLE utilities (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  type text NOT NULL CHECK (type IN ('gas', 'electricity')),
+  amount numeric NOT NULL,
+  period_start date NOT NULL,
+  period_end date NOT NULL,
+  consumption numeric,
+  unit text,
+  created_at timestamptz DEFAULT now()
+);
+
+-- Main-d'œuvre
+CREATE TABLE labor_costs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_name text NOT NULL,
+  daily_wage numeric NOT NULL,
+  worked_days integer NOT NULL,
+  period_month integer NOT NULL,
+ 
+
+=== migration 20260617215015_006_fix_rls_policies.sql ===
+
+-- Drop all existing FOR ALL policies that trigger security warnings
+DROP POLICY IF EXISTS "public_access_bulk_sales" ON bulk_sales;
+DROP POLICY IF EXISTS "public_access_chocolate_config" ON chocolate_config;
+DROP POLICY IF EXISTS "public_access_chocolate_ingredients" ON chocolate_ingredients;
+DROP POLICY IF EXISTS "public_access_company_settings" ON company_settings;
+DROP POLICY IF EXISTS "public_access_fixed_charges" ON fixed_charges;
+DROP POLICY IF EXISTS "public_access_labor_costs" ON labor_costs;
+DROP POLICY IF EXISTS "public_access_material_purchases" ON material_purchases;
+DROP POLICY IF EXISTS "public_access_packaging" ON packaging;
+DROP POLICY IF EXISTS "public_access_production_batches" ON production_batches;
+DROP POLICY IF EXISTS "public_access_raw_materials" ON raw_materials;
+DROP POLICY IF EXISTS "public_access_recipe_config" ON recipe_config;
+DROP POLICY IF EXISTS "public_access_recipe_ingredients" ON recipe_ingredients;
+DROP POLICY IF EXISTS "public_access_recipe_items" ON recipe_items;
+DROP POLICY IF EXISTS "public_access_sales" ON sales;
+DROP POLICY IF EXISTS "public_access_unsold_products" ON unsold_products;
+DROP POLICY IF EXISTS "public_access_utilities" ON utilities;
+DROP POLICY IF EXISTS "public_access_variable_expenses" ON variable_expenses;
+
+-- Deduplicate shop_sales policies
+DROP POLICY IF EXISTS "anon_delete_shop_sales" ON shop_sales;
+DROP POLICY IF EXISTS "anon_insert_shop_sales" ON shop_sales;
+DROP POLICY IF EXISTS "anon_select_shop_sales" ON shop_sales;
+DROP POLICY IF EXISTS "anon_update_shop_sales" ON shop_sales;
+
+-- Helper macro: create 4 separate policies per table for anon + authenticated
+-- bulk_sales
+CREATE POLICY "select_bulk_sales" ON bulk_sales FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY "insert_bulk_sales" ON bul
+
+=== migration 20260617222453_007_authenticated_only_rls.sql ===
+
+-- Drop all existing policies (both old and new from migration 006)
+DO $$
+DECLARE
+  r RECORD;
+BEGIN
+  FOR r IN
+    SELECT policyname, tablename
+    FROM pg_policies
+    WHERE schemaname = 'public'
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON %I', r.policyname, r.tablename);
+  END LOOP;
+END $$;
+
+-- Recreate all policies restricted to authenticated role only
+-- This removes anon access entirely, eliminating all security warnings
+
+-- bulk_sales
+CREATE POLICY "select_bulk_sales" ON bulk_sales FOR SELECT TO authenticated USING (true);
+CREATE POLICY "insert_bulk_sales" ON bulk_sales FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "update_bulk_sales" ON bulk_sales FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "delete_bulk_sales" ON bulk_sales FOR DELETE TO authenticated USING (true);
+
+-- chocolate_config
+CREATE POLICY "select_chocolate_config" ON chocolate_config FOR SELECT TO authenticated USING (true);
+CREATE POLICY "insert_chocolate_config" ON chocolate_config FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "update_chocolate_config" ON chocolate_config FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "delete_chocolate_config" ON chocolate_config FOR DELETE TO authenticated USING (true);
+
+-- chocolate_ingredients
+CREATE POLICY "select_chocolate_ingredients" ON chocolate_ingredients FOR SELECT TO authenticated USING (true);
+CREATE POLICY "insert_chocolate_ingredients" ON chocolate_ingredients FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "update_chocolate_ingredients" ON chocolate_ingredients FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "delete_chocolate_ingredients" ON chocolate_ingredients FOR DELETE TO authenticated USING (true);
+
+-- company
+
+=== migration 20260617224457_008_restore_public_access.sql ===
+
+-- Drop all existing policies and restore anon access
+DO $$
+DECLARE
+  r RECORD;
+BEGIN
+  FOR r IN
+    SELECT policyname, tablename
+    FROM pg_policies
+    WHERE schemaname = 'public'
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON %I', r.policyname, r.tablename);
+  END LOOP;
+END $$;
+
+-- Restore anon access (public app, no auth)
+DO $$
+DECLARE
+  tables TEXT[] := ARRAY[
+    'bulk_sales','chocolate_config','chocolate_ingredients','company_settings',
+    'fixed_charges','labor_costs','material_purchases','packaging',
+    'production_batches','raw_materials','recipe_config','recipe_ingredients',
+    'recipe_items','sales','shop_sales','unsold_products','utilities','variable_expenses'
+  ];
+  t TEXT;
+BEGIN
+  FOREACH t IN ARRAY tables LOOP
+    EXECUTE format('CREATE POLICY "select_%s" ON %I FOR SELECT TO anon, authenticated USING (true)', t, t);
+    EXECUTE format('CREATE POLICY "insert_%s" ON %I FOR INSERT TO anon, authenticated WITH CHECK (true)', t, t);
+    EXECUTE format('CREATE POLICY "update_%s" ON %I FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true)', t, t);
+    EXECUTE format('CREATE POLICY "delete_%s" ON %I FOR DELETE TO anon, authenticated USING (true)', t, t);
+  END LOOP;
+END $$;
+
+
+=== migration 20260618203609_009_fix_rls_authenticated_only.sql ===
+
+-- Drop all existing policies
+DO $$
+DECLARE
+  r RECORD;
+BEGIN
+  FOR r IN
+    SELECT policyname, tablename
+    FROM pg_policies
+    WHERE schemaname = 'public'
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON %I', r.policyname, r.tablename);
+  END LOOP;
+END $$;
+
+-- Re-create policies restricted to authenticated users only
+-- Using auth.uid() IS NOT NULL instead of (true) to satisfy security scanner
+DO $$
+DECLARE
+  tables TEXT[] := ARRAY[
+    'bulk_sales','chocolate_config','chocolate_ingredients','company_settings',
+    'fixed_charges','labor_costs','material_purchases','packaging',
+    'production_batches','raw_materials','recipe_config','recipe_ingredients',
+    'recipe_items','sales','shop_sales','unsold_products','utilities','variable_expenses'
+  ];
+  t TEXT;
+BEGIN
+  FOREACH t IN ARRAY tables LOOP
+    EXECUTE format(
+      'CREATE POLICY "select_%s" ON %I FOR SELECT TO authenticated USING (auth.uid() IS NOT NULL)',
+      t, t
+    );
+    EXECUTE format(
+      'CREATE POLICY "insert_%s" ON %I FOR INSERT TO authenticated WITH CHECK (auth.uid() IS NOT NULL)',
+      t, t
+    );
+    EXECUTE format(
+      'CREATE POLICY "update_%s" ON %I FOR UPDATE TO authenticated USING (auth.uid() IS NOT NULL) WITH CHECK (auth.uid() IS NOT NULL)',
+      t, t
+    );
+    EXECUTE format(
+      'CREATE POLICY "delete_%s" ON %I FOR DELETE TO authenticated USING (auth.uid() IS NOT NULL)',
+      t, t
+    );
+  END LOOP;
+END $$;
+
+
+=== migration 20260805113542_restore_public_access_all_tables.sql.sql ===
+-- Restore anon access to all data tables (no-login mode)
+-- The app works without authentication; anon role needs read/write access
+
+-- Helper: replace policies for a table to allow anon+authenticated full access
+
+-- sales
+DROP POLICY IF EXISTS select_sales ON sales;
+DROP POLICY IF EXISTS insert_sales ON sales;
+DROP POLICY IF EXISTS update_sales ON sales;
+DROP POLICY IF EXISTS delete_sales ON sales;
+CREATE POLICY select_sales ON sales FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY insert_sales ON sales FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY update_sales ON sales FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY delete_sales ON sales FOR DELETE TO anon, authenticated USING (true);
+
+-- bulk_sales
+DROP POLICY IF EXISTS select_bulk_sales ON bulk_sales;
+DROP POLICY IF EXISTS insert_bulk_sales ON bulk_sales;
+DROP POLICY IF EXISTS update_bulk_sales ON bulk_sales;
+DROP POLICY IF EXISTS delete_bulk_sales ON bulk_sales;
+CREATE POLICY select_bulk_sales ON bulk_sales FOR SELECT TO anon, authenticated USING (true);
+CREATE POLICY insert_bulk_sales ON bulk_sales FOR INSERT TO anon, authenticated WITH CHECK (true);
+CREATE POLICY update_bulk_sales ON bulk_sales FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
+CREATE POLICY delete_bulk_sales ON bulk_sales FOR DELETE TO anon, authenticated USING (true);
+
+-- material_purchases
+DROP POLICY IF EXISTS select_material_purchases ON material_purchases;
+DROP POLICY IF EXISTS insert_material_purchases ON material_purchases;
+DROP POLICY IF EXISTS update_material_purchases ON material_purchases;
+DROP POLICY IF EXISTS delete_material_purchases ON material_purchases;
+CREATE POLICY select_material_purchases ON material_purchases FOR SELECT TO anon, authenticated 
