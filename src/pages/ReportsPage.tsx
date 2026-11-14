@@ -4,7 +4,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, PieChart, Pie, Cell, Legend, LineChart, Line
 } from 'recharts';
-import { format, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, subDays } from 'date-fns';
+import { format, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, subDays, startOfWeek, startOfYear, endOfYear, addDays, differenceInCalendarDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 
@@ -12,32 +12,41 @@ const COLORS = ['#f59e0b', '#ea580c', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444'
 
 export default function ReportsPage() {
   const { sales, bulkSales, shopSales, materialPurchases, fixedCharges, variableExpenses, utilities, laborCosts } = useApp();
-  const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year'>('month');
+  const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year' | 'custom'>('month');
+  const [repRef, setRepRef] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [repFrom, setRepFrom] = useState('');
+  const [repTo, setRepTo] = useState('');
 
   const today = new Date();
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
 
   // Calculate date range based on period
-  const dateRange = useMemo(() => {
-    switch (selectedPeriod) {
-      case 'week':
-        return {
-          start: subDays(today, 7),
-          end: today
-        };
-      case 'month':
-        return {
-          start: startOfMonth(today),
-          end: endOfMonth(today)
-        };
-      case 'year':
-        return {
-          start: new Date(currentYear, 0, 1),
-          end: new Date(currentYear, 11, 31)
-        };
+  const periodRange = useMemo(() => {
+    const ref = repRef ? new Date(repRef + 'T12:00:00') : new Date();
+    let s: Date;
+    let e: Date;
+    if (selectedPeriod === 'week') { s = startOfWeek(ref, { weekStartsOn: 6 }); e = addDays(s, 5); }
+    else if (selectedPeriod === 'month') { s = startOfMonth(ref); e = endOfMonth(ref); }
+    else if (selectedPeriod === 'year') { s = startOfYear(ref); e = endOfYear(ref); }
+    else { s = repFrom ? new Date(repFrom + 'T12:00:00') : startOfMonth(ref); e = repTo ? new Date(repTo + 'T12:00:00') : ref; }
+    if (e < s) e = s;
+    const fromDate = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+    const toDate = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+    let factor = 0;
+    let cur = new Date(fromDate.getFullYear(), fromDate.getMonth(), 1);
+    while (cur <= toDate) {
+      const monthEndD = new Date(cur.getFullYear(), cur.getMonth() + 1, 0);
+      const da = cur > fromDate ? cur : fromDate;
+      const db = monthEndD < toDate ? monthEndD : toDate;
+      if (db >= da) factor += (differenceInCalendarDays(db, da) + 1) / monthEndD.getDate();
+      cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
     }
-  }, [selectedPeriod]);
+    return { from: format(fromDate, 'yyyy-MM-dd'), to: format(toDate, 'yyyy-MM-dd'), fromDate, toDate, factor };
+  }, [selectedPeriod, repRef, repFrom, repTo]);
+  void subDays;
+  void currentMonth;
+  void currentYear;
 
   // Monthly revenue data (last 12 months) — box + bulk
   const monthlyRevenueData = useMemo(() => {
@@ -69,10 +78,7 @@ export default function ReportsPage() {
 
   // Daily sales chart (current month) — box + bulk
   const dailySalesData = useMemo(() => {
-    const days = eachDayOfInterval({
-      start: startOfMonth(today),
-      end: today
-    });
+    const days = eachDayOfInterval({ start: periodRange.fromDate, end: periodRange.toDate });
 
     return days.map(day => {
       const dayStr = format(day, 'yyyy-MM-dd');
@@ -88,15 +94,12 @@ export default function ReportsPage() {
         transactions: daySales.length + dayBulk.length + dayShop.length
       };
     });
-  }, [sales, bulkSales, shopSales]);
+  }, [sales, bulkSales, shopSales, periodRange]);
 
   // Box size distribution
   const boxSizeDistribution = useMemo(() => {
     const sizeMap: Record<number, { count: number; amount: number }> = {};
-    const monthSales = sales.filter(s => {
-      const date = new Date(s.sale_date);
-      return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-    });
+    const monthSales = sales.filter(s => s.sale_date >= periodRange.from && s.sale_date <= periodRange.to);
 
     monthSales.forEach(s => {
       if (!sizeMap[s.box_size]) {
@@ -111,11 +114,11 @@ export default function ReportsPage() {
       value: data.count,
       amount: data.amount
     }));
-  }, [sales]);
+  }, [sales, periodRange]);
 
   // Revenue vs Expenses
-  const monthStart = format(startOfMonth(today), 'yyyy-MM-dd');
-  const monthEnd = format(endOfMonth(today), 'yyyy-MM-dd');
+  const monthStart = periodRange.from;
+  const monthEnd = periodRange.to;
 
   const monthBoxSales = sales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
   const monthBulkSales = bulkSales.filter(s => s.sale_date >= monthStart && s.sale_date <= monthEnd);
@@ -130,7 +133,7 @@ export default function ReportsPage() {
   const monthPurchases = materialPurchases.filter(p => p.purchase_date >= monthStart && p.purchase_date <= monthEnd);
   const totalPurchasesExpenses = monthPurchases.reduce((sum, p) => sum + p.total_cost, 0);
 
-  const fixedMonthly = fixedCharges.filter(c => c.is_active).reduce((sum, c) => {
+  const fixedBase = fixedCharges.filter(c => c.is_active).reduce((sum, c) => {
     switch (c.frequency) {
       case 'daily': return sum + c.amount * 30;
       case 'weekly': return sum + c.amount * 4;
@@ -140,23 +143,17 @@ export default function ReportsPage() {
     }
   }, 0);
 
+  const fixedMonthly = fixedBase * periodRange.factor;
+
   const variableMonthly = variableExpenses
-    .filter(e => {
-      const date = new Date(e.date);
-      return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-    })
+    .filter(e => { const d = (e.date || '').slice(0, 10); return d >= monthStart && d <= monthEnd; })
     .reduce((sum, e) => sum + e.amount, 0);
 
   const utilitiesMonthly = utilities
-    .filter(u => {
-      const start = new Date(u.period_start);
-      return start.getMonth() === currentMonth && start.getFullYear() === currentYear;
-    })
+    .filter(u => { const d = (u.period_start || '').slice(0, 10); return d >= monthStart && d <= monthEnd; })
     .reduce((sum, u) => sum + u.amount, 0);
 
-  const laborMonthly = laborCosts
-    .filter(l => l.period_month === currentMonth + 1 && l.period_year === currentYear)
-    .reduce((sum, l) => sum + l.total_cost, 0);
+  const laborMonthly = laborCosts.reduce((sum, l) => { const ms = new Date(l.period_year, l.period_month - 1, 1); const me = new Date(l.period_year, l.period_month, 0); const da = ms > periodRange.fromDate ? ms : periodRange.fromDate; const db = me < periodRange.toDate ? me : periodRange.toDate; if (db < da) return sum; return sum + l.total_cost * (differenceInCalendarDays(db, da) + 1) / me.getDate(); }, 0);
 
   const totalExpenses = totalPurchasesExpenses + fixedMonthly + variableMonthly + utilitiesMonthly + laborMonthly;
   const netProfit = totalRevenue - totalExpenses;
@@ -179,7 +176,7 @@ export default function ReportsPage() {
           <p className="text-gray-500">Analyse des performances</p>
         </div>
         <div className="flex bg-white rounded-xl shadow-sm border border-gray-100 p-1">
-          {(['week', 'month', 'year'] as const).map(period => (
+          {(['week', 'month', 'year', 'custom'] as const).map(period => (
             <button
               key={period}
               onClick={() => setSelectedPeriod(period)}
@@ -189,10 +186,22 @@ export default function ReportsPage() {
                   : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
-              {period === 'week' ? 'Semaine' : period === 'month' ? 'Mois' : 'Année'}
+              {period === 'week' ? 'Semaine' : period === 'month' ? 'Mois' : period === 'year' ? 'Année' : 'Du ... au ...'}
             </button>
           ))}
         </div>
+      </div>
+
+      <div className='flex flex-wrap items-center gap-3 bg-white rounded-xl border border-gray-200 px-4 py-3'>
+        {selectedPeriod === 'custom' ? (
+          <>
+            <label className='text-sm text-gray-600'>Du <input type='date' value={repFrom} onChange={e => setRepFrom(e.target.value)} className='ml-1 px-2 py-1 border rounded-lg text-sm' /></label>
+            <label className='text-sm text-gray-600'>Au <input type='date' value={repTo} onChange={e => setRepTo(e.target.value)} className='ml-1 px-2 py-1 border rounded-lg text-sm' /></label>
+          </>
+        ) : (
+          <label className='text-sm text-gray-600'>Choisir la date <input type='date' value={repRef} onChange={e => setRepRef(e.target.value)} className='ml-1 px-2 py-1 border rounded-lg text-sm' /></label>
+        )}
+        <span className='text-sm font-medium text-amber-700'>Du {format(periodRange.fromDate, 'EEE dd/MM/yyyy', { locale: fr })} au {format(periodRange.toDate, 'EEE dd/MM/yyyy', { locale: fr })}</span>
       </div>
 
       {/* KPIs */}
