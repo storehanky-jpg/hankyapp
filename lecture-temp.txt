@@ -1,154 +1,123 @@
-=== imports ===
-1: import React, { useState, useEffect, useMemo } from 'react';
-2: import { Plus, Edit2, Trash2, Search, Package, ShoppingCart, X, Truck, ChevronRight, ChevronDown, ChevronUp, Wallet, ArrowLeft, BarChart3, TrendingUp, Layers, CheckCircle, XCircle } from 'lucide-react';
-3: import { format, startOfWeek, startOfMonth, startOfYear, subWeeks, subMonths, subYears, isAfter } from 'date-fns';
-4: import { fr } from 'date-fns/locale';
-5: import { useApp } from '../context/AppContext';
-6: import * as api from '../services/api';
-7: import type { RawMaterial, MaterialPurchase, Supplier, SupplierPurchase } from '../types';
-8: import {
-9:   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
-10: } from 'recharts';
-11: 
-12: type PaymentStatus = 'paid' | 'unpaid' | 'partial';
-13: 
-14: const STATUS_LABELS: Record<PaymentStatus, string> = {
-15:   paid: 'Payé',
-16:   unpaid: 'Non payé',
-17:   partial: 'Versement',
-18: };
-19: 
-20: const STATUS_STYLES: Record<PaymentStatus, string> = {
-21:   paid: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
-22:   unpaid: 'bg-red-100 text-red-700 border border-red-200',
-23:   partial: 'bg-orange-100 text-orange-700 border border-orange-200',
-24: };
-25: 
-26: const STATUS_DOT: Record<PaymentStatus, string> = {
-27:   paid: 'bg-emerald-500',
-28:   unpaid: 'bg-red-500',
-29:   partial: 'bg-orange-500',
-30: };
-31: 
-32: interface PurchaseLine {
-33:   material_id: string;
-34:   quantity: number;
-35:   unit_cost: number;
-36: }
-37: 
-38: const emptyPurchaseLine = (materialId: string): PurchaseLine => ({ material_id: materialId, quantity: 1, unit_cost: 0 });
-39: 
-40: export default function MaterialsPage() {
-
-=== statsData ===
-301:     .filter(p => {
-302:       const date = new Date(p.purchase_date);
-303:       const now = new Date();
-304:       return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-305:     })
-306:     .reduce((sum, p) => sum + p.total_cost, 0);
-307: 
-308:   const statsData = useMemo(() => {
-309:     const now = new Date();
-310:     let startDate: Date;
-311:     if (statsPeriod === 'week') startDate = startOfWeek(now, { weekStartsOn: 1 });
-312:     else if (statsPeriod === 'month') startDate = startOfMonth(now);
-313:     else startDate = startOfYear(now);
-314: 
-315:     const periodPurchases = materialPurchases.filter(p => isAfter(new Date(p.purchase_date), startDate));
-316:     const byMaterial: Record<string, { name: string; quantity: number; cost: number; unit: string }> = {};
-317:     for (const p of periodPurchases) {
-318:       const key = p.material_id;
-319:       if (!byMaterial[key]) {
-320:         byMaterial[key] = { name: p.material?.name || 'Inconnu', quantity: 0, cost: 0, unit: p.material?.unit || 'kg' };
-321:       }
-322:       byMaterial[key].quantity += p.quantity;
-323:       byMaterial[key].cost += p.total_cost;
-324:     }
-325:     const chartData = Object.values(byMaterial)
-326:       .sort((a, b) => b.quantity - a.quantity)
-327:       .map(d => ({ name: d.name, Quantité: d.quantity, Coût: d.cost, unit: d.unit }));
-328:     const totalQuantity = chartData.reduce((s, d) => s + d.Quantité, 0);
-329:     const totalCost = chartData.reduce((s, d) => s + d.Coût, 0);
-330:     return { chartData, totalQuantity, totalCost, count: periodPurchases.length };
-331:   }, [materialPurchases, statsPeriod]);
-332: 
-333:   const supplierStats = useMemo(() => {
-334:     const total = supplierPurchases.reduce((s, p) => s + p.total_amount, 0);
-335:     const paid = supplierPurchases.reduce((s, p) => s + p.amount_paid, 0);
-
-=== fin onglet stats ===
-717:           </div>
-718:           {statsData.chartData.length > 0 ? (
-719:             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-720:               <h3 className="text-lg font-semibold text-gray-900 mb-4">Consommation par matière première</h3>
-721:               <ResponsiveContainer width="100%" height={350}>
-722:                 <BarChart data={statsData.chartData} margin={{ top: 5, right: 20, left: 10, bottom: 60 }}>
-723:                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-724:                   <XAxis dataKey="name" angle={-30} textAnchor="end" height={70} tick={{ fontSize: 12 }} />
-725:                   <YAxis tick={{ fontSize: 12 }} />
-726:                   <Tooltip formatter={(value: number, name: string) => { if (name === 'Coût') return `${value.toLocaleString()} DZD`; return value.toLocaleString(); }} />
-727:                   <Legend />
-728:                   <Bar dataKey="Quantité" fill="#f59e0b" radius={[8, 8, 0, 0]} />
-729:                   <Bar dataKey="Coût" fill="#10b981" radius={[8, 8, 0, 0]} />
-730:                 </BarChart>
-731:               </ResponsiveContainer>
-732:             </div>
-733:           ) : (
-734:             <div className="bg-white rounded-2xl p-12 text-center text-gray-400 shadow-sm border border-gray-100">
-735:               <BarChart3 size={48} className="mx-auto mb-3 text-gray-300" />
-736:               <p className="font-medium">Aucune donnée pour cette période</p>
-737:             </div>
-738:           )}
-739:           {statsData.chartData.length > 0 && (
-740:             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-741:               <div className="overflow-x-auto">
-742:                 <table className="w-full">
-743:                   <thead className="bg-gray-50">
-744:                     <tr>
-745:                       <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Matière Première</th>
-746:                       <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Quantité</th>
-747:                       <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Coût Total</th>
-748:                       <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Prix moyen/Unité</th>
-749:                     </tr>
-750:                   </thead>
-751:                   <tbody className="divide-y divide-gray-100">
-752:                     {statsData.chartData.map((d) => (
-753:                       <tr key={d.name} className="hover:bg-gray-50">
-754:                         <td className="px-4 py-3 font-medium text-gray-900">{d.name}</td>
-755:                         <td className="px-4 py-3 text-right text-gray-600">{d.Quantité.toLocaleString()} {d.unit}</td>
-756:                         <td className="px-4 py-3 text-right font-medium text-gray-900">{d.Coût.toLocaleString()} DZD</td>
-757:                         <td className="px-4 py-3 text-right text-gray-600">{d.Quantité > 0 ? (d.Coût / d.Quantité).toLocaleString() : 0} DZD</td>
-758:                       </tr>
-759:                     ))}
-760:                   </tbody>
-761:                 </table>
-762:               </div>
-763:             </div>
-764:           )}
-765:         </div>
-766:       )}
-767: 
-768:       {/* Suppliers Tab */}
-769:       {activeTab === 'suppliers' && (
-770:         selectedSupplier ? (
-771:           <div className="space-y-4">
-772:             <button onClick={() => setSelectedSupplier(null)}
-773:               className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors text-sm font-medium">
-774:               <ArrowLeft size={18} /> Retour aux fournisseurs
-775:             </button>
-776:             <div className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl p-5 text-white shadow-lg">
-777:               <div className="flex items-start justify-between">
-778:                 <div className="flex items-center gap-3">
-779:                   <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center"><Truck size={24} /></div>
-780:                   <div>
-781:                     <h2 className="text-xl font-bold">{selectedSupplier.name}</h2>
-782:                     {selectedSupplier.category && <p className="text-white/80 text-sm">{selectedSupplier.category}</p>}
-783:                     {selectedSupplier.phone && <p className="text-white/80 text-sm">Tel: {selectedSupplier.phone}</p>}
-784:                   </div>
-785:                 </div>
-786:                 <div className="flex gap-2">
-787:                   <button onClick={() => { setEditingSupplier(selectedSupplier); setSupplierForm({ name: selectedSupplier.name, category: selectedSupplier.category || '', phone: selectedSupplier.phone || '', address: selectedSupplier.address || '', notes: selectedSupplier.notes || '' }); setShowSupplierModal(true); }}
-788:                     className="px-3 py-1.5 bg-white/20 text-white rounded-lg text-sm hover:bg-white/30"><Edit2 size={14} /></button>
-789:                   <button onClick={() => { setSupplierPurchaseForm({ item_name: '', quantity: 1, unit: 'kg', unit_cost: 0, purchase_date: format(new Date(), 'yyyy-MM-dd'), amount_paid: 0, invoice_number: '', notes: '' }); setEditingSupplierPurchase(null); setShowSupplierPurchaseModal(true); }}
-790:                     className="flex items-center gap-2 px-3 py-1.5 bg-white text-blue-700 rounded-lg text-sm font-medium shadow-sm"><Plus size={16} /> Achat</button>
+=== src/pages/ReportsPage.tsx lignes 1-45 ===
+1: import React, { useMemo, useState } from 'react';
+2: import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, BarChart3, PieChart as PieChartIcon, X } from 'lucide-react';
+3: import {
+4:   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+5:   BarChart, Bar, PieChart, Pie, Cell, Legend, LineChart, Line
+6: } from 'recharts';
+7: import { format, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, subDays } from 'date-fns';
+8: import { fr } from 'date-fns/locale';
+9: import { useApp } from '../context/AppContext';
+10: 
+11: const COLORS = ['#f59e0b', '#ea580c', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444'];
+12: 
+13: export default function ReportsPage() {
+14:   const { sales, bulkSales, shopSales, materialPurchases, fixedCharges, variableExpenses, utilities, laborCosts } = useApp();
+15:   const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'year'>('month');
+16: 
+17:   const today = new Date();
+18:   const currentMonth = today.getMonth();
+19:   const currentYear = today.getFullYear();
+20: 
+21:   // Calculate date range based on period
+22:   const dateRange = useMemo(() => {
+23:     switch (selectedPeriod) {
+24:       case 'week':
+25:         return {
+26:           start: subDays(today, 7),
+27:           end: today
+28:         };
+29:       case 'month':
+30:         return {
+31:           start: startOfMonth(today),
+32:           end: endOfMonth(today)
+33:         };
+34:       case 'year':
+35:         return {
+36:           start: new Date(currentYear, 0, 1),
+37:           end: new Date(currentYear, 11, 31)
+38:         };
+39:     }
+40:   }, [selectedPeriod]);
+41: 
+42:   // Monthly revenue data (last 12 months) — box + bulk
+43:   const monthlyRevenueData = useMemo(() => {
+44:     const data = [];
+45:     for (let i = 11; i >= 0; i--) {
+=== src/pages/ReportsPage.tsx lignes 173-198 ===
+173:   return (
+174:     <div className="space-y-6">
+175:       {/* Header */}
+176:       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+177:         <div>
+178:           <h1 className="text-2xl font-bold text-gray-900">Rapports & Statistiques</h1>
+179:           <p className="text-gray-500">Analyse des performances</p>
+180:         </div>
+181:         <div className="flex bg-white rounded-xl shadow-sm border border-gray-100 p-1">
+182:           {(['week', 'month', 'year'] as const).map(period => (
+183:             <button
+184:               key={period}
+185:               onClick={() => setSelectedPeriod(period)}
+186:               className={`px-4 py-2 rounded-lg font-medium transition-all ${
+187:                 selectedPeriod === period
+188:                   ? 'bg-amber-500 text-white shadow-sm'
+189:                   : 'text-gray-600 hover:bg-gray-50'
+190:               }`}
+191:             >
+192:               {period === 'week' ? 'Semaine' : period === 'month' ? 'Mois' : 'Année'}
+193:             </button>
+194:           ))}
+195:         </div>
+196:       </div>
+197: 
+198:       {/* KPIs */}
+=== src/pages/BulkSalesPage.tsx (motifs) ===
+...
+1067:                 <div className="grid grid-cols-2 gap-3">
+1068:                   <div>
+1069:                     <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+1070:                     <input type="date" required value={saleDate} onChange={e => setSaleDate(e.target.value)}
+1071:                       className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-emerald-500 text-sm" />
+1072:                   </div>
+1073:                   <div className="flex items-end">
+1074:                     <p className="text-sm text-gray-500">Client: <strong className="text-gray-900">{selectedCustomer?.name}</strong></p>
+1075:                   </div>
+1076:                 </div>
+=== src/pages/CustomerDetailPage.tsx (motifs) ===
+=== src/pages/MaterialsPage.tsx (motifs) ===
+...
+430: 
+431:   // Group purchases by purchase_date (all purchases on same day = one row)
+432:   const groupedPurchases = useMemo(() => {
+433:     const groups: {
+434:       key: string; purchases: MaterialPurchase[]; purchase_date: string;
+435:       total: number; amount_paid: number; reste: number; count: number;
+436:       payment_status: PaymentStatus;
+437:     }[] = [];
+438:     const groupMap: Record<string, number> = {};
+439: 
+440:     for (const p of filteredPurchases) {
+441:       const key = p.purchase_date;
+442:       if (groupMap[key] === undefined) {
+443:         groupMap[key] = groups.length;
+444:         groups.push({
+445:           key, purchases: [], purchase_date: p.purchase_date,
+446:           total: 0, amount_paid: 0, reste: 0, count: 0, payment_status: 'paid',
+...
+545:           className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${activeTab === 'materials' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>Matières Premières</button>
+546:         <button onClick={() => setActiveTab('purchases')}
+547:           className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${activeTab === 'purchases' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>Historique Achats</button>
+548:         <button onClick={() => setActiveTab('stats')}
+549:           className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${activeTab === 'stats' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>Statistiques</button>
+550:         <button onClick={() => setActiveTab('suppliers')}
+551:           className={`px-4 py-2 font-medium transition-colors whitespace-nowrap ${activeTab === 'suppliers' ? 'text-amber-600 border-b-2 border-amber-600' : 'text-gray-500 hover:text-gray-700'}`}>Fournisseurs</button>
+552:       </div>
+553: 
+554:       {/* Materials Table */}
+555:       {activeTab === 'materials' && (
+556:         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+557:           <div className="overflow-x-auto">
+558:             <table className="w-full">
+559:               <thead className="bg-gray-50">
+560:                 <tr>
+561:                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Nom</th>
