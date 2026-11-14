@@ -4,7 +4,7 @@ import { offlineStorage, isOnline } from '../lib/storage';
 import { offlineCreate, offlineUpdate, offlineDelete, purgeFromLocal, mergeWithLocal, addToTombstone } from '../lib/offlineDb';
 import type {
   RawMaterial, MaterialPurchase, FixedCharge, VariableExpense,
-  Utility, LaborCost, Packaging, ProductionBatch, ProductionMaterial, Sale, UnsoldProduct,
+  Utility, LaborCos t, Packaging, ProductionBatch, ProductionMaterial, Sale, UnsoldProduct,
   CompanySettings, BulkSale, RecipeConfig, RecipeItem, ShopSale,
   Customer, CustomerPrice, CustomerProduct, FiscalInfo, Supplier, SupplierPurchase, Order
 } from '../types';
