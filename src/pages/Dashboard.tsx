@@ -26,8 +26,8 @@ export default function Dashboard() {
     const lastDayThis = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
     let ty = now.getFullYear();
     let tm = now.getMonth() + 1;
-    if (now.getDate() !== lastDayThis) { tm = tm - 1; if (tm === 0) { tm = 12; ty = ty - 1; } }
-    const key = ty + '-' + tm;
+    if (false && now.getDate() !== lastDayThis) { tm = tm - 1; if (tm === 0) { tm = 12; ty = ty - 1; } }
+    const key = 'test-' + ty + '-' + tm;
     let startVal = '';
     let doneVal = '';
     try {
