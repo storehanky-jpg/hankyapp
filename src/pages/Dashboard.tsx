@@ -139,7 +139,7 @@ export default function Dashboard() {
 
   const laborMonth = laborCosts
     .filter(l => l.period_month === currentMonth + 1 && l.period_year === currentYear)
-    .reduce((sum, l) => sum + l.total_cost, 0);
+    .reduce((sum, l) => sum + l.total_cost - variableExpenses.filter(e => e.notes === 'labor:' + l.id).reduce((s2, e) => s2 + e.amount, 0), 0);
 
   const totalExpensesMonth = fixedChargesMonthly + variableExpensesMonth + utilitiesMonth + laborMonth;
   const profitMonth = totalSalesMonth - (totalExpensesMonth + totalPurchasesMonth);

@@ -336,7 +336,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const laborMonth = state.laborCosts
       .filter(l => l.period_month === currentMonth + 1 && l.period_year === currentYear)
-      .reduce((sum, l) => sum + l.total_cost, 0);
+      .reduce((sum, l) => sum + l.total_cost - state.variableExpenses.filter(e => e.notes === 'labor:' + l.id).reduce((s2, e) => s2 + e.amount, 0), 0);
 
     const totalExpensesMonth = fixedChargesMonthly + variableExpensesMonth + utilitiesMonth + laborMonth + totalPurchasesMonth;
     const profitMonth = totalSalesMonth - totalExpensesMonth;

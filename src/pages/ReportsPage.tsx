@@ -153,7 +153,7 @@ export default function ReportsPage() {
     .filter(u => { const d = (u.period_start || '').slice(0, 10); return d >= monthStart && d <= monthEnd; })
     .reduce((sum, u) => sum + u.amount, 0);
 
-  const laborMonthly = laborCosts.reduce((sum, l) => { const ms = new Date(l.period_year, l.period_month - 1, 1); const me = new Date(l.period_year, l.period_month, 0); const da = ms > periodRange.fromDate ? ms : periodRange.fromDate; const db = me < periodRange.toDate ? me : periodRange.toDate; if (db < da) return sum; return sum + l.total_cost * (differenceInCalendarDays(db, da) + 1) / me.getDate(); }, 0);
+  const laborMonthly = laborCosts.reduce((sum, l) => { const ms = new Date(l.period_year, l.period_month - 1, 1); const me = new Date(l.period_year, l.period_month, 0); const da = ms > periodRange.fromDate ? ms : periodRange.fromDate; const db = me < periodRange.toDate ? me : periodRange.toDate; if (db < da) return sum; return sum + (l.total_cost - variableExpenses.filter(e => e.notes === 'labor:' + l.id).reduce((s2, e) => s2 + e.amount, 0)) * (differenceInCalendarDays(db, da) + 1) / me.getDate(); }, 0);
 
   const totalExpenses = totalPurchasesExpenses + fixedMonthly + variableMonthly + utilitiesMonthly + laborMonthly;
   const netProfit = totalRevenue - totalExpenses;

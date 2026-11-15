@@ -51,6 +51,7 @@ export default function ChargesPage() {
   const [laborMonthlySalary, setLaborMonthlySalary] = useState(0);
   const [acompteTarget, setAcompteTarget] = useState<LaborCost | null>(null);
   const [acompteAmount, setAcompteAmount] = useState(0);
+  const [acompteDate, setAcompteDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [editLaborItem, setEditLaborItem] = useState<LaborCost | null>(null);
   const [editLaborMonthly, setEditLaborMonthly] = useState(0);
   const [editLaborForm, setEditLaborForm] = useState({ employee_name: '', daily_wage: 0, worked_days: 0, period_month: new Date().getMonth() + 1, period_year: new Date().getFullYear() });
@@ -125,16 +126,29 @@ export default function ChargesPage() {
     }
   };
 
+  const advanceOf = (l: LaborCost) => variableExpenses.filter(e => e.notes === 'labor:' + l.id).reduce((s2, e) => s2 + e.amount, 0);
+
   const handleSaveAcompte = async () => {
-    if (!acompteTarget) return;
+    if (!acompteTarget || acompteAmount <= 0) return;
+    const reste = acompteTarget.total_cost - advanceOf(acompteTarget);
+    if (acompteAmount > reste) { alert('Le montant depasse le reste a payer.'); return; }
     try {
-      const value = Math.min(Math.max(0, acompteAmount), acompteTarget.total_cost);
-      const updated = await api.laborCostsService.update(acompteTarget.id, { advance_paid: value });
-      setLaborCosts(laborCosts.map(l => l.id === acompteTarget.id ? { ...l, ...updated, advance_paid: value } : l));
+      const created = await api.variableExpensesService.create({ name: 'Acompte - ' + acompteTarget.employee_name, amount: acompteAmount, date: acompteDate, category: 'Acompte salaire', notes: 'labor:' + acompteTarget.id });
+      setVariableExpenses([created, ...variableExpenses]);
       setAcompteTarget(null);
+      setAcompteAmount(0);
     } catch (error) {
       console.error('Error saving advance:', error);
       alert('Erreur lors de l enregistrement de l acompte.');
+    }
+  };
+
+  const handleDeleteAcompte = async (id: string) => {
+    try {
+      await api.variableExpensesService.delete(id);
+      setVariableExpenses(variableExpenses.filter(e => e.id !== id));
+    } catch (error) {
+      console.error('Error deleting advance:', error);
     }
   };
 
@@ -148,9 +162,8 @@ export default function ChargesPage() {
     if (!editLaborItem) return;
     try {
       const total_cost = Math.round(editLaborForm.daily_wage * editLaborForm.worked_days * 100) / 100;
-      const advance_paid = Math.min(editLaborItem.advance_paid || 0, total_cost);
-      const updated = await api.laborCostsService.update(editLaborItem.id, { ...editLaborForm, total_cost, advance_paid });
-      setLaborCosts(laborCosts.map(l => l.id === editLaborItem.id ? { ...l, ...updated, ...editLaborForm, total_cost, advance_paid } : l));
+            const updated = await api.laborCostsService.update(editLaborItem.id, { ...editLaborForm, total_cost });
+      setLaborCosts(laborCosts.map(l => l.id === editLaborItem.id ? { ...l, ...updated, ...editLaborForm, total_cost } : l));
       setEditLaborItem(null);
     } catch (error) {
       console.error('Error saving labor edit:', error);
@@ -221,7 +234,7 @@ export default function ChargesPage() {
 
   const laborMonthly = laborCosts
     .filter(l => l.period_month === currentMonth + 1 && l.period_year === currentYear)
-    .reduce((sum, l) => sum + l.total_cost, 0);
+    .reduce((sum, l) => sum + l.total_cost - advanceOf(l), 0);
 
   const totalChargesMonthly = fixedMonthly + variableMonthly + utilitiesMonthly + laborMonthly;
 
@@ -473,20 +486,32 @@ export default function ChargesPage() {
 
         {acompteTarget && (
           <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4'>
-            <div className='bg-white rounded-2xl w-full max-w-md p-6 space-y-4'>
+            <div className='bg-white rounded-2xl w-full max-w-md p-6 space-y-4 max-h-[95vh] overflow-y-auto'>
               <div className='flex items-center justify-between'>
                 <h3 className='text-lg font-bold text-gray-900'>Acompte - {acompteTarget.employee_name}</h3>
                 <button type='button' onClick={() => setAcompteTarget(null)} className='text-sm text-gray-400 hover:text-gray-600'>Fermer</button>
               </div>
-              <div className='text-sm text-gray-600'>Salaire total : <strong>{acompteTarget.total_cost.toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</strong></div>
-              <div>
-                <label className='block text-sm font-medium text-gray-700 mb-1'>Acompte total verse (DZD)</label>
-                <input type='number' step='any' min='0' value={acompteAmount || ''} onChange={e => setAcompteAmount(parseFloat(e.target.value) || 0)} className='w-full px-3 py-2 border rounded-lg' />
+              <div className='text-sm text-gray-600'>Salaire total : <strong>{acompteTarget.total_cost.toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</strong> - Deja verse : <strong>{advanceOf(acompteTarget).toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</strong></div>
+              {variableExpenses.filter(e => e.notes === 'labor:' + acompteTarget.id).map(e => (
+                <div key={e.id} className='flex items-center justify-between text-sm bg-gray-50 rounded-lg px-3 py-2'>
+                  <span>{e.date} - {e.amount.toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</span>
+                  <button type='button' onClick={() => handleDeleteAcompte(e.id)} className='text-xs text-red-600 hover:underline'>Supprimer</button>
+                </div>
+              ))}
+              <div className='grid grid-cols-2 gap-4'>
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-1'>Nouvel acompte (DZD)</label>
+                  <input type='number' step='any' min='0' value={acompteAmount || ''} onChange={e => setAcompteAmount(parseFloat(e.target.value) || 0)} className='w-full px-3 py-2 border rounded-lg' />
+                </div>
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-1'>Date</label>
+                  <input type='date' value={acompteDate} onChange={e => setAcompteDate(e.target.value)} className='w-full px-3 py-2 border rounded-lg' />
+                </div>
               </div>
-              <div className='bg-amber-50 p-3 rounded-lg text-sm text-amber-800'>Reste à payer : <strong>{Math.max(0, acompteTarget.total_cost - acompteAmount).toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</strong></div>
+              <div className='bg-amber-50 p-3 rounded-lg text-sm text-amber-800'>Reste à payer après cet acompte : <strong>{Math.max(0, acompteTarget.total_cost - advanceOf(acompteTarget) - acompteAmount).toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</strong></div>
               <div className='flex justify-end gap-2'>
                 <button type='button' onClick={() => setAcompteTarget(null)} className='px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg'>Annuler</button>
-                <button type='button' onClick={handleSaveAcompte} className='px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600'>Enregistrer</button>
+                <button type='button' onClick={handleSaveAcompte} className='px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600'>Enregistrer l acompte</button>
               </div>
             </div>
           </div>
@@ -564,11 +589,11 @@ export default function ChargesPage() {
                       {labor.period_month}/{labor.period_year}
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-gray-900">{labor.total_cost.toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</td>
-                    <td className='px-4 py-3 text-right text-emerald-600'>{(labor.advance_paid || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</td>
-                    <td className='px-4 py-3 text-right font-medium text-red-600'>{Math.max(0, labor.total_cost - (labor.advance_paid || 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</td>
+                    <td className='px-4 py-3 text-right text-emerald-600'>{advanceOf(labor).toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</td>
+                    <td className='px-4 py-3 text-right font-medium text-red-600'>{Math.max(0, labor.total_cost - advanceOf(labor)).toLocaleString(undefined, { maximumFractionDigits: 2 })} DZD</td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end">
-                        <button type='button' onClick={() => { setAcompteTarget(labor); setAcompteAmount(labor.advance_paid || 0); }} className='px-2.5 py-1 mr-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg'>Acompte</button>
+                        <button type='button' onClick={() => { setAcompteTarget(labor); setAcompteAmount(0); setAcompteDate(format(new Date(), 'yyyy-MM-dd')); }} className='px-2.5 py-1 mr-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg'>Acompte</button>
                         <button type='button' onClick={() => openEditLabor(labor)} className='px-2.5 py-1 mr-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg'>Modifier</button>
                         <button onClick={() => handleDelete(labor.id)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg">
                           <Trash2 size={16} />
