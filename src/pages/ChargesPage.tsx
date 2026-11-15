@@ -9,7 +9,7 @@ type Tab = 'fixed' | 'variable' | 'utilities' | 'labor';
 
 export default function ChargesPage() {
   const {
-    fixedCharges, setFixedCharges,
+     fixedCharges, setFixedCharges,
     variableExpenses, setVariableExpenses,
     utilities, setUtilities,
     laborCosts, setLaborCosts
