@@ -9,7 +9,7 @@ import * as api from '../services/api';
 import { offlineStorage } from '../lib/storage';
 import { syncPendingOperations, countPendingOperations } from '../lib/syncEngine';
 
-interface AppState {
+inter face AppState {
   rawMaterials: RawMaterial[];
   materialPurchases: MaterialPurchase[];
   fixedCharges: FixedCharge[];
