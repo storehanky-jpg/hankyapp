@@ -5,7 +5,7 @@ import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
 import type { FixedCharge, VariableExpense, Utility, LaborCost } from '../types';
 
-type Tab = 'fixed' | 'variable' | 'utilities' | 'labor';
+type Tab = 'fi xed' | 'variable' | 'utilities' | 'labor';
 
 export default function ChargesPage() {
   const {
