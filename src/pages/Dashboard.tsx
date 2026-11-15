@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+import * as api from '../services/api';
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingCart, Package,
   ChefHat, Calendar, ArrowUp, ArrowDown, AlertCircle
@@ -16,6 +17,53 @@ const COLORS = ['#f59e0b', '#ea580c', '#10b981', '#3b82f6', '#8b5cf6'];
 
 export default function Dashboard() {
   const { sales, bulkSales, shopSales, productionBatches, materialPurchases, fixedCharges, variableExpenses, utilities, laborCosts, isLoading } = useApp();
+  const { setLaborCosts: setLaborCostsAuto } = useApp();
+  const laborAutoBusy = useRef(false);
+  useEffect(() => {
+    if (laborAutoBusy.current) return;
+    if (!laborCosts || laborCosts.length === 0) return;
+    const now = new Date();
+    const lastDayThis = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    let ty = now.getFullYear();
+    let tm = now.getMonth() + 1;
+    if (now.getDate() !== lastDayThis) { tm = tm - 1; if (tm === 0) { tm = 12; ty = ty - 1; } }
+    const key = ty + '-' + tm;
+    let startVal = '';
+    let doneVal = '';
+    try {
+      startVal = localStorage.getItem('laborAutoStart') || '';
+      if (!startVal) { startVal = String(now.getFullYear() * 12 + (now.getMonth() + 1)); localStorage.setItem('laborAutoStart', startVal); }
+      doneVal = localStorage.getItem('laborAutoDone') || '';
+    } catch (e) { return; }
+    if (ty * 12 + tm < parseInt(startVal, 10)) return;
+    if (doneVal === key) return;
+    laborAutoBusy.current = true;
+    try { localStorage.setItem('laborAutoDone', key); } catch (e) { console.error(e); }
+    (async () => {
+      try {
+        const fresh = await api.laborCostsService.getAll();
+        const byEmp: Record<string, typeof fresh> = {};
+        fresh.forEach(l => { const k = (l.employee_name || '').trim().toLowerCase(); if (!byEmp[k]) byEmp[k] = []; byEmp[k].push(l); });
+        const created: typeof fresh = [];
+        for (const k of Object.keys(byEmp)) {
+          const rows = byEmp[k];
+          if (rows.some(r => r.period_month === tm && r.period_year === ty)) continue;
+          let last = rows[0];
+          rows.forEach(r => { if (r.period_year * 12 + r.period_month > last.period_year * 12 + last.period_month) last = r; });
+          const gap = ty * 12 + tm - (last.period_year * 12 + last.period_month);
+          if (gap < 1 || gap > 3) continue;
+          const total = Math.round(last.daily_wage * last.worked_days * 100) / 100;
+          const c = await api.laborCostsService.create({ employee_name: last.employee_name, daily_wage: last.daily_wage, worked_days: last.worked_days, period_month: tm, period_year: ty, total_cost: total, advance_paid: 0 });
+          created.push(c);
+        }
+        if (created.length > 0) setLaborCostsAuto([...created, ...fresh]);
+      } catch (e) {
+        console.error('Auto labor error:', e);
+      } finally {
+        laborAutoBusy.current = false;
+      }
+    })();
+  }, [laborCosts]);
 
   if (isLoading) {
     return (
