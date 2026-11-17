@@ -1,10 +1,22 @@
 const fs = require('fs');
+const path = require('path');
 console.log('DEBUT');
-const stop = (m) => { console.log('ARRET : ' + m); process.exit(1); };
-const from = 'src/components/lib';
-const to = 'src/lib';
-if (!fs.existsSync(from)) stop('src/components/lib introuvable');
-if (fs.existsSync(to)) stop('src/lib existe deja, rien n est modifie');
-fs.renameSync(from, to);
-console.log('OK : dossier lib remis dans src/lib');
-console.log(fs.readdirSync(to).join(', '));
+let out = [];
+function walk(d, depth) {
+  if (depth > 4) return;
+  let items = [];
+  try { items = fs.readdirSync(d); } catch (e) { return; }
+  items.forEach(function (n) {
+    if (n === 'node_modules' || n === '.git' || n === 'dist') return;
+    const p = path.join(d, n);
+    let st = null;
+    try { st = fs.statSync(p); } catch (e) { return; }
+    if (st.isDirectory()) { out.push('[DOSSIER] ' + p); walk(p, depth + 1); }
+    else if (/supabase|syncEngine|offlineDb|storage|formatters|deliveryNote/i.test(n)) out.push('[FICHIER] ' + p);
+  });
+}
+walk('src', 0);
+out.push('--- env : ' + (fs.existsSync('.env') ? '.env present' : '.env absent'));
+fs.writeFileSync('lecture-temp.txt', out.join('\n'));
+console.log(out.join('\n'));
+console.log('FIN');
