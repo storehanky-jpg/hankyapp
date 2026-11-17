@@ -1,22 +1,21 @@
 const fs = require('fs');
-const path = require('path');
 console.log('DEBUT');
-let out = [];
-function walk(d, depth) {
-  if (depth > 4) return;
-  let items = [];
-  try { items = fs.readdirSync(d); } catch (e) { return; }
-  items.forEach(function (n) {
-    if (n === 'node_modules' || n === '.git' || n === 'dist') return;
-    const p = path.join(d, n);
-    let st = null;
-    try { st = fs.statSync(p); } catch (e) { return; }
-    if (st.isDirectory()) { out.push('[DOSSIER] ' + p); walk(p, depth + 1); }
-    else if (/supabase|syncEngine|offlineDb|storage|formatters|deliveryNote/i.test(n)) out.push('[FICHIER] ' + p);
-  });
-}
-walk('src', 0);
-out.push('--- env : ' + (fs.existsSync('.env') ? '.env present' : '.env absent'));
-fs.writeFileSync('lecture-temp.txt', out.join('\n'));
-console.log(out.join('\n'));
-console.log('FIN');
+const stop = (m) => { console.log('ARRET : ' + m); process.exit(1); };
+if (fs.existsSync('src/lib')) stop('src/lib existe deja, rien n est modifie');
+const base = 'https://raw.githubusercontent.com/storehanky-jpg/hankyapp/main/src/components/lib/';
+const names = ['supabase.ts', 'syncEngine.ts', 'offlineDb.ts', 'storage.ts', 'formatters.ts', 'deliveryNote.ts'];
+(async () => {
+  const got = {};
+  for (const n of names) {
+    let r;
+    try { r = await fetch(base + n); } catch (e) { stop('telechargement impossible : ' + n + ' (' + e.message + ')'); }
+    if (!r.ok) stop('erreur ' + r.status + ' pour ' + n);
+    const txt = await r.text();
+    if (txt.length < 100) stop('fichier trop court : ' + n);
+    got[n] = txt;
+  }
+  if (got['supabase.ts'].indexOf('createClient') < 0) stop('supabase.ts inattendu');
+  fs.mkdirSync('src/lib', { recursive: true });
+  names.forEach(n => fs.writeFileSync('src/lib/' + n, got[n]));
+  console.log('OK : src/lib recree : ' + names.join(', '));
+})();
