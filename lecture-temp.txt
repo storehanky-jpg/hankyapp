@@ -1,39 +1,6 @@
-export const laborCostsService = {
-  async getAll(): Promise<LaborCost[]> {
-    if (!isOnline()) {
-      return offlineStorage.get<LaborCost[]>('labor_costs') || [];
-    }
-    try {
-      const { data, error } = await supabase.from('labor_costs').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      const merged = mergeWithLocal<LaborCost>('labor_costs', data);
-      offlineStorage.set('labor_costs', merged);
-      return merged;
-    } catch {
-      return offlineStorage.get<LaborCost[]>('labor_costs') || [];
-    }
-  },
-
-  async create(labor: Omit<LaborCost, 'id' | 'created_at'>): Promise<LaborCost> {
-    if (!isOnline()) {
-      return offlineCreate<LaborCost>('labor_costs', labor);
-    }
-    const { data, error } = await supabase.from('labor_costs').insert(labor).select().single();
-    if (error) throw error;
-    return data;
-  },
-
-  async delete(id: string): Promise<void> {
-    if (!isOnline()) {
-      offlineDelete<LaborCost>('labor_costs', id);
-      addToTombstone('labor_costs', id);
-      return;
-    }
-    const { error } = await supabase.from('labor_costs').delete().eq('id', id);
-    if (error) throw error;
-    purgeFromLocal<LaborCost>('labor_costs', id);
-    addToTombstone('labor_costs', id);
-  }
-};
-
-// Packaging
+[DOSSIER] src/components
+[DOSSIER] src/context
+[DOSSIER] src/pages
+[DOSSIER] src/services
+[DOSSIER] src/types
+--- env : .env present
