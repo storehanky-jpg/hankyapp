@@ -10,7 +10,7 @@ import { fr } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
 import { supabase } from '../lib/supabase';
-import { buildFactureHTML, buildFactureLines } from '../lib/factureDoc';
+import {  buildFactureHTML, buildFactureLines } from '../lib/factureDoc';
 import { buildBonLivraisonHTML, buildBonLines, nextBonNumber, readBonNumber } from '../lib/deliveryNote';
 import type { BulkSale, Sale, ShopSale, Customer, FiscalInfo } from '../types';
 
