@@ -9,6 +9,8 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
+import { supabase } from '../lib/supabase';
+import { buildFactureHTML, buildFactureLines } from '../lib/factureDoc';
 import { buildBonLivraisonHTML, buildBonLines, nextBonNumber, readBonNumber } from '../lib/deliveryNote';
 import type { BulkSale, Sale, ShopSale, Customer, FiscalInfo } from '../types';
 
@@ -78,6 +80,13 @@ export default function BulkSalesPage() {
   const [fiscalInfo, setFiscalInfo] = useState<FiscalInfo | null>(null);
   const [activeTab, setActiveTab] = useState<'ventes' | 'tarifs'>('ventes');
   const [showFactureModal, setShowFactureModal] = useState(false);
+  const [showFacturePeriod, setShowFacturePeriod] = useState(false);
+  const [facFrom, setFacFrom] = useState('');
+  const [facTo, setFacTo] = useState('');
+  const [facNumber, setFacNumber] = useState<number | null>(null);
+  const [facBusy, setFacBusy] = useState(false);
+  const [showDocs, setShowDocs] = useState(false);
+  const [docsList, setDocsList] = useState<{ id: string; doc_type: string; number: number; doc_date: string; period_from?: string; period_to?: string; total?: number; html?: string }[]>([]);
   const [factureItems, setFactureItems] = useState<{ label: string; quantity: number; unit_price: number }[]>([]);
   const [factureItemForm, setFactureItemForm] = useState({ label: '', quantity: 1, unit_price: 0 });
 
@@ -621,6 +630,7 @@ export default function BulkSalesPage() {
       clientCity: selectedCustomer.address || selectedCustomer.fiscal_address || '',
       lines: buildBonLines(lines.map(i => ({ type: i.type, quantity: i.quantity, unit_price: i.unit_price }))),
     });
+    void saveDocCopy('bon', num, group.sale_date, html, lines.reduce((s, i) => s + i.total_amount, 0));
     printHTML(html);
   };
 
@@ -629,6 +639,97 @@ export default function BulkSalesPage() {
     const items = customerSales.map(s => ({ label: s.label, quantity: s.quantity, unit_price: s.unit_price, total: s.total_amount }));
     const html = buildDocHTML(docType, items, customerStats.totalAchats, customerStats.totalPaye);
     printHTML(html);
+  };
+
+  const errText = (e: unknown) => (e && typeof e === 'object' && 'message' in e ? String((e as { message: unknown }).message) : 'erreur');
+  const todayISO = () => format(new Date(), 'yyyy-MM-dd');
+
+  const fetchNextNumber = async (docType: string, minNext: number): Promise<number> => {
+    const { data, error } = await supabase.from('documents').select('number').eq('doc_type', docType).order('number', { ascending: false }).limit(1);
+    if (error) throw error;
+    const last = data && data.length > 0 ? Number(data[0].number) : 0;
+    return Math.max(last + 1, minNext);
+  };
+
+  const openFacturePeriod = async () => {
+    const t = todayISO();
+    setFacFrom(t.slice(0, 8) + '01');
+    setFacTo(t);
+    setFacNumber(null);
+    setShowFacturePeriod(true);
+    try {
+      setFacNumber(await fetchNextNumber('facture', 7));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const facItems = customerSales.filter(s =>
+    s.type !== 'magasin' && facFrom !== '' && facTo !== '' &&
+    s.sale_date.slice(0, 10) >= facFrom && s.sale_date.slice(0, 10) <= facTo
+  );
+  const facLines = buildFactureLines(facItems.map(i => ({ type: i.type, quantity: i.quantity, unit_price: i.unit_price, total_amount: i.total_amount })));
+  const facTotal = Math.round(facLines.reduce((s, l) => s + l.total, 0) * 100) / 100;
+  const facDays = Array.from(new Set(facItems.map(i => i.sale_date.slice(0, 10)))).sort();
+
+  const generateFacture = async () => {
+    if (!selectedCustomer || facItems.length === 0 || facBusy) return;
+    setFacBusy(true);
+    try {
+      const num = await fetchNextNumber('facture', 7);
+      const html = buildFactureHTML({
+        number: num,
+        dateISO: todayISO(),
+        periodFrom: facFrom,
+        periodTo: facTo,
+        clientName: selectedCustomer.legal_name || selectedCustomer.name,
+        clientAddress: selectedCustomer.fiscal_address || selectedCustomer.address || '',
+        rc: selectedCustomer.rc,
+        nif: selectedCustomer.nif,
+        nis: selectedCustomer.nis,
+        lines: facLines,
+      });
+      const { error } = await supabase.from('documents').insert({
+        doc_type: 'facture', number: num, doc_date: todayISO(),
+        customer_id: selectedCustomer.id, customer_name: selectedCustomer.name,
+        period_from: facFrom, period_to: facTo, total: facTotal, html,
+      });
+      if (error) throw error;
+      setShowFacturePeriod(false);
+      printHTML(html);
+    } catch (err) {
+      console.error(err);
+      alert("Impossible d'enregistrer la facture : " + errText(err));
+    }
+    setFacBusy(false);
+  };
+
+  const saveDocCopy = async (docType: string, number: number, docDate: string, html: string, total: number) => {
+    if (!selectedCustomer) return;
+    try {
+      const { data } = await supabase.from('documents').select('id').eq('doc_type', docType).eq('number', number).eq('customer_id', selectedCustomer.id).limit(1);
+      const row = { doc_type: docType, number, doc_date: docDate, customer_id: selectedCustomer.id, customer_name: selectedCustomer.name, total, html };
+      if (data && data.length > 0) await supabase.from('documents').update(row).eq('id', data[0].id);
+      else await supabase.from('documents').insert(row);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const openDocs = async () => {
+    setShowDocs(true);
+    setDocsList([]);
+    if (!selectedCustomer) return;
+    const { data, error } = await supabase.from('documents')
+      .select('id, doc_type, number, doc_date, period_from, period_to, total, html')
+      .eq('customer_id', selectedCustomer.id)
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error(error);
+      alert('Impossible de lire les copies : ' + errText(error));
+      return;
+    }
+    setDocsList(data || []);
   };
 
   const openFactureModal = () => {
@@ -687,9 +788,13 @@ export default function BulkSalesPage() {
                 className="flex items-center gap-2 px-3 py-2 bg-white/20 text-white rounded-xl hover:bg-white/30 transition-colors text-sm font-medium">
                 <FileText size={16} /> Bon
               </button>
-              <button onClick={openFactureModal}
+              <button onClick={openFacturePeriod}
                 className="flex items-center gap-2 px-3 py-2 bg-white text-emerald-700 rounded-xl hover:bg-emerald-50 transition-colors text-sm font-medium shadow-sm">
                 <FileCheck size={16} /> Facture
+              </button>
+              <button onClick={openDocs}
+                className='flex items-center gap-2 px-3 py-2 bg-white/20 text-white rounded-xl hover:bg-white/30 transition-colors text-sm font-medium'>
+                <FileText size={16} /> Copies
               </button>
               <button onClick={openAddSale}
                 className="flex items-center gap-2 px-3 py-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-colors text-sm font-medium shadow-sm">
@@ -971,6 +1076,91 @@ export default function BulkSalesPage() {
                 <button onClick={openAddSale} className="mt-3 text-emerald-600 font-medium hover:underline">Ajouter une vente</button>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Facture par periode */}
+        {showFacturePeriod && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
+                <h2 className="text-lg font-semibold flex items-center gap-2"><FileCheck size={20} className="text-emerald-600" /> Facture {facNumber !== null ? 'N° ' + String(facNumber).padStart(2, '0') : ''}</h2>
+                <button onClick={() => setShowFacturePeriod(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+              </div>
+              <div className="p-4 space-y-4">
+                <p className="text-sm text-gray-500">Client : <strong className="text-gray-900">{selectedCustomer.legal_name || selectedCustomer.name}</strong></p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Du</label>
+                    <input type="date" value={facFrom} onChange={e => setFacFrom(e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Au</label>
+                    <input type="date" value={facTo} onChange={e => setFacTo(e.target.value)} className="w-full px-3 py-2 border rounded-lg" />
+                  </div>
+                </div>
+                {facItems.length === 0 ? (
+                  <div className="bg-amber-50 text-amber-800 text-sm rounded-lg p-3">Aucune vente (boîtes ou vrac) pour ce client dans cette période.</div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{facDays.length} jour(s) de vente · {facItems.length} ligne(s)</p>
+                    <div className="border rounded-xl overflow-hidden">
+                      {facLines.map((l, idx) => (
+                        <div key={idx} className="flex items-center justify-between px-3 py-2 text-sm border-b last:border-b-0">
+                          <span>{l.label} · {l.quantityText} × {l.unitPrice.toLocaleString()} DA</span>
+                          <strong>{l.total.toLocaleString()} DA</strong>
+                        </div>
+                      ))}
+                      <div className="flex items-center justify-between px-3 py-2 bg-emerald-50 text-emerald-800 font-semibold">
+                        <span>Total facture</span>
+                        <span>{facTotal.toLocaleString()} DA</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500">Ces ventes sont déjà comptées dans le chiffre d'affaires : la facture ne les ajoute pas une seconde fois. Les ventes magasin ne figurent pas sur la facture.</p>
+                  </div>
+                )}
+                <div className="flex items-center justify-between gap-2 pt-2">
+                  <button onClick={() => { setShowFacturePeriod(false); openFactureModal(); }} className="text-sm text-gray-500 hover:underline">Facture libre (saisie manuelle)</button>
+                  <div className="flex gap-2">
+                    <button onClick={() => setShowFacturePeriod(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Annuler</button>
+                    <button onClick={generateFacture} disabled={facItems.length === 0 || facBusy}
+                      className="flex items-center gap-2 px-5 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 disabled:opacity-50">
+                      <Printer size={16} /> {facBusy ? 'Enregistrement...' : 'Générer et imprimer'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Copies des factures et bons */}
+        {showDocs && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
+                <h2 className="text-lg font-semibold flex items-center gap-2"><FileText size={20} className="text-emerald-600" /> Copies - {selectedCustomer.name}</h2>
+                <button onClick={() => setShowDocs(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+              </div>
+              <div className="p-4 space-y-2">
+                {docsList.length === 0 && <p className="text-sm text-gray-500">Aucune copie enregistrée pour ce client.</p>}
+                {docsList.map(d => (
+                  <div key={d.id} className="flex items-center justify-between border rounded-xl px-3 py-2 text-sm">
+                    <div>
+                      <p className="font-semibold text-gray-900">{d.doc_type === 'facture' ? 'Facture N° ' + String(d.number).padStart(2, '0') : 'Bon N° ' + String(d.number).padStart(3, '0')}</p>
+                      <p className="text-xs text-gray-500">
+                        {format(new Date(d.doc_date), 'dd/MM/yyyy')}
+                        {d.period_from && d.period_to ? ' · du ' + format(new Date(d.period_from), 'dd/MM/yyyy') + ' au ' + format(new Date(d.period_to), 'dd/MM/yyyy') : ''}
+                        {d.total ? ' · ' + Number(d.total).toLocaleString() + ' DA' : ''}
+                      </p>
+                    </div>
+                    <button onClick={() => { if (d.html) printHTML(d.html); }} className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100">
+                      <Printer size={14} /> Réimprimer
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
