@@ -565,7 +565,7 @@ export default function BulkSalesPage() {
       </body></html>`;
   };
 
-  const printHTML = (html: string) => {
+  const printHTML = (html: string, onDone?: () => void) => {
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
     iframe.style.right = '0';
@@ -582,6 +582,7 @@ export default function BulkSalesPage() {
     iframe.contentWindow?.focus();
     setTimeout(() => {
       try { iframe.contentWindow?.print(); } catch (e) { console.error(e); }
+      if (onDone) setTimeout(onDone, 400);
       setTimeout(() => document.body.removeChild(iframe), 1000);
     }, 250);
   };
@@ -631,8 +632,13 @@ export default function BulkSalesPage() {
       clientCity: selectedCustomer.address || selectedCustomer.fiscal_address || '',
       lines: buildBonLines(lines.map(i => ({ type: i.type, quantity: i.quantity, unit_price: i.unit_price }))),
     });
-    void saveDocCopy('bon', num, group.sale_date, html, lines.reduce((s, i) => s + i.total_amount, 0));
-    printHTML(html);
+    const numFinal = num as number;
+    const totalBon = lines.reduce((s, i) => s + i.total_amount, 0);
+    printHTML(html, () => {
+      if (window.confirm('Le bon a-t-il bien été imprimé ?\n\nOK : enregistrer la copie\nAnnuler : ne rien enregistrer')) {
+        void saveDocCopy('bon', numFinal, group.sale_date, html, totalBon);
+      }
+    });
   };
 
   const printDocument = (docType: 'bon' | 'facture') => {
@@ -690,14 +696,27 @@ export default function BulkSalesPage() {
         nis: selectedCustomer.nis,
         lines: facLines,
       });
-      const { error } = await supabase.from('documents').insert({
-        doc_type: 'facture', number: num, doc_date: todayISO(),
-        customer_id: selectedCustomer.id, customer_name: selectedCustomer.name,
-        period_from: facFrom, period_to: facTo, total: facTotal, html,
-      });
-      if (error) throw error;
+      const cust = selectedCustomer;
+      const pf = facFrom;
+      const pt = facTo;
+      const tot = facTotal;
       setShowFacturePeriod(false);
-      printHTML(html);
+      printHTML(html, async () => {
+        if (!window.confirm('La facture a-t-elle bien été imprimée ?\n\nOK : enregistrer la copie et garder le numéro\nAnnuler : ne rien enregistrer')) return;
+        try {
+          const { data: ex } = await supabase.from('documents').select('id').eq('doc_type', 'facture').eq('number', num).limit(1);
+          if (ex && ex.length > 0) { alert('Ce numéro de facture existe déjà : la copie n\'a pas été enregistrée.'); return; }
+          const { error: e2 } = await supabase.from('documents').insert({
+            doc_type: 'facture', number: num, doc_date: todayISO(),
+            customer_id: cust.id, customer_name: cust.name,
+            period_from: pf, period_to: pt, total: tot, html,
+          });
+          if (e2) throw e2;
+        } catch (e) {
+          console.error(e);
+          alert("Impossible d'enregistrer la copie : " + errText(e));
+        }
+      });
     } catch (err) {
       console.error(err);
       alert("Impossible d'enregistrer la facture : " + errText(err));
@@ -717,7 +736,18 @@ export default function BulkSalesPage() {
     }
   };
 
-  const openDocs = async (kind: string) => {
+    const deleteDoc = async (id: string) => {
+    if (!window.confirm('Supprimer cette copie ? Cette action est définitive.')) return;
+    const { error } = await supabase.from('documents').delete().eq('id', id);
+    if (error) {
+      console.error(error);
+      alert('Impossible de supprimer : ' + errText(error));
+      return;
+    }
+    setDocsList(docsList.filter(d => d.id !== id));
+  };
+
+const openDocs = async (kind: string) => {
     setDocsKind(kind);
     setShowDocs(true);
     setDocsList([]);
@@ -1159,9 +1189,14 @@ export default function BulkSalesPage() {
                         {d.total ? ' · ' + Number(d.total).toLocaleString() + ' DA' : ''}
                       </p>
                     </div>
+                    <div className='flex gap-2'>
                     <button onClick={() => { if (d.html) printHTML(d.html); }} className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100">
                       <Printer size={14} /> Réimprimer
                     </button>
+                    <button onClick={() => deleteDoc(d.id)} className='flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-700 rounded-lg hover:bg-red-100'>
+                      <Trash2 size={14} /> Supprimer
+                    </button>
+                    </div>
                   </div>
                 ))}
               </div>
