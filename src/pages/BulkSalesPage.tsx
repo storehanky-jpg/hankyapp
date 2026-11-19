@@ -4,7 +4,7 @@ import {
   Check, Clock, ArrowLeft, Search, FileText, FileCheck,
   Users, Phone, Mail, TrendingUp, ShoppingBag, Tag,
   ChevronRight, ChevronDown, Sparkles, Receipt
-} from 'lucide-react';
+} from  'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
