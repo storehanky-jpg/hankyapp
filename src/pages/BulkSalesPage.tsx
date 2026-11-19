@@ -86,6 +86,7 @@ export default function BulkSalesPage() {
   const [facNumber, setFacNumber] = useState<number | null>(null);
   const [facBusy, setFacBusy] = useState(false);
   const [showDocs, setShowDocs] = useState(false);
+  const [docsKind, setDocsKind] = useState('facture');
   const [docsList, setDocsList] = useState<{ id: string; doc_type: string; number: number; doc_date: string; period_from?: string; period_to?: string; total?: number; html?: string }[]>([]);
   const [factureItems, setFactureItems] = useState<{ label: string; quantity: number; unit_price: number }[]>([]);
   const [factureItemForm, setFactureItemForm] = useState({ label: '', quantity: 1, unit_price: 0 });
@@ -716,7 +717,8 @@ export default function BulkSalesPage() {
     }
   };
 
-  const openDocs = async () => {
+  const openDocs = async (kind: string) => {
+    setDocsKind(kind);
     setShowDocs(true);
     setDocsList([]);
     if (!selectedCustomer) return;
@@ -792,10 +794,6 @@ export default function BulkSalesPage() {
                 className="flex items-center gap-2 px-3 py-2 bg-white text-emerald-700 rounded-xl hover:bg-emerald-50 transition-colors text-sm font-medium shadow-sm">
                 <FileCheck size={16} /> Facture
               </button>
-              <button onClick={openDocs}
-                className='flex items-center gap-2 px-3 py-2 bg-white/20 text-white rounded-xl hover:bg-white/30 transition-colors text-sm font-medium'>
-                <FileText size={16} /> Copies
-              </button>
               <button onClick={openAddSale}
                 className="flex items-center gap-2 px-3 py-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-colors text-sm font-medium shadow-sm">
                 <Plus size={16} /> Vente
@@ -833,6 +831,13 @@ export default function BulkSalesPage() {
           <button onClick={() => setActiveTab('tarifs')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTab === 'tarifs' ? 'bg-emerald-500 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-50'}`}>
             <Tag size={15} /> Tarifs
+          </button>
+          <span className='ml-3 pl-3 border-l border-gray-200 text-sm text-gray-500 whitespace-nowrap'>Afficher</span>
+          <button onClick={() => openDocs('bon')} className='flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50'>
+            <FileText size={15} /> Bon
+          </button>
+          <button onClick={() => openDocs('facture')} className='flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50'>
+            <FileCheck size={15} /> Facture
           </button>
         </div>
 
@@ -915,8 +920,8 @@ export default function BulkSalesPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-sm">
-                            <span className="font-medium text-gray-900" title={group.productSummary}>
-                              {group.productSummary}
+                            <span className="block max-w-[280px] truncate whitespace-nowrap font-medium text-gray-900" title={group.productSummary}>
+                              {group.items.length > 1 ? group.items[0].label + ' x' + group.items[0].quantity + (group.items[0].type === 'vrac' ? ' kg' : '') + ' + ' + (group.items.length - 1) + ' autre(s)' : group.productSummary}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-right text-gray-700 text-sm whitespace-nowrap">
@@ -1139,12 +1144,12 @@ export default function BulkSalesPage() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
-                <h2 className="text-lg font-semibold flex items-center gap-2"><FileText size={20} className="text-emerald-600" /> Copies - {selectedCustomer.name}</h2>
+                <h2 className="text-lg font-semibold flex items-center gap-2"><FileText size={20} className="text-emerald-600" /> {docsKind === 'facture' ? 'Factures' : 'Bons'} - {selectedCustomer.name}</h2>
                 <button onClick={() => setShowDocs(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
               </div>
               <div className="p-4 space-y-2">
-                {docsList.length === 0 && <p className="text-sm text-gray-500">Aucune copie enregistrée pour ce client.</p>}
-                {docsList.map(d => (
+                {docsList.filter(d => d.doc_type === docsKind).length === 0 && <p className="text-sm text-gray-500">Aucune copie enregistrée pour ce client.</p>}
+                {docsList.filter(d => d.doc_type === docsKind).map(d => (
                   <div key={d.id} className="flex items-center justify-between border rounded-xl px-3 py-2 text-sm">
                     <div>
                       <p className="font-semibold text-gray-900">{d.doc_type === 'facture' ? 'Facture N° ' + String(d.number).padStart(2, '0') : 'Bon N° ' + String(d.number).padStart(3, '0')}</p>
