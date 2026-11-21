@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
 import { formatKg, formatLoss } from '../lib/formatters';
-import type { ProductionMaterial } from '../types';
+import type { Product ionMaterial } from '../types';
 
 // Default coque recipe (g per batch)
 const DEFAULT_COQUE: { name: string; qty: number }[] = [
