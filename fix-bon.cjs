@@ -3,102 +3,164 @@ console.log('DEBUT');
 const stop = (m) => { console.log('ARRET : ' + m); process.exit(1); };
 const D = (s) => Buffer.from(s, 'base64').toString('utf8');
 const STATES = D([
-'CiAgY29uc3QgW2Rhc2hGcm9tLCBzZXREYXNoRnJvbV0gPSB1c2VTdGF0ZShmb3JtYXQoc3RhcnRPZk1vbnRoKG5ldyBEYXRlKCkp',
-'LCAneXl5eS1NTS1kZCcpKTsKICBjb25zdCBbZGFzaFRvLCBzZXREYXNoVG9dID0gdXNlU3RhdGUoZm9ybWF0KGVuZE9mTW9udGgo',
-'bmV3IERhdGUoKSksICd5eXl5LU1NLWRkJykpOwo='
+'CiAgY29uc3QgW2VkaXRNdWx0LCBzZXRFZGl0TXVsdF0gPSB1c2VTdGF0ZTxSZWNpcGVUeXBlIHwgbnVsbD4obnVsbCk7CiAgY29u',
+'c3QgW211bHREcmFmdCwgc2V0TXVsdERyYWZ0XSA9IHVzZVN0YXRlKCcnKTsKICBjb25zdCBbcHJvZERhdGUsIHNldFByb2REYXRl',
+'XSA9IHVzZVN0YXRlKG5ldyBEYXRlKERhdGUubm93KCkgLSBuZXcgRGF0ZSgpLmdldFRpbWV6b25lT2Zmc2V0KCkgKiA2MDAwMCku',
+'dG9JU09TdHJpbmcoKS5zbGljZSgwLCAxMCkpOwogIGNvbnN0IFtwcm9kQnVzeSwgc2V0UHJvZEJ1c3ldID0gdXNlU3RhdGUoZmFs',
+'c2UpOwo='
 ].join(''));
-const RANGE = D([
-'CiAgLy8gUGVyaW9kZSBjaG9pc2llIChhZ2VuZGEgRHUgLi4uIGF1KQogIGNvbnN0IHJhbmdlRnJvbUQgPSBuZXcgRGF0ZShkYXNo',
-'RnJvbSArICdUMDA6MDA6MDAnKTsKICBjb25zdCByYW5nZVRvRCA9IG5ldyBEYXRlKGRhc2hUbyArICdUMDA6MDA6MDAnKTsKICBj',
-'b25zdCByYW5nZVZhbGlkID0gIWlzTmFOKHJhbmdlRnJvbUQuZ2V0VGltZSgpKSAmJiAhaXNOYU4ocmFuZ2VUb0QuZ2V0VGltZSgp',
-'KSAmJiByYW5nZUZyb21EIDw9IHJhbmdlVG9EOwogIGNvbnN0IGlzTW9udGhSYW5nZSA9IGRhc2hGcm9tID09PSBmb3JtYXQoc3Rh',
-'cnRPZk1vbnRoKHRvZGF5KSwgJ3l5eXktTU0tZGQnKSAmJiBkYXNoVG8gPT09IGZvcm1hdChlbmRPZk1vbnRoKHRvZGF5KSwgJ3l5',
-'eXktTU0tZGQnKTsKICBjb25zdCBkYXRlSW5SYW5nZSA9IChkOiBEYXRlKSA9PiB7CiAgICBpZiAoIXJhbmdlVmFsaWQgfHwgaXNO',
-'YU4oZC5nZXRUaW1lKCkpKSByZXR1cm4gZmFsc2U7CiAgICBjb25zdCBzID0gZm9ybWF0KGQsICd5eXl5LU1NLWRkJyk7CiAgICBy',
-'ZXR1cm4gcyA+PSBkYXNoRnJvbSAmJiBzIDw9IGRhc2hUbzsKICB9OwogIGxldCBkYXNoRmFjdG9yID0gMDsKICBpZiAocmFuZ2VW',
-'YWxpZCkgewogICAgY29uc3QgY3VyID0gbmV3IERhdGUocmFuZ2VGcm9tRC5nZXRGdWxsWWVhcigpLCByYW5nZUZyb21ELmdldE1v',
-'bnRoKCksIDEpOwogICAgd2hpbGUgKGN1ciA8PSByYW5nZVRvRCkgewogICAgICBjb25zdCBtcyA9IG5ldyBEYXRlKGN1ci5nZXRG',
-'dWxsWWVhcigpLCBjdXIuZ2V0TW9udGgoKSwgMSk7CiAgICAgIGNvbnN0IG1lID0gbmV3IERhdGUoY3VyLmdldEZ1bGxZZWFyKCks',
-'IGN1ci5nZXRNb250aCgpICsgMSwgMCk7CiAgICAgIGNvbnN0IGEgPSByYW5nZUZyb21EID4gbXMgPyByYW5nZUZyb21EIDogbXM7',
-'CiAgICAgIGNvbnN0IGIgPSByYW5nZVRvRCA8IG1lID8gcmFuZ2VUb0QgOiBtZTsKICAgICAgZGFzaEZhY3RvciArPSAoTWF0aC5y',
-'b3VuZCgoYi5nZXRUaW1lKCkgLSBhLmdldFRpbWUoKSkgLyA4NjQwMDAwMCkgKyAxKSAvIG1lLmdldERhdGUoKTsKICAgICAgY3Vy',
-'LnNldE1vbnRoKGN1ci5nZXRNb250aCgpICsgMSk7CiAgICB9CiAgfQogIGNvbnN0IHJhbmdlRGF5cyA9IHJhbmdlVmFsaWQgPyBN',
-'YXRoLnJvdW5kKChyYW5nZVRvRC5nZXRUaW1lKCkgLSByYW5nZUZyb21ELmdldFRpbWUoKSkgLyA4NjQwMDAwMCkgKyAxIDogMTsK',
-'ICB2b2lkIGN1cnJlbnRNb250aDsKICB2b2lkIGN1cnJlbnRZZWFyOwo='
+const FUNCS = D([
+'CgogIC8vIOKUgOKUgCBNdWx0aXBsaWNhdGV1cnMgcGFyIHJlY2V0dGUgKyBlbnZvaSBhIGxhIHByb2R1Y3Rpb24g4pSA4pSACiAg',
+'dm9pZCBbdG9kYXlUb3RhbENvc3QsIHRvZGF5R2FuYWNoZUNvc3QsIGdhbmFjaGVEYWlseVF0eSwgc2V0R2FuYWNoZURhaWx5UXR5',
+'LCBnYW5hY2hlQ29zdFBlckdyYW0sIFNjYWxlLCBDYWxjdWxhdG9yXTsKCiAgY29uc3Qgc2F2ZU11bHQgPSAoKSA9PiB7CiAgICBj',
+'b25zdCB2ID0gcGFyc2VGbG9hdChtdWx0RHJhZnQucmVwbGFjZSgnLCcsICcuJykpOwogICAgaWYgKCFpc0Zpbml0ZSh2KSB8fCB2',
+'IDw9IDApIHsKICAgICAgYWxlcnQoJ0VudHJlIHVuIG5vbWJyZSBzdXDDqXJpZXVyIMOgIDAgKGV4IDogMTAgb3UgNy41KS4nKTsK',
+'ICAgICAgcmV0dXJuOwogICAgfQogICAgY29uc3QgciA9IE1hdGgucm91bmQodiAqIDEwMDApIC8gMTAwMDsKICAgIGlmIChlZGl0',
+'TXVsdCA9PT0gJ2dhbmFjaGUnKSBzZXRHYW5hY2hlTXVsdGlwbGllcihyKTsgZWxzZSBzZXRNdWx0aXBsaWVyKHIpOwogICAgc2V0',
+'RWRpdE11bHQobnVsbCk7CiAgfTsKCiAgY29uc3QgZGF5Q29xdWVHID0gYWN0aXZlQ29xdWVMaW5lcy5yZWR1Y2UoKHMsIGwpID0+',
+'IHMgKyBsLnF1YW50aXR5LCAwKSAqIG11bHRpcGxpZXI7CiAgY29uc3QgZGF5R2FuYWNoZUcgPSBhY3RpdmVHYW5hY2hlTGluZXMu',
+'cmVkdWNlKChzLCBsKSA9PiBzICsgbC5xdWFudGl0eSwgMCkgKiBnYW5hY2hlTXVsdGlwbGllcjsKICBjb25zdCB0b3RhbEtnRGF5',
+'ID0gTWF0aC5yb3VuZCgoKGRheUNvcXVlRyArIGRheUdhbmFjaGVHKSAvIDEwMDApICogMTAwMCkgLyAxMDAwOwogIGNvbnN0IGNv',
+'c3REYXkgPSBjb3F1ZVRvdGFsQ29zdCArIGdhbmFjaGVUb3RhbENvc3Q7CgogIGNvbnN0IHNlbmRUb1Byb2R1Y3Rpb24gPSBhc3lu',
+'YyAoKSA9PiB7CiAgICBpZiAodG90YWxLZ0RheSA8PSAwIHx8IHByb2RCdXN5KSByZXR1cm47CiAgICBzZXRQcm9kQnVzeSh0cnVl',
+'KTsKICAgIHRyeSB7CiAgICAgIGNvbnN0IG5vdGUgPSAnUmVjZXR0ZXMgOiBjb3F1ZXMgeCcgKyBtdWx0aXBsaWVyICsgJyDCtyBn',
+'YW5hY2hlIHgnICsgZ2FuYWNoZU11bHRpcGxpZXI7CiAgICAgIGNvbnN0IGNvc3QgPSBNYXRoLnJvdW5kKGNvc3REYXkgKiAxMDAp',
+'IC8gMTAwOwogICAgICBjb25zdCBtZXJnZWQ6IFJlY29yZDxzdHJpbmcsIHsgbWF0ZXJpYWxfaWQ6IHN0cmluZzsgcXVhbnRpdHk6',
+'IG51bWJlcjsgdW5pdF9jb3N0OiBudW1iZXIgfT4gPSB7fTsKICAgICAgY29uc3QgYWRkTGluZXMgPSAobGluZXM6IFJlY2lwZUxp',
+'bmVbXSwgbXVsdDogbnVtYmVyKSA9PiB7CiAgICAgICAgbGluZXMuZm9yRWFjaChsID0+IHsKICAgICAgICAgIGlmICghbC5tYXRl',
+'cmlhbElkKSByZXR1cm47CiAgICAgICAgICBjb25zdCB1YyA9IGwudW5pdENvc3QgPz8gbC5kZWZhdWx0Q29zdCA/PyAwOwogICAg',
+'ICAgICAgaWYgKCFtZXJnZWRbbC5tYXRlcmlhbElkXSkgbWVyZ2VkW2wubWF0ZXJpYWxJZF0gPSB7IG1hdGVyaWFsX2lkOiBsLm1h',
+'dGVyaWFsSWQsIHF1YW50aXR5OiAwLCB1bml0X2Nvc3Q6IHVjIH07CiAgICAgICAgICBtZXJnZWRbbC5tYXRlcmlhbElkXS5xdWFu',
+'dGl0eSArPSAobC5xdWFudGl0eSAqIG11bHQpIC8gMTAwMDsKICAgICAgICB9KTsKICAgICAgfTsKICAgICAgYWRkTGluZXMoYWN0',
+'aXZlQ29xdWVMaW5lcywgbXVsdGlwbGllcik7CiAgICAgIGFkZExpbmVzKGFjdGl2ZUdhbmFjaGVMaW5lcywgZ2FuYWNoZU11bHRp',
+'cGxpZXIpOwogICAgICBjb25zdCBtYXRzID0gT2JqZWN0LnZhbHVlcyhtZXJnZWQpLm1hcChtID0+ICh7IC4uLm0sIHF1YW50aXR5',
+'OiBNYXRoLnJvdW5kKG0ucXVhbnRpdHkgKiAxMDAwKSAvIDEwMDAgfSkpOwogICAgICBjb25zdCBleGlzdGluZyA9IHByb2R1Y3Rp',
+'b25CYXRjaGVzLmZpbmQoYiA9PiBiLmJhdGNoX2RhdGUgPT09IHByb2REYXRlICYmIChiLm5vdGVzIHx8ICcnKS5pbmRleE9mKCdS',
+'ZWNldHRlcyA6JykgPT09IDApOwogICAgICBsZXQgc2F2ZWQ6IFByb2R1Y3Rpb25CYXRjaDsKICAgICAgaWYgKGV4aXN0aW5nKSB7',
+'CiAgICAgICAgY29uc3QgdmFsID0gZXhpc3RpbmcucHJvZHVjdGlvbl92YWx1ZSB8fCAwOwogICAgICAgIHNhdmVkID0gYXdhaXQg',
+'YXBpLnByb2R1Y3Rpb25CYXRjaFNlcnZpY2UudXBkYXRlKGV4aXN0aW5nLmlkLCB7CiAgICAgICAgICBiYXRjaF9kYXRlOiBwcm9k',
+'RGF0ZSwgcGxhbm5lZF9xdWFudGl0eTogdG90YWxLZ0RheSwgcHJvZHVjZWRfcXVhbnRpdHk6IHRvdGFsS2dEYXksCiAgICAgICAg',
+'ICBsb3N0X3F1YW50aXR5OiBleGlzdGluZy5sb3N0X3F1YW50aXR5LCBub3Rlczogbm90ZSwKICAgICAgICAgIHByb2R1Y3Rpb25f',
+'Y29zdDogY29zdCwgcHJvZHVjdGlvbl92YWx1ZTogdmFsLCBwcm9maXQ6IHZhbCAtIGNvc3QsCiAgICAgICAgfSk7CiAgICAgICAg',
+'YXdhaXQgYXBpLnByb2R1Y3Rpb25NYXRlcmlhbHNTZXJ2aWNlLmRlbGV0ZUJ5QmF0Y2goZXhpc3RpbmcuaWQpOwogICAgICB9IGVs',
+'c2UgewogICAgICAgIHNhdmVkID0gYXdhaXQgYXBpLnByb2R1Y3Rpb25CYXRjaFNlcnZpY2UuY3JlYXRlKHsKICAgICAgICAgIGJh',
+'dGNoX2RhdGU6IHByb2REYXRlLCBwbGFubmVkX3F1YW50aXR5OiB0b3RhbEtnRGF5LCBwcm9kdWNlZF9xdWFudGl0eTogdG90YWxL',
+'Z0RheSwKICAgICAgICAgIGxvc3RfcXVhbnRpdHk6IDAsIG5vdGVzOiBub3RlLAogICAgICAgICAgcHJvZHVjdGlvbl9jb3N0OiBj',
+'b3N0LCBwcm9kdWN0aW9uX3ZhbHVlOiAwLCBwcm9maXQ6IC1jb3N0LAogICAgICAgIH0pOwogICAgICB9CiAgICAgIGZvciAoY29u',
+'c3QgbSBvZiBtYXRzKSB7CiAgICAgICAgYXdhaXQgYXBpLnByb2R1Y3Rpb25NYXRlcmlhbHNTZXJ2aWNlLmNyZWF0ZSh7CiAgICAg',
+'ICAgICBiYXRjaF9pZDogc2F2ZWQuaWQsIG1hdGVyaWFsX2lkOiBtLm1hdGVyaWFsX2lkLCBxdWFudGl0eTogbS5xdWFudGl0eSwK',
+'ICAgICAgICAgIHVuaXRfY29zdDogbS51bml0X2Nvc3QsIHRvdGFsX2Nvc3Q6IE1hdGgucm91bmQobS5xdWFudGl0eSAqIG0udW5p',
+'dF9jb3N0ICogMTAwKSAvIDEwMCwKICAgICAgICB9KTsKICAgICAgfQogICAgICBjb25zdCB3aXRoTWF0czogUHJvZHVjdGlvbkJh',
+'dGNoID0gewogICAgICAgIC4uLnNhdmVkLAogICAgICAgIG1hdGVyaWFsczogbWF0cy5tYXAoKG0sIGkpID0+ICh7CiAgICAgICAg',
+'ICBpZDogJ3RlbXAtJyArIGksIGJhdGNoX2lkOiBzYXZlZC5pZCwgbWF0ZXJpYWxfaWQ6IG0ubWF0ZXJpYWxfaWQsIHF1YW50aXR5',
+'OiBtLnF1YW50aXR5LAogICAgICAgICAgdW5pdF9jb3N0OiBtLnVuaXRfY29zdCwgdG90YWxfY29zdDogbS5xdWFudGl0eSAqIG0u',
+'dW5pdF9jb3N0LCBjcmVhdGVkX2F0OiBuZXcgRGF0ZSgpLnRvSVNPU3RyaW5nKCksCiAgICAgICAgICBtYXRlcmlhbDogcmF3TWF0',
+'ZXJpYWxzLmZpbmQociA9PiByLmlkID09PSBtLm1hdGVyaWFsX2lkKSwKICAgICAgICB9KSksCiAgICAgIH07CiAgICAgIHNldFBy',
+'b2R1Y3Rpb25CYXRjaGVzKGV4aXN0aW5nID8gcHJvZHVjdGlvbkJhdGNoZXMubWFwKGIgPT4gKGIuaWQgPT09IGV4aXN0aW5nLmlk',
+'ID8gd2l0aE1hdHMgOiBiKSkgOiBbd2l0aE1hdHMsIC4uLnByb2R1Y3Rpb25CYXRjaGVzXSk7CiAgICAgIGFsZXJ0KCdQcm9kdWN0',
+'aW9uIGVudm95w6llIDogJyArIHRvdGFsS2dEYXkudG9Mb2NhbGVTdHJpbmcoKSArICcga2cgbGUgJyArIHByb2REYXRlICsgJy4g',
+'T3V2cmUgbGEgcGFnZSBQcm9kdWN0aW9uIHBvdXIgbGEgdm9pci4nKTsKICAgIH0gY2F0Y2ggKGVycikgewogICAgICBjb25zb2xl',
+'LmVycm9yKGVycik7CiAgICAgIGNvbnN0IG1zZyA9IGVyciAmJiB0eXBlb2YgZXJyID09PSAnb2JqZWN0JyAmJiAnbWVzc2FnZScg',
+'aW4gZXJyID8gU3RyaW5nKChlcnIgYXMgeyBtZXNzYWdlOiB1bmtub3duIH0pLm1lc3NhZ2UpIDogJ2VycmV1cic7CiAgICAgIGFs',
+'ZXJ0KCJJbXBvc3NpYmxlIGQnZW52b3llciBsYSBwcm9kdWN0aW9uIDogIiArIG1zZyk7CiAgICB9CiAgICBzZXRQcm9kQnVzeShm',
+'YWxzZSk7CiAgfTsK'
 ].join(''));
-const LABOR = D([
-'ICBjb25zdCBsYWJvck1vbnRoID0gbGFib3JDb3N0cy5yZWR1Y2UoKHN1bSwgbCkgPT4gewogICAgaWYgKCFyYW5nZVZhbGlkKSBy',
-'ZXR1cm4gc3VtOwogICAgY29uc3QgbXMgPSBuZXcgRGF0ZShsLnBlcmlvZF95ZWFyLCBsLnBlcmlvZF9tb250aCAtIDEsIDEpOwog',
-'ICAgY29uc3QgbWUgPSBuZXcgRGF0ZShsLnBlcmlvZF95ZWFyLCBsLnBlcmlvZF9tb250aCwgMCk7CiAgICBjb25zdCBhID0gcmFu',
-'Z2VGcm9tRCA+IG1zID8gcmFuZ2VGcm9tRCA6IG1zOwogICAgY29uc3QgYiA9IHJhbmdlVG9EIDwgbWUgPyByYW5nZVRvRCA6IG1l',
-'OwogICAgaWYgKGIgPCBhKSByZXR1cm4gc3VtOwogICAgY29uc3QgZnJhYyA9IChNYXRoLnJvdW5kKChiLmdldFRpbWUoKSAtIGEu',
-'Z2V0VGltZSgpKSAvIDg2NDAwMDAwKSArIDEpIC8gbWUuZ2V0RGF0ZSgpOwogICAgY29uc3QgYWR2ID0gdmFyaWFibGVFeHBlbnNl',
-'cy5maWx0ZXIoZSA9PiBlLm5vdGVzID09PSAnbGFib3I6JyArIGwuaWQpLnJlZHVjZSgoczIsIGUpID0+IHMyICsgZS5hbW91bnQs',
-'IDApOwogICAgcmV0dXJuIHN1bSArIChsLnRvdGFsX2Nvc3QgLSBhZHYpICogZnJhYzsKICB9LCAwKTsK'
+const CONTROL = D([
+'ICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT0ibWwtNiBmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMiBiZy13aGl0ZS8yMCByb3Vu',
+'ZGVkLXhsIHB4LTMgcHktMiI+CiAgICAgICAgICAgICAgICA8c3BhbiBjbGFzc05hbWU9InRleHQtc20gZm9udC1tZWRpdW0iPk11',
+'bHRpcGxpY2F0ZXVyIMOXPC9zcGFuPgogICAgICAgICAgICAgICAge2VkaXRNdWx0ID09PSBhY3RpdmVUYWIgPyAoCiAgICAgICAg',
+'ICAgICAgICAgIDw+CiAgICAgICAgICAgICAgICAgICAgPGlucHV0IHR5cGU9Im51bWJlciIgc3RlcD0iYW55IiBtaW49IjAiIHZh',
+'bHVlPXttdWx0RHJhZnR9IG9uQ2hhbmdlPXtlID0+IHNldE11bHREcmFmdChlLnRhcmdldC52YWx1ZSl9IGNsYXNzTmFtZT0idy0y',
+'MCBweC0yIHB5LTEgcm91bmRlZC1sZyB0ZXh0LWdyYXktOTAwIHRleHQtY2VudGVyIGZvbnQtYm9sZCIgLz4KICAgICAgICAgICAg',
+'ICAgICAgICA8YnV0dG9uIHR5cGU9ImJ1dHRvbiIgb25DbGljaz17c2F2ZU11bHR9IGNsYXNzTmFtZT0icHgtMyBweS0xIHJvdW5k',
+'ZWQtbGcgYmctd2hpdGUgdGV4dC1ncmF5LTgwMCB0ZXh0LXNtIGZvbnQtc2VtaWJvbGQiPk9LPC9idXR0b24+CiAgICAgICAgICAg',
+'ICAgICAgICAgPGJ1dHRvbiB0eXBlPSJidXR0b24iIG9uQ2xpY2s9eygpID0+IHNldEVkaXRNdWx0KG51bGwpfSBjbGFzc05hbWU9',
+'InB4LTIgcHktMSB0ZXh0LXNtIHVuZGVybGluZSI+QW5udWxlcjwvYnV0dG9uPgogICAgICAgICAgICAgICAgICA8Lz4KICAgICAg',
+'ICAgICAgICAgICkgOiAoCiAgICAgICAgICAgICAgICAgIDw+CiAgICAgICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPSJ0',
+'ZXh0LTJ4bCBmb250LWJvbGQiPnthY3RpdmVUYWIgPT09ICdjb3F1ZScgPyBtdWx0aXBsaWVyIDogZ2FuYWNoZU11bHRpcGxpZXJ9',
+'PC9zcGFuPgogICAgICAgICAgICAgICAgICAgIDxidXR0b24gdHlwZT0iYnV0dG9uIiBvbkNsaWNrPXsoKSA9PiB7IHNldE11bHRE',
+'cmFmdChTdHJpbmcoYWN0aXZlVGFiID09PSAnY29xdWUnID8gbXVsdGlwbGllciA6IGdhbmFjaGVNdWx0aXBsaWVyKSk7IHNldEVk',
+'aXRNdWx0KGFjdGl2ZVRhYik7IH19IGNsYXNzTmFtZT0icHgtMyBweS0xIHJvdW5kZWQtbGcgYmctd2hpdGUvOTAgdGV4dC1ncmF5',
+'LTgwMCB0ZXh0LXNtIGZvbnQtc2VtaWJvbGQgaG92ZXI6Ymctd2hpdGUiPk1vZGlmaWVyPC9idXR0b24+CiAgICAgICAgICAgICAg',
+'ICAgIDwvPgogICAgICAgICAgICAgICAgKX0KICAgICAgICAgICAgICA8L2Rpdj4K'
 ].join(''));
-const UI = D([
-'ICAgICAgey8qIFBlcmlvZGUgKi99CiAgICAgIDxkaXYgY2xhc3NOYW1lPSJiZy13aGl0ZSByb3VuZGVkLTJ4bCBwLTQgc2hhZG93',
-'LXNtIGJvcmRlciBib3JkZXItZ3JheS0xMDAgZmxleCBmbGV4LXdyYXAgaXRlbXMtY2VudGVyIGdhcC0zIj4KICAgICAgICA8Q2Fs',
-'ZW5kYXIgc2l6ZT17MTh9IGNsYXNzTmFtZT0idGV4dC1hbWJlci02MDAiIC8+CiAgICAgICAgPHNwYW4gY2xhc3NOYW1lPSJ0ZXh0',
-'LXNtIGZvbnQtbWVkaXVtIHRleHQtZ3JheS03MDAiPlDDqXJpb2RlIDo8L3NwYW4+CiAgICAgICAgPGJ1dHRvbiB0eXBlPSJidXR0',
-'b24iIG9uQ2xpY2s9eygpID0+IHsgY29uc3QgcyA9IHN0YXJ0T2ZXZWVrKHRvZGF5LCB7IHdlZWtTdGFydHNPbjogNiB9KTsgc2V0',
-'RGFzaEZyb20oZm9ybWF0KHMsICd5eXl5LU1NLWRkJykpOyBzZXREYXNoVG8oZm9ybWF0KGFkZERheXMocywgNSksICd5eXl5LU1N',
-'LWRkJykpOyB9fQogICAgICAgICAgY2xhc3NOYW1lPSJweC0zIHB5LTEuNSByb3VuZGVkLWxnIHRleHQtc20gZm9udC1tZWRpdW0g',
-'YmctZ3JheS0xMDAgdGV4dC1ncmF5LTcwMCBob3ZlcjpiZy1hbWJlci0xMDAiPlNlbWFpbmU8L2J1dHRvbj4KICAgICAgICA8YnV0',
-'dG9uIHR5cGU9ImJ1dHRvbiIgb25DbGljaz17KCkgPT4geyBzZXREYXNoRnJvbShmb3JtYXQoc3RhcnRPZk1vbnRoKHRvZGF5KSwg',
-'J3l5eXktTU0tZGQnKSk7IHNldERhc2hUbyhmb3JtYXQoZW5kT2ZNb250aCh0b2RheSksICd5eXl5LU1NLWRkJykpOyB9fQogICAg',
-'ICAgICAgY2xhc3NOYW1lPXtgcHgtMyBweS0xLjUgcm91bmRlZC1sZyB0ZXh0LXNtIGZvbnQtbWVkaXVtICR7aXNNb250aFJhbmdl',
-'ID8gJ2JnLWFtYmVyLTUwMCB0ZXh0LXdoaXRlJyA6ICdiZy1ncmF5LTEwMCB0ZXh0LWdyYXktNzAwIGhvdmVyOmJnLWFtYmVyLTEw',
-'MCd9YH0+TW9pczwvYnV0dG9uPgogICAgICAgIDxidXR0b24gdHlwZT0iYnV0dG9uIiBvbkNsaWNrPXsoKSA9PiB7IHNldERhc2hG',
-'cm9tKGZvcm1hdChzdGFydE9mWWVhcih0b2RheSksICd5eXl5LU1NLWRkJykpOyBzZXREYXNoVG8oZm9ybWF0KGVuZE9mWWVhcih0',
-'b2RheSksICd5eXl5LU1NLWRkJykpOyB9fQogICAgICAgICAgY2xhc3NOYW1lPSJweC0zIHB5LTEuNSByb3VuZGVkLWxnIHRleHQt',
-'c20gZm9udC1tZWRpdW0gYmctZ3JheS0xMDAgdGV4dC1ncmF5LTcwMCBob3ZlcjpiZy1hbWJlci0xMDAiPkFubsOpZTwvYnV0dG9u',
-'PgogICAgICAgIDxkaXYgY2xhc3NOYW1lPSJmbGV4IGl0ZW1zLWNlbnRlciBnYXAtMiI+CiAgICAgICAgICA8c3BhbiBjbGFzc05h',
-'bWU9InRleHQtc20gdGV4dC1ncmF5LTYwMCI+RHU8L3NwYW4+CiAgICAgICAgICA8aW5wdXQgdHlwZT0iZGF0ZSIgdmFsdWU9e2Rh',
-'c2hGcm9tfSBvbkNoYW5nZT17ZSA9PiBzZXREYXNoRnJvbShlLnRhcmdldC52YWx1ZSl9IGNsYXNzTmFtZT0icHgtMiBweS0xLjUg',
-'Ym9yZGVyIHJvdW5kZWQtbGcgdGV4dC1zbSIgLz4KICAgICAgICAgIDxzcGFuIGNsYXNzTmFtZT0idGV4dC1zbSB0ZXh0LWdyYXkt',
-'NjAwIj5hdTwvc3Bhbj4KICAgICAgICAgIDxpbnB1dCB0eXBlPSJkYXRlIiB2YWx1ZT17ZGFzaFRvfSBvbkNoYW5nZT17ZSA9PiBz',
-'ZXREYXNoVG8oZS50YXJnZXQudmFsdWUpfSBjbGFzc05hbWU9InB4LTIgcHktMS41IGJvcmRlciByb3VuZGVkLWxnIHRleHQtc20i',
-'IC8+CiAgICAgICAgPC9kaXY+CiAgICAgICAgeyFyYW5nZVZhbGlkICYmIDxzcGFuIGNsYXNzTmFtZT0idGV4dC14cyB0ZXh0LXJl',
-'ZC02MDAiPkRhdGVzIGludmFsaWRlczwvc3Bhbj59CiAgICAgIDwvZGl2PgoK'
+const BLOCK = D([
+'ICAgICAgICAgIHsvKiBQcm9kdWN0aW9uIGR1IGpvdXIgKi99CiAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT0iYmctd2hpdGUgcm91',
+'bmRlZC0yeGwgc2hhZG93LXNtIGJvcmRlciBib3JkZXItZ3JheS0xMDAgb3ZlcmZsb3ctaGlkZGVuIj4KICAgICAgICAgICAgPGRp',
+'diBjbGFzc05hbWU9ImJnLWdyYWRpZW50LXRvLXIgZnJvbS12aW9sZXQtNTAwIHRvLXB1cnBsZS02MDAgcC01IGZsZXggaXRlbXMt',
+'Y2VudGVyIGdhcC0zIHRleHQtd2hpdGUiPgogICAgICAgICAgICAgIDxGbGFza0NvbmljYWwgc2l6ZT17MjJ9IC8+CiAgICAgICAg',
+'ICAgICAgPGRpdj4KICAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT0iZm9udC1ib2xkIHRleHQtYmFzZSI+UHJvZHVjdGlvbiBk',
+'dSBqb3VyPC9wPgogICAgICAgICAgICAgICAgPHAgY2xhc3NOYW1lPSJ0ZXh0LXhzIHRleHQtd2hpdGUvODAiPkNvcXVlcyDDl3tt',
+'dWx0aXBsaWVyfSDCtyBHYW5hY2hlIMOXe2dhbmFjaGVNdWx0aXBsaWVyfSA6IGNlcyBkb25uw6llcyBwYXJ0ZW50IGRhbnMgbGEg',
+'cGFnZSBQcm9kdWN0aW9uPC9wPgogICAgICAgICAgICAgIDwvZGl2PgogICAgICAgICAgICA8L2Rpdj4KICAgICAgICAgICAgPGRp',
+'diBjbGFzc05hbWU9InAtNSBzcGFjZS15LTQiPgogICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPSJncmlkIGdyaWQtY29scy0y',
+'IG1kOmdyaWQtY29scy00IGdhcC0zIj4KICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPSJiZy1hbWJlci01MCByb3VuZGVk',
+'LXhsIHAtNCI+PHAgY2xhc3NOYW1lPSJ0ZXh0LXNtIHRleHQtYW1iZXItNjAwIGZvbnQtbWVkaXVtIj5Db3F1ZXM8L3A+PHAgY2xh',
+'c3NOYW1lPSJ0ZXh0LXhsIGZvbnQtYm9sZCB0ZXh0LWFtYmVyLTcwMCI+e01hdGgucm91bmQoZGF5Q29xdWVHKS50b0xvY2FsZVN0',
+'cmluZygpfSBnPC9wPjxwIGNsYXNzTmFtZT0idGV4dC14cyB0ZXh0LWFtYmVyLTUwMCI+cmVjZXR0ZSDDl3ttdWx0aXBsaWVyfTwv',
+'cD48L2Rpdj4KICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPSJiZy1yb3NlLTUwIHJvdW5kZWQteGwgcC00Ij48cCBjbGFz',
+'c05hbWU9InRleHQtc20gdGV4dC1yb3NlLTYwMCBmb250LW1lZGl1bSI+R2FuYWNoZTwvcD48cCBjbGFzc05hbWU9InRleHQteGwg',
+'Zm9udC1ib2xkIHRleHQtcm9zZS03MDAiPntNYXRoLnJvdW5kKGRheUdhbmFjaGVHKS50b0xvY2FsZVN0cmluZygpfSBnPC9wPjxw',
+'IGNsYXNzTmFtZT0idGV4dC14cyB0ZXh0LXJvc2UtNTAwIj5yZWNldHRlIMOXe2dhbmFjaGVNdWx0aXBsaWVyfTwvcD48L2Rpdj4K',
+'ICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPSJiZy1ibHVlLTUwIHJvdW5kZWQteGwgcC00Ij48cCBjbGFzc05hbWU9InRl',
+'eHQtc20gdGV4dC1ibHVlLTYwMCBmb250LW1lZGl1bSI+UXVhbnRpdMOpIHByb2R1aXRlPC9wPjxwIGNsYXNzTmFtZT0idGV4dC14',
+'bCBmb250LWJvbGQgdGV4dC1ibHVlLTcwMCI+e3RvdGFsS2dEYXkudG9Mb2NhbGVTdHJpbmcoKX0ga2c8L3A+PHAgY2xhc3NOYW1l',
+'PSJ0ZXh0LXhzIHRleHQtYmx1ZS01MDAiPmNvcXVlcyArIGdhbmFjaGU8L3A+PC9kaXY+CiAgICAgICAgICAgICAgICA8ZGl2IGNs',
+'YXNzTmFtZT0iYmctZW1lcmFsZC01MCByb3VuZGVkLXhsIHAtNCI+PHAgY2xhc3NOYW1lPSJ0ZXh0LXNtIHRleHQtZW1lcmFsZC02',
+'MDAgZm9udC1tZWRpdW0iPkNvw7t0IG1hdGnDqHJlczwvcD48cCBjbGFzc05hbWU9InRleHQteGwgZm9udC1ib2xkIHRleHQtZW1l',
+'cmFsZC03MDAiPntjb3N0RGF5LnRvRml4ZWQoMCl9IERBPC9wPjxwIGNsYXNzTmFtZT0idGV4dC14cyB0ZXh0LWVtZXJhbGQtNTAw',
+'Ij57dG90YWxLZ0RheSA+IDAgPyAoY29zdERheSAvIHRvdGFsS2dEYXkpLnRvRml4ZWQoMCkgOiAwfSBEQS9rZzwvcD48L2Rpdj4K',
+'ICAgICAgICAgICAgICA8L2Rpdj4KICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT0iZmxleCBmbGV4LXdyYXAgaXRlbXMtZW5k',
+'IGdhcC0zIj4KICAgICAgICAgICAgICAgIDxkaXY+CiAgICAgICAgICAgICAgICAgIDxsYWJlbCBjbGFzc05hbWU9ImJsb2NrIHRl',
+'eHQtc20gZm9udC1tZWRpdW0gdGV4dC1ncmF5LTcwMCBtYi0xIj5EYXRlIGRlIHByb2R1Y3Rpb248L2xhYmVsPgogICAgICAgICAg',
+'ICAgICAgICA8aW5wdXQgdHlwZT0iZGF0ZSIgdmFsdWU9e3Byb2REYXRlfSBvbkNoYW5nZT17ZSA9PiBzZXRQcm9kRGF0ZShlLnRh',
+'cmdldC52YWx1ZSl9IGNsYXNzTmFtZT0icHgtMyBweS0yIGJvcmRlciByb3VuZGVkLWxnIiAvPgogICAgICAgICAgICAgICAgPC9k',
+'aXY+CiAgICAgICAgICAgICAgICA8YnV0dG9uIHR5cGU9ImJ1dHRvbiIgb25DbGljaz17c2VuZFRvUHJvZHVjdGlvbn0gZGlzYWJs',
+'ZWQ9e3Byb2RCdXN5IHx8IHRvdGFsS2dEYXkgPD0gMH0KICAgICAgICAgICAgICAgICAgY2xhc3NOYW1lPSJweC01IHB5LTIgYmct',
+'dmlvbGV0LTYwMCB0ZXh0LXdoaXRlIHJvdW5kZWQtbGcgaG92ZXI6YmctdmlvbGV0LTcwMCBkaXNhYmxlZDpvcGFjaXR5LTUwIGZv',
+'bnQtbWVkaXVtIj4KICAgICAgICAgICAgICAgICAge3Byb2RCdXN5ID8gJ0Vudm9pLi4uJyA6ICdFbnZveWVyIMOgIGxhIHByb2R1',
+'Y3Rpb24nfQogICAgICAgICAgICAgICAgPC9idXR0b24+CiAgICAgICAgICAgICAgPC9kaXY+CiAgICAgICAgICAgICAgPHAgY2xh',
+'c3NOYW1lPSJ0ZXh0LXhzIHRleHQtZ3JheS01MDAiPlNpIHVuIGxvdCDCqyBSZWNldHRlcyDCuyBleGlzdGUgZMOpasOgIMOgIGNl',
+'dHRlIGRhdGUsIGlsIGVzdCBtaXMgw6Agam91ciAobGVzIHBlcnRlcyBkw6lqw6Agc2Fpc2llcyBzb250IGNvbnNlcnbDqWVzKS4g',
+'U2lub24sIHVuIGxvdCBlc3QgY3LDqcOpLjwvcD4KICAgICAgICAgICAgPC9kaXY+CiAgICAgICAgICA8L2Rpdj4K'
 ].join(''));
-const FP = 'src/pages/Dashboard.tsx';
-if (!fs.existsSync(FP)) stop('Dashboard.tsx introuvable');
+const FP = 'src/pages/RecipePage.tsx';
+if (!fs.existsSync(FP)) stop('RecipePage.tsx introuvable');
 let t = fs.readFileSync(FP, 'utf8');
-if (t.indexOf('dashFrom') >= 0) stop('deja applique');
+if (t.indexOf('sendToProduction') >= 0) stop('deja applique');
 function count(s) { return t.split(s).length - 1; }
 function need(s, nom) { const n = count(s); if (n !== 1) stop(nom + ' : ' + n + ' occurrence(s) au lieu de 1'); }
 function swap(a, b, nom) { need(a, nom); const i = t.indexOf(a); t = t.slice(0, i) + b + t.slice(i + a.length); }
 
-swap("import React, { useEffect, useRef } from 'react';", "import React, { useEffect, useRef, useState } from 'react';", 'import react');
-swap("import { format, subDays, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';", "import { format, subDays, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, startOfYear, endOfYear, addDays } from 'date-fns';", 'import date-fns');
-swap('const laborAutoBusy = useRef(false);', 'const laborAutoBusy = useRef(false);' + STATES, 'etats');
-swap('const currentYear = today.getFullYear();', 'const currentYear = today.getFullYear();' + RANGE, 'periode');
+swap("import type { RecipeItem } from '../types';", "import type { RecipeItem, ProductionBatch } from '../types';", 'import types');
+swap('const { rawMaterials, recipeConfig, recipeItems, setRecipeItems, setRawMaterials } = useApp();', 'const { rawMaterials, recipeConfig, recipeItems, setRecipeItems, setRawMaterials, productionBatches, setProductionBatches } = useApp();', 'contexte');
+swap('const [chocMultiplier, setChocMultiplier] = useState(1);', 'const [chocMultiplier, setChocMultiplier] = useState(1);' + STATES.trimEnd(), 'etats');
+swap('const totalGanacheG = chocGanacheLines.reduce((s, l) => s + l.qtyG, 0);', 'const totalGanacheG = chocGanacheLines.reduce((s, l) => s + l.qtyG, 0);' + FUNCS.trimEnd(), 'fonctions');
 
-const mf = 'date.getMonth() === currentMonth && date.getFullYear() === currentYear';
-const nmf = count(mf);
-if (nmf < 4 || nmf > 12) stop('filtres mensuels : ' + nmf + ' occurrence(s), attendu entre 4 et 12');
-t = t.split(mf).join('dateInRange(date)');
-swap('start.getMonth() === currentMonth && start.getFullYear() === currentYear', 'dateInRange(start)', 'filtre energie');
+need('{/* Multiplicateur */}', 'bloc multiplicateurs');
+need('{/* Sub-tabs Coque/Ganache */}', 'sous-onglets');
+const m1 = t.indexOf('{/* Multiplicateur */}');
+const m2 = t.indexOf('{/* Sub-tabs Coque/Ganache */}');
+const seg = t.slice(m1, m2);
+if (m2 < m1 || seg.indexOf('Multiplicateur Coques') < 0 || seg.indexOf('Multiplicateur Ganache') < 0) stop('blocs multiplicateurs inattendus');
+t = t.slice(0, m1) + t.slice(m2);
 
-need('  const laborMonth = laborCosts', 'main d oeuvre');
-const ls = t.indexOf('  const laborMonth = laborCosts');
-const le = t.indexOf('\n\n', ls);
-const seg = t.slice(ls, le);
-if (seg.indexOf('period_month === currentMonth + 1') < 0) stop('bloc main d oeuvre inattendu');
-t = t.slice(0, ls) + LABOR.trimEnd() + t.slice(le);
+swap('<p className="text-xs text-white/80">Recette de base par lot · multiplicateur x{activeTab === \'coque\' ? multiplier : ganacheMultiplier}</p>', '<p className="text-xs text-white/80">Recette de base par lot</p>', 'sous-titre banniere');
+need('<div className="ml-auto text-right">', 'poids banniere');
+const wi = t.indexOf('<div className="ml-auto text-right">');
+const wl = t.lastIndexOf('\n', wi) + 1;
+t = t.slice(0, wl) + CONTROL + t.slice(wl);
 
-swap('const totalExpensesMonth = fixedChargesMonthly + variableExpensesMonth', 'const totalExpensesMonth = fixedChargesMonthly * dashFactor + variableExpensesMonth', 'total des charges');
-swap('((totalExpensesMonth + totalPurchasesMonth) / 30)', '((totalExpensesMonth + totalPurchasesMonth) / (isMonthRange ? 30 : Math.max(1, rangeDays)))', 'benefice du jour');
-swap('title: "Chiffre d\'Affaires Mensuel",', 'title: isMonthRange ? "Chiffre d\'Affaires Mensuel" : "Chiffre d\'Affaires de la Période",', 'titre CA');
-swap("title: 'Production ce Mois',", "title: isMonthRange ? 'Production ce Mois' : 'Production de la Période',", 'titre production');
-swap("title: 'Dépenses ce Mois',", "title: isMonthRange ? 'Dépenses ce Mois' : 'Dépenses de la Période',", 'titre depenses');
-swap("} mensuel: {Math.abs(profitMonth)", "} {isMonthRange ? 'mensuel' : 'de la période'} : {Math.abs(profitMonth)", 'badge benefice');
-need('{/* Stats Cards */}', 'cartes');
-const si = t.indexOf('{/* Stats Cards */}');
-const sl = t.lastIndexOf('\n', si) + 1;
-t = t.slice(0, sl) + UI + t.slice(sl);
+swap('<p className="text-xs text-rose-500">pour x{multiplier}</p>', '<p className="text-xs text-rose-500">pour x{ganacheMultiplier}</p>', 'carte ganache');
 
-fs.writeFileSync('backup27-Dashboard.tsx.txt', fs.readFileSync(FP, 'utf8'));
+need('{/* Calcul du jour */}', 'calcul du jour');
+need('{/* ════════ CHOCOLAT TAB ════════ */}', 'onglet chocolat');
+const c1 = t.indexOf('{/* Calcul du jour */}');
+const ch = t.indexOf('{/* ════════ CHOCOLAT TAB ════════ */}');
+const c2 = t.lastIndexOf('        </>', ch);
+if (c1 < 0 || c2 < c1) stop('fin du calcul du jour introuvable');
+t = t.slice(0, c1) + BLOCK.trimEnd() + '\n' + t.slice(c2);
+
+fs.writeFileSync('backup28-RecipePage.tsx.txt', fs.readFileSync(FP, 'utf8'));
 fs.writeFileSync(FP, t);
-console.log('OK : agenda Du / au ajoute au Tableau de bord (' + nmf + ' filtres mensuels remplaces)');
+console.log('OK : multiplicateurs par recette, bouton Modifier et envoi a la production installes');
