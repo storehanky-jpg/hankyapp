@@ -68,6 +68,9 @@ export default function RecipePage() {
   const [multDraft, setMultDraft] = useState('');
   const [prodDate, setProdDate] = useState(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10));
   const [prodBusy, setProdBusy] = useState(false);
+  const [showEditBase, setShowEditBase] = useState(false);
+  const [baseDraft, setBaseDraft] = useState<string[]>([]);
+  const [baseBusy, setBaseBusy] = useState(false);
 
   // ── Load chocolat data ──
   useEffect(() => {
@@ -306,6 +309,59 @@ export default function RecipePage() {
   // ── Multiplicateurs par recette + envoi a la production ──
   void [todayTotalCost, todayGanacheCost, ganacheDailyQty, setGanacheDailyQty, ganacheCostPerGram, Scale, Calculator];
 
+  const openEditBase = () => {
+    setBaseDraft(activeLines.map(l => String(l.quantity)));
+    setShowEditBase(true);
+  };
+
+  const saveEditBase = async () => {
+    const vals = baseDraft.map(v => parseFloat(String(v).replace(',', '.')));
+    if (vals.length !== activeLines.length || vals.some(v => !isFinite(v) || v < 0)) {
+      alert("Chaque quantité doit être un nombre positif (mets 0 si l'ingrédient n'est pas utilisé).");
+      return;
+    }
+    setBaseBusy(true);
+    try {
+      if (isCustom) {
+        let items = [...recipeItems];
+        for (let i = 0; i < activeLines.length; i++) {
+          const l = activeLines[i];
+          const item = activeCustomItems.find(it => it.material_id === l.materialId);
+          if (!item) continue;
+          if (Math.abs(item.quantity_per_batch - vals[i]) < 1e-9) continue;
+          const upd = await api.recipeItemsService.update(item.id, { quantity_per_batch: vals[i] });
+          items = items.map(x => (x.id === item.id ? { ...x, ...upd } : x));
+        }
+        setRecipeItems(items);
+      } else {
+        let mats = [...rawMaterials];
+        const created: RecipeItem[] = [];
+        for (let i = 0; i < activeLines.length; i++) {
+          const l = activeLines[i];
+          let mid = l.materialId;
+          if (!mid) {
+            const nm = await api.rawMaterialsService.create({ name: l.name, unit: 'kg', unit_cost: l.defaultCost ?? 0, supplier: '' });
+            mats = [...mats, nm];
+            mid = nm.id;
+          }
+          const it = await api.recipeItemsService.create({
+            recipe_id: recipeConfig?.id || 'default', material_id: mid,
+            quantity_per_batch: vals[i], recipe_type: activeTab,
+          } as Omit<RecipeItem, 'id' | 'created_at'>);
+          created.push(it);
+        }
+        setRawMaterials(mats);
+        setRecipeItems([...recipeItems, ...created]);
+      }
+      setShowEditBase(false);
+    } catch (err) {
+      console.error(err);
+      const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'erreur';
+      alert("Impossible d'enregistrer la recette : " + msg);
+    }
+    setBaseBusy(false);
+  };
+
   const saveMult = () => {
     const v = parseFloat(multDraft.replace(',', '.'));
     if (!isFinite(v) || v <= 0) {
@@ -500,7 +556,10 @@ export default function RecipePage() {
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-3">
+            <button onClick={openEditBase} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-800 rounded-xl hover:bg-gray-50 transition-colors">
+              <Edit2 size={18} /> Modifier la recette de base {activeTab === 'coque' ? 'des coques' : 'de la ganache'}
+            </button>
             <button onClick={() => setShowAddIngredient(true)} className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-colors">
               <Plus size={18} /> Personnaliser {activeTab === 'coque' ? 'la coque' : 'la ganache'}
             </button>
@@ -706,6 +765,36 @@ export default function RecipePage() {
               <div><label className="block text-sm font-medium text-gray-700 mb-1">Quantité par lot de base (g)</label><input type="number" min="0" step="1" required value={newIngredient.quantity_per_batch} onChange={e => setNewIngredient({ ...newIngredient, quantity_per_batch: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500" /></div>
               <div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setShowAddIngredient(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Annuler</button><button type="submit" className={`px-4 py-2 text-white rounded-lg ${activeTab === 'coque' ? 'bg-amber-500 hover:bg-amber-600' : 'bg-rose-500 hover:bg-rose-600'}`}>Ajouter</button></div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modifier la recette de base */}
+      {showEditBase && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white z-10">
+              <h2 className="text-lg font-semibold">Recette de base - {activeTab === 'coque' ? 'Coques' : 'Ganache'}</h2>
+              <button onClick={() => setShowEditBase(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+            </div>
+            <div className="p-4 space-y-3">
+              <p className="text-sm text-gray-500">Quantité de chaque ingrédient pour une recette de base (multiplicateur ×1), en grammes.</p>
+              {activeLines.map((l, i) => (
+                <div key={i} className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-medium text-gray-800">{l.name}</span>
+                  <div className="flex items-center gap-1">
+                    <input type="number" step="any" min="0" value={baseDraft[i] ?? ''} onChange={e => setBaseDraft(baseDraft.map((v, j) => (j === i ? e.target.value : v)))} className="w-28 px-3 py-2 border rounded-lg text-right" />
+                    <span className="text-sm text-gray-500">g</span>
+                  </div>
+                </div>
+              ))}
+              <p className="text-sm font-semibold text-gray-700 pt-1">Poids de base : {baseDraft.reduce((s, v) => s + (parseFloat(String(v).replace(',', '.')) || 0), 0).toLocaleString()} g</p>
+              {!isCustom && <p className="text-xs bg-amber-50 text-amber-800 rounded-lg p-3">Cette recette utilise les valeurs par défaut. En enregistrant, elle devient votre recette personnalisée (les ingrédients absents de vos matières premières y sont ajoutés).</p>}
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowEditBase(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Annuler</button>
+                <button type="button" onClick={saveEditBase} disabled={baseBusy} className="px-5 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50">{baseBusy ? 'Enregistrement...' : 'Enregistrer'}</button>
+              </div>
+            </div>
           </div>
         </div>
       )}
