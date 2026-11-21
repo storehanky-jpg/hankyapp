@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2, ChefHat, AlertTriangle, Package, X, Calculator, Edit2, Search, TrendingUp, DollarSign } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfWeek, startOfYear, endOfYear, addDays } from 'date-fns';
+import { supabase } from '../lib/supabase';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
 import { formatKg, formatLoss } from '../lib/formatters';
@@ -35,10 +36,39 @@ export default function ProductionPage() {
   const {
     productionBatches, setProductionBatches,
     unsoldProducts, setUnsoldProducts,
+    sales, bulkSales,
     recipeItems, rawMaterials
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<'batches' | 'unsold' | 'cost'>('batches');
+  const [activeTab, setActiveTab] = useState<'batches' | 'unsold' | 'cost' | 'result'>('batches');
+  const [showLossModal, setShowLossModal] = useState(false);
+  const [lossForm, setLossForm] = useState({ batchId: '', qty: '', unit: 'g', reason: '' });
+  const [resFrom, setResFrom] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [resTo, setResTo] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [boxSet, setBoxSet] = useState<Record<string, string>>({ w20: '400', w10: '200', w6: '120' });
+  const [boxSetMsg, setBoxSetMsg] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      let loaded: Record<string, string> | null = null;
+      try {
+        const { data } = await supabase.from('app_settings').select('value').eq('key', 'production_box_settings').maybeSingle();
+        if (data && data.value) loaded = data.value as Record<string, string>;
+      } catch (e) {
+        console.error(e);
+      }
+      if (!loaded) {
+        try {
+          const raw = localStorage.getItem('production_box_settings');
+          if (raw) loaded = JSON.parse(raw);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      const l2 = loaded;
+      if (l2) setBoxSet(prev => ({ ...prev, ...l2 }));
+    })();
+  }, []);
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [showUnsoldModal, setShowUnsoldModal] = useState(false);
   const [editBatch, setEditBatch] = useState<string | null>(null);
@@ -448,6 +478,99 @@ export default function ProductionPage() {
   const totalUnsold = unsoldThisMonth.reduce((s, u) => s + u.quantity, 0);
   const totalProfitThisMonth = batchesThisMonth.reduce((s, b) => s + (b.profit || 0), 0);
 
+  // ── Resultat de production (tableau independant, base sur les ventes reelles) ──
+  const numOr = (v: string | undefined, d: number) => {
+    const x = parseFloat(String(v ?? '').replace(',', '.'));
+    return isFinite(x) && x >= 0 ? x : d;
+  };
+  const boxG: Record<number, number> = { 20: numOr(boxSet.w20, 400), 10: numOr(boxSet.w10, 200), 6: numOr(boxSet.w6, 120) };
+  const pieceG = boxG[10] / 10;
+  const isBoxMat = (name: string, size: number) => {
+    const n = name.toLowerCase().replace('î', 'i');
+    if (n.indexOf('boite') < 0) return false;
+    const re = size === 6 ? /(^|[^0-9])0?6([^0-9]|$)/ : new RegExp('(^|[^0-9])' + size + '([^0-9]|$)');
+    return re.test(n);
+  };
+  const boxMatOf = (size: number) => {
+    const id = boxSet['m' + size];
+    if (id) return rawMaterials.find(x => x.id === id);
+    return rawMaterials.find(x => isBoxMat(x.name, size));
+  };
+
+  interface ResRow { date: string; produced: number; bulkKg: number; b20: number; b10: number; b6: number; boxKg: number; lostKg: number; unsoldPcs: number; unsoldKg: number; ca: number; matCost: number; boxCost: number; profit: number; }
+
+  const allResRows: ResRow[] = (() => {
+    const map = new Map<string, ResRow>();
+    const get = (d: string) => {
+      const k = String(d).slice(0, 10);
+      let r = map.get(k);
+      if (!r) {
+        r = { date: k, produced: 0, bulkKg: 0, b20: 0, b10: 0, b6: 0, boxKg: 0, lostKg: 0, unsoldPcs: 0, unsoldKg: 0, ca: 0, matCost: 0, boxCost: 0, profit: 0 };
+        map.set(k, r);
+      }
+      return r;
+    };
+    productionBatches.forEach(b => { const r = get(b.batch_date); r.produced += b.produced_quantity; r.lostKg += b.lost_quantity; r.matCost += b.production_cost || 0; });
+    bulkSales.forEach(s => { const r = get(s.sale_date); r.bulkKg += s.quantity_kg; r.ca += s.total_amount; });
+    sales.forEach(s => {
+      const r = get(s.sale_date);
+      r.ca += s.total_amount;
+      const w = boxG[s.box_size] ?? s.box_size * pieceG;
+      r.boxKg += (s.quantity * w) / 1000;
+      const mat = [20, 10, 6].indexOf(s.box_size) >= 0 ? boxMatOf(s.box_size) : undefined;
+      r.boxCost += s.quantity * (mat ? mat.unit_cost : 0);
+      if (s.box_size === 20) r.b20 += s.quantity;
+      else if (s.box_size === 10) r.b10 += s.quantity;
+      else if (s.box_size === 6) r.b6 += s.quantity;
+    });
+    unsoldProducts.forEach(u => { const r = get(u.date); r.unsoldPcs += u.quantity; r.unsoldKg += (u.quantity * pieceG) / 1000; });
+    const rows = Array.from(map.values());
+    rows.forEach(r => { r.profit = r.ca - r.matCost - r.boxCost; });
+    return rows.sort((a, b) => (a.date < b.date ? 1 : -1));
+  })();
+
+  const monthFromStr = format(startOfMonth(new Date()), 'yyyy-MM-dd');
+  const monthToStr = format(endOfMonth(new Date()), 'yyyy-MM-dd');
+  const monthResultProfit = allResRows.filter(r => r.date >= monthFromStr && r.date <= monthToStr).reduce((s, r) => s + r.profit, 0);
+  const resRows = allResRows.filter(r => r.date >= resFrom && r.date <= resTo);
+  const sumRes = (k: keyof ResRow) => resRows.reduce((s, r) => s + (r[k] as number), 0);
+  const resKgSold = sumRes('bulkKg') + sumRes('boxKg');
+
+  const saveBoxSet = async () => {
+    try { localStorage.setItem('production_box_settings', JSON.stringify(boxSet)); } catch (e) { console.error(e); }
+    try {
+      const { error } = await supabase.from('app_settings').upsert({ key: 'production_box_settings', value: boxSet, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      setBoxSetMsg('Réglages enregistrés.');
+    } catch (e) {
+      console.error(e);
+      setBoxSetMsg("Réglages enregistrés sur cet appareil seulement (la table des réglages n'existe pas encore).");
+    }
+  };
+
+  const openLossModal = () => {
+    setLossForm({ batchId: productionBatches.length > 0 ? productionBatches[0].id : '', qty: '', unit: 'g', reason: '' });
+    setShowLossModal(true);
+  };
+
+  const saveLoss = async () => {
+    const batch = productionBatches.find(b => b.id === lossForm.batchId);
+    const q = parseFloat(lossForm.qty.replace(',', '.'));
+    if (!batch) { alert("Choisis d'abord un lot de production."); return; }
+    if (!isFinite(q) || q <= 0) { alert('Entre une quantité supérieure à 0.'); return; }
+    const kg = lossForm.unit === 'g' ? q / 1000 : q;
+    const note = (batch.notes ? batch.notes + ' · ' : '') + 'Perte ' + (lossForm.unit === 'g' ? q + ' g' : q + ' kg') + (lossForm.reason.trim() ? ' (' + lossForm.reason.trim() + ')' : '');
+    try {
+      const updated = await api.productionBatchService.update(batch.id, { lost_quantity: Math.round((batch.lost_quantity + kg) * 1000) / 1000, notes: note });
+      setProductionBatches(productionBatches.map(b => (b.id === batch.id ? { ...b, ...updated, materials: b.materials } : b)));
+      setShowLossModal(false);
+    } catch (err) {
+      console.error(err);
+      alert("Impossible d'enregistrer la perte.");
+    }
+  };
+  void totalProfitThisMonth;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -461,7 +584,12 @@ export default function ProductionPage() {
             className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-colors shadow-sm">
             <Plus size={18} /> Nouveau Lot
           </button>
-          <button onClick={() => setShowUnsoldModal(true)}
+          <button onClick={openLossModal}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 text-white rounded-xl hover:bg-orange-600 transition-colors shadow-sm">
+            <AlertTriangle size={18} /> Perte
+          </button>
+          
+<button onClick={() => setShowUnsoldModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-colors shadow-sm">
             <AlertTriangle size={18} /> Non Vendu
           </button>
@@ -475,7 +603,7 @@ export default function ProductionPage() {
           { label: 'Produit ce mois', value: formatKg(totalProduced), icon: <ChefHat size={20} className="text-emerald-600" />, bg: 'bg-emerald-100' },
           { label: 'Pertes production', value: formatLoss(totalLost), icon: <AlertTriangle size={20} className="text-orange-600" />, bg: 'bg-orange-100' },
           { label: 'Non vendu', value: totalUnsold, icon: <AlertTriangle size={20} className="text-rose-600" />, bg: 'bg-rose-100' },
-          { label: 'Bénéfice ce mois', value: `${totalProfitThisMonth.toLocaleString()} DA`, icon: <TrendingUp size={20} className="text-emerald-600" />, bg: 'bg-emerald-100' },
+          { label: 'Bénéfice ce mois', value: `${Math.round(monthResultProfit).toLocaleString()} DA`, icon: <TrendingUp size={20} className="text-emerald-600" />, bg: 'bg-emerald-100' },
         ].map((s, i) => (
           <div key={i} className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
             <div className="flex items-center gap-3">
@@ -513,6 +641,7 @@ export default function ProductionPage() {
           { id: 'batches', label: 'Lots de Production', icon: <ChefHat size={16} />, count: productionBatches.length },
           { id: 'unsold', label: 'Non Vendus', icon: <AlertTriangle size={16} />, count: unsoldProducts.length },
           { id: 'cost', label: 'Coût de Revient', icon: <Calculator size={16} /> },
+          { id: 'result', label: 'Résultat', icon: <TrendingUp size={16} /> },
         ] as const).map(tab => (
           <button key={tab.id}
             onClick={() => { setActiveTab(tab.id); if (tab.id === 'cost') initCostTab(); }}
@@ -765,6 +894,144 @@ export default function ProductionPage() {
               <span>Coût/kg: <strong className="text-white">{costPerKg.toFixed(0)} DA/kg</strong></span>
               <span>Poids coque: <strong className="text-white">{totalCoqueWeightG.toFixed(0)} g</strong></span>
               <span>Ganache utilisée: <strong className="text-white">{(ganacheKg * 1000).toFixed(0)} g</strong></span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resultat de production */}
+      {activeTab === 'result' && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+            <div>
+              <h3 className="font-semibold text-gray-900">Réglages des boîtes</h3>
+              <p className="text-xs text-gray-500">Poids approximatif d'une boîte pleine (pour convertir les boîtes vendues en kg) et matière « boîte » dont le dernier prix d'achat est retiré du bénéfice.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[20, 10, 6].map(size => {
+                const mat = boxMatOf(size);
+                return (
+                  <div key={size} className="border rounded-xl p-3 space-y-2">
+                    <p className="font-semibold text-gray-800">Boîte de {size} pcs</p>
+                    <div className="flex items-center gap-2">
+                      <input type="number" min="0" step="any" value={boxSet['w' + size] ?? ''} onChange={e => setBoxSet({ ...boxSet, ['w' + size]: e.target.value })} className="w-24 px-2 py-1.5 border rounded-lg text-right" />
+                      <span className="text-sm text-gray-500">g ({((numOr(boxSet['w' + size], 0)) / size).toFixed(1)} g / pièce)</span>
+                    </div>
+                    <select value={boxSet['m' + size] || ''} onChange={e => setBoxSet({ ...boxSet, ['m' + size]: e.target.value })} className="w-full px-2 py-1.5 border rounded-lg text-sm">
+                      <option value="">Automatique{mat && !boxSet['m' + size] ? ' : ' + mat.name : ''}</option>
+                      {rawMaterials.map(m => (<option key={m.id} value={m.id}>{m.name}</option>))}
+                    </select>
+                    <p className="text-xs text-gray-500">Coût de la boîte : <strong>{mat ? mat.unit_cost.toLocaleString() + ' DA' : 'non trouvé (0 DA)'}</strong></p>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={saveBoxSet} className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600">Enregistrer les réglages</button>
+              {boxSetMsg && <span className="text-sm text-gray-600">{boxSetMsg}</span>}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-wrap items-center gap-3">
+            <span className="text-sm font-medium text-gray-700">Période :</span>
+            <button type="button" onClick={() => { const s = startOfWeek(new Date(), { weekStartsOn: 6 }); setResFrom(format(s, 'yyyy-MM-dd')); setResTo(format(addDays(s, 5), 'yyyy-MM-dd')); }} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-amber-100">Semaine</button>
+            <button type="button" onClick={() => { setResFrom(monthFromStr); setResTo(monthToStr); }} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-amber-100">Mois</button>
+            <button type="button" onClick={() => { setResFrom(format(startOfYear(new Date()), 'yyyy-MM-dd')); setResTo(format(endOfYear(new Date()), 'yyyy-MM-dd')); }} className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-amber-100">Année</button>
+            <span className="text-sm text-gray-600">Du</span>
+            <input type="date" value={resFrom} onChange={e => setResFrom(e.target.value)} className="px-2 py-1.5 border rounded-lg text-sm" />
+            <span className="text-sm text-gray-600">au</span>
+            <input type="date" value={resTo} onChange={e => setResTo(e.target.value)} className="px-2 py-1.5 border rounded-lg text-sm" />
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-blue-50 rounded-xl p-4"><p className="text-sm text-blue-600 font-medium">Produit</p><p className="text-xl font-bold text-blue-700">{formatKg(sumRes('produced'))}</p><p className="text-xs text-blue-500">Vendu : {formatKg(resKgSold)}</p></div>
+            <div className="bg-orange-50 rounded-xl p-4"><p className="text-sm text-orange-600 font-medium">Pertes + non vendu</p><p className="text-xl font-bold text-orange-700">{formatKg(sumRes('lostKg') + sumRes('unsoldKg'))}</p><p className="text-xs text-orange-500">Non vendu : {sumRes('unsoldPcs')} pcs</p></div>
+            <div className="bg-emerald-50 rounded-xl p-4"><p className="text-sm text-emerald-600 font-medium">CA vente</p><p className="text-xl font-bold text-emerald-700">{Math.round(sumRes('ca')).toLocaleString()} DA</p><p className="text-xs text-emerald-500">Coûts : {Math.round(sumRes('matCost') + sumRes('boxCost')).toLocaleString()} DA</p></div>
+            <div className={(sumRes('profit') >= 0 ? 'bg-emerald-50' : 'bg-red-50') + ' rounded-xl p-4'}><p className="text-sm text-gray-600 font-medium">Bénéfice</p><p className={(sumRes('profit') >= 0 ? 'text-emerald-700' : 'text-red-700') + ' text-xl font-bold'}>{Math.round(sumRes('profit')).toLocaleString()} DA</p><p className="text-xs text-gray-500">CA − matières − boîtes</p></div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-3 text-left font-medium text-gray-600">Date</th>
+                    <th className="px-3 py-3 text-right font-medium text-gray-600">Produit</th>
+                    <th className="px-3 py-3 text-right font-medium text-gray-600">Vrac vendu</th>
+                    <th className="px-3 py-3 text-right font-medium text-gray-600">Boîtes 20 / 10 / 6</th>
+                    <th className="px-3 py-3 text-right font-medium text-gray-600">Boîtes en kg</th>
+                    <th className="px-3 py-3 text-right font-medium text-gray-600">Pertes</th>
+                    <th className="px-3 py-3 text-right font-medium text-gray-600">Non vendu</th>
+                    <th className="px-3 py-3 text-right font-medium text-gray-600">Reste</th>
+                    <th className="px-3 py-3 text-right font-medium text-gray-600">CA vente</th>
+                    <th className="px-3 py-3 text-right font-medium text-gray-600">Matières</th>
+                    <th className="px-3 py-3 text-right font-medium text-gray-600">Boîtes</th>
+                    <th className="px-3 py-3 text-right font-medium text-gray-600">Bénéfice</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {resRows.map(r => {
+                    const reste = r.produced - r.bulkKg - r.boxKg - r.lostKg - r.unsoldKg;
+                    return (
+                      <tr key={r.date} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 text-gray-700 whitespace-nowrap">{format(new Date(r.date), 'dd/MM/yyyy')}</td>
+                        <td className="px-3 py-2 text-right">{r.produced > 0 ? formatKg(r.produced) : '—'}</td>
+                        <td className="px-3 py-2 text-right">{r.bulkKg > 0 ? formatKg(r.bulkKg) : '—'}</td>
+                        <td className="px-3 py-2 text-right whitespace-nowrap">{r.b20} / {r.b10} / {r.b6}</td>
+                        <td className="px-3 py-2 text-right">{r.boxKg > 0 ? formatKg(r.boxKg) : '—'}</td>
+                        <td className="px-3 py-2 text-right text-red-600">{r.lostKg > 0 ? formatLoss(r.lostKg) : '—'}</td>
+                        <td className="px-3 py-2 text-right text-rose-600">{r.unsoldPcs > 0 ? r.unsoldPcs + ' pcs' : '—'}</td>
+                        <td className={'px-3 py-2 text-right ' + (reste < -0.05 ? 'text-red-600' : 'text-gray-600')}>{r.produced > 0 ? formatKg(reste) : '—'}</td>
+                        <td className="px-3 py-2 text-right font-medium">{Math.round(r.ca).toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-gray-600">{Math.round(r.matCost).toLocaleString()}</td>
+                        <td className="px-3 py-2 text-right text-gray-600">{Math.round(r.boxCost).toLocaleString()}</td>
+                        <td className={'px-3 py-2 text-right font-bold ' + (r.profit >= 0 ? 'text-emerald-600' : 'text-red-600')}>{Math.round(r.profit).toLocaleString()}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {resRows.length === 0 && <div className="p-8 text-center text-gray-400">Aucune donnée pour cette période</div>}
+          </div>
+          <p className="text-xs text-gray-500">Ce tableau est indépendant : il ne modifie ni le chiffre d'affaires ni le bénéfice du Tableau de bord. Le CA vient de vos ventes (vrac et boîtes, au prix de chaque client) ; les ventes magasin n'y figurent pas. « Reste » = produit − vendu − pertes − non vendu (en kg, avec le poids des boîtes réglé ci-dessus).</p>
+        </div>
+      )}
+
+      {/* Perte */}
+      {showLossModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold">Enregistrer une perte</h2>
+              <button onClick={() => setShowLossModal(false)} className="p-1 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Lot de production</label>
+                <select value={lossForm.batchId} onChange={e => setLossForm({ ...lossForm, batchId: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
+                  {productionBatches.length === 0 && <option value="">Aucun lot</option>}
+                  {productionBatches.map(b => (<option key={b.id} value={b.id}>{format(new Date(b.batch_date), 'dd/MM/yyyy')} · {formatKg(b.produced_quantity)}</option>))}
+                </select>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Quantité perdue</label>
+                  <input type="text" inputMode="decimal" value={lossForm.qty} onChange={e => setLossForm({ ...lossForm, qty: e.target.value })} className="w-full px-3 py-2 border rounded-lg" placeholder="ex : 350" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unité</label>
+                  <select value={lossForm.unit} onChange={e => setLossForm({ ...lossForm, unit: e.target.value })} className="w-full px-3 py-2 border rounded-lg"><option value="g">g</option><option value="kg">kg</option></select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Motif (facultatif)</label>
+                <input type="text" value={lossForm.reason} onChange={e => setLossForm({ ...lossForm, reason: e.target.value })} className="w-full px-3 py-2 border rounded-lg" placeholder="coques cassées, mal cuites..." />
+              </div>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setShowLossModal(false)} className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">Annuler</button>
+                <button type="button" onClick={saveLoss} className="px-5 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600">Enregistrer la perte</button>
+              </div>
             </div>
           </div>
         </div>
