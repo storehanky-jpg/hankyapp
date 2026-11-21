@@ -3,7 +3,7 @@ import {
   Calculator, ChefHat, Plus, Trash2, Scale, X, Edit2, Layers, FlaskConical,
   Candy, Save, TrendingUp,
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp  } from '../context/AppContext';
 import * as api from '../services/api';
 import { supabase } from '../lib/supabase';
 import type { RecipeItem, ProductionBatch } from '../types';
