@@ -6,7 +6,7 @@ import {
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
 import { supabase } from '../lib/supabase';
-import type { RecipeItem, ProductionBatch } from '../types';
+import type { Rec ipeItem, ProductionBatch } from '../types';
 
 // ── Macaron recipe defaults ──
 const DEFAULT_COQUE = { amandes: 100, sucre_glace: 100, blancs_oeufs: 100, sucre: 100, eau: 35 };
