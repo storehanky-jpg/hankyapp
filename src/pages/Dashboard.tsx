@@ -10,7 +10,7 @@ import {
 } from 'recharts';
 import { format, subDays, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, startOfYear, endOfYear, addDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
-impor t { useApp } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { formatKg, formatLoss } from '../lib/formatters';
 
 const COLORS = ['#f59e0b', '#ea580c', '#10b981', '#3b82f6', '#8b5cf6'];
