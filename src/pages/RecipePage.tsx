@@ -6,7 +6,7 @@ import {
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
 import { supabase } from '../lib/supabase';
-import type { RecipeItem } from '../types';
+import type { RecipeItem, ProductionBatch } from '../types';
 
 // ── Macaron recipe defaults ──
 const DEFAULT_COQUE = { amandes: 100, sucre_glace: 100, blancs_oeufs: 100, sucre: 100, eau: 35 };
@@ -36,7 +36,7 @@ interface ChocolatConfig { id: string; yield_g: number; notes: string | null; }
 interface ChocolatIngredient { id: string; config_id: string; name: string; quantity_g: number; unit_cost_per_kg: number; }
 
 export default function RecipePage() {
-  const { rawMaterials, recipeConfig, recipeItems, setRecipeItems, setRawMaterials } = useApp();
+  const { rawMaterials, recipeConfig, recipeItems, setRecipeItems, setRawMaterials, productionBatches, setProductionBatches } = useApp();
 
   const [mainTab, setMainTab] = useState<MainTab>('macaron');
 
@@ -64,6 +64,10 @@ export default function RecipePage() {
   const [yieldValue, setYieldValue] = useState(1000);
   const [coqueKg, setCoqueKg] = useState(1);
   const [chocMultiplier, setChocMultiplier] = useState(1);
+  const [editMult, setEditMult] = useState<RecipeType | null>(null);
+  const [multDraft, setMultDraft] = useState('');
+  const [prodDate, setProdDate] = useState(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10));
+  const [prodBusy, setProdBusy] = useState(false);
 
   // ── Load chocolat data ──
   useEffect(() => {
@@ -299,6 +303,84 @@ export default function RecipePage() {
   const totalGanacheCost = chocGanacheLines.reduce((s, l) => s + l.cost, 0);
   const totalGanacheG = chocGanacheLines.reduce((s, l) => s + l.qtyG, 0);
 
+  // ── Multiplicateurs par recette + envoi a la production ──
+  void [todayTotalCost, todayGanacheCost, ganacheDailyQty, setGanacheDailyQty, ganacheCostPerGram, Scale, Calculator];
+
+  const saveMult = () => {
+    const v = parseFloat(multDraft.replace(',', '.'));
+    if (!isFinite(v) || v <= 0) {
+      alert('Entre un nombre supérieur à 0 (ex : 10 ou 7.5).');
+      return;
+    }
+    const r = Math.round(v * 1000) / 1000;
+    if (editMult === 'ganache') setGanacheMultiplier(r); else setMultiplier(r);
+    setEditMult(null);
+  };
+
+  const dayCoqueG = activeCoqueLines.reduce((s, l) => s + l.quantity, 0) * multiplier;
+  const dayGanacheG = activeGanacheLines.reduce((s, l) => s + l.quantity, 0) * ganacheMultiplier;
+  const totalKgDay = Math.round(((dayCoqueG + dayGanacheG) / 1000) * 1000) / 1000;
+  const costDay = coqueTotalCost + ganacheTotalCost;
+
+  const sendToProduction = async () => {
+    if (totalKgDay <= 0 || prodBusy) return;
+    setProdBusy(true);
+    try {
+      const note = 'Recettes : coques x' + multiplier + ' · ganache x' + ganacheMultiplier;
+      const cost = Math.round(costDay * 100) / 100;
+      const merged: Record<string, { material_id: string; quantity: number; unit_cost: number }> = {};
+      const addLines = (lines: RecipeLine[], mult: number) => {
+        lines.forEach(l => {
+          if (!l.materialId) return;
+          const uc = l.unitCost ?? l.defaultCost ?? 0;
+          if (!merged[l.materialId]) merged[l.materialId] = { material_id: l.materialId, quantity: 0, unit_cost: uc };
+          merged[l.materialId].quantity += (l.quantity * mult) / 1000;
+        });
+      };
+      addLines(activeCoqueLines, multiplier);
+      addLines(activeGanacheLines, ganacheMultiplier);
+      const mats = Object.values(merged).map(m => ({ ...m, quantity: Math.round(m.quantity * 1000) / 1000 }));
+      const existing = productionBatches.find(b => b.batch_date === prodDate && (b.notes || '').indexOf('Recettes :') === 0);
+      let saved: ProductionBatch;
+      if (existing) {
+        const val = existing.production_value || 0;
+        saved = await api.productionBatchService.update(existing.id, {
+          batch_date: prodDate, planned_quantity: totalKgDay, produced_quantity: totalKgDay,
+          lost_quantity: existing.lost_quantity, notes: note,
+          production_cost: cost, production_value: val, profit: val - cost,
+        });
+        await api.productionMaterialsService.deleteByBatch(existing.id);
+      } else {
+        saved = await api.productionBatchService.create({
+          batch_date: prodDate, planned_quantity: totalKgDay, produced_quantity: totalKgDay,
+          lost_quantity: 0, notes: note,
+          production_cost: cost, production_value: 0, profit: -cost,
+        });
+      }
+      for (const m of mats) {
+        await api.productionMaterialsService.create({
+          batch_id: saved.id, material_id: m.material_id, quantity: m.quantity,
+          unit_cost: m.unit_cost, total_cost: Math.round(m.quantity * m.unit_cost * 100) / 100,
+        });
+      }
+      const withMats: ProductionBatch = {
+        ...saved,
+        materials: mats.map((m, i) => ({
+          id: 'temp-' + i, batch_id: saved.id, material_id: m.material_id, quantity: m.quantity,
+          unit_cost: m.unit_cost, total_cost: m.quantity * m.unit_cost, created_at: new Date().toISOString(),
+          material: rawMaterials.find(r => r.id === m.material_id),
+        })),
+      };
+      setProductionBatches(existing ? productionBatches.map(b => (b.id === existing.id ? withMats : b)) : [withMats, ...productionBatches]);
+      alert('Production envoyée : ' + totalKgDay.toLocaleString() + ' kg le ' + prodDate + '. Ouvre la page Production pour la voir.');
+    } catch (err) {
+      console.error(err);
+      const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'erreur';
+      alert("Impossible d'envoyer la production : " + msg);
+    }
+    setProdBusy(false);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -330,53 +412,6 @@ export default function RecipePage() {
       {/* ════════ MACARON TAB ════════ */}
       {mainTab === 'macaron' && (
         <>
-          {/* Multiplicateur */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <Scale size={24} className="text-amber-500" />
-              <h2 className="text-lg font-semibold text-gray-900">Multiplicateur Coques</h2>
-            </div>
-            <div className="flex items-center gap-4">
-              <button onClick={() => setMultiplier(Math.max(0.5, multiplier - 0.5))} className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-2xl font-bold text-gray-600 transition-colors">-</button>
-              <div className="flex-1 text-center">
-                <input type="number" min="0.5" step="0.5" value={multiplier} onChange={e => setMultiplier(Math.max(0.5, parseFloat(e.target.value) || 1))} className="w-32 text-center text-4xl font-bold text-amber-600 bg-transparent border-b-2 border-amber-300 focus:border-amber-500 outline-none" />
-                <p className="text-gray-500 mt-1">fois la recette de base</p>
-              </div>
-              <button onClick={() => setMultiplier(multiplier + 0.5)} className="w-12 h-12 rounded-xl bg-amber-100 hover:bg-amber-200 flex items-center justify-center text-2xl font-bold text-amber-600 transition-colors">+</button>
-            </div>
-          </div>
-
-          {/* Multiplicateur Ganache */}
-          <div className="bg-white rounded-2xl shadow-sm border border-rose-100 p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <Layers size={24} className="text-rose-600" />
-              <h2 className="text-lg font-semibold text-gray-900">Multiplicateur Ganache</h2>
-            </div>
-            <div className="flex items-center gap-4">
-              <button onClick={() => setGanacheMultiplier(Math.max(0.5, ganacheMultiplier - 0.5))} className="w-12 h-12 rounded-xl bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-2xl font-bold text-gray-600 transition-colors">-</button>
-              <div className="flex-1 text-center">
-                <input type="number" min="0.5" step="0.5" value={ganacheMultiplier} onChange={e => setGanacheMultiplier(Math.max(0.5, parseFloat(e.target.value) || 1))} className="w-32 text-center text-4xl font-bold text-rose-600 bg-transparent border-b-2 border-rose-300 focus:border-rose-500 outline-none" />
-                <p className="text-gray-500 mt-1">fois la recette de base ganache</p>
-              </div>
-              <button onClick={() => setGanacheMultiplier(ganacheMultiplier + 0.5)} className="w-12 h-12 rounded-xl bg-rose-100 hover:bg-rose-200 flex items-center justify-center text-2xl font-bold text-rose-600 transition-colors">+</button>
-            </div>
-            {(() => {
-              const coqueG = activeCoqueLines.reduce((s, l) => s + l.quantity, 0) * multiplier;
-              const needG = coqueG * 3500 / 4900;
-              const baseG = activeGanacheLines.reduce((s, l) => s + l.quantity, 0);
-              const adv = baseG > 0 ? Math.max(0.5, Math.round(needG / baseG * 100) / 100) : 0;
-              return (
-                <div className="mt-4 bg-rose-50 rounded-xl p-3 text-sm text-rose-800 flex flex-col sm:flex-row sm:items-center gap-2">
-                  <div className="flex-1">
-                    Coques x{multiplier} = {Math.round(coqueG).toLocaleString()} g. Ganache nécessaire : <b>{Math.round(needG).toLocaleString()} g</b> (règle : 3500 g de ganache pour 4900 g de coques).
-                    {baseG > 0 && <span> Recette ganache de base : {Math.round(baseG).toLocaleString()} g, donc multiplicateur conseillé : <b>x{adv}</b>.</span>}
-                  </div>
-                  {adv > 0 && <button onClick={() => setGanacheMultiplier(adv)} className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-medium">Appliquer x{adv}</button>}
-                </div>
-              );
-            })()}
-          </div>
-
           {/* Sub-tabs Coque/Ganache */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="flex border-b">
@@ -395,7 +430,22 @@ export default function RecipePage() {
               {activeTab === 'coque' ? <ChefHat size={22} /> : <Layers size={22} />}
               <div>
                 <p className="font-bold text-base">{activeTab === 'coque' ? 'Coque Macaron' : 'Ganache Macaron'}</p>
-                <p className="text-xs text-white/80">Recette de base par lot · multiplicateur x{activeTab === 'coque' ? multiplier : ganacheMultiplier}</p>
+                <p className="text-xs text-white/80">Recette de base par lot</p>
+              </div>
+              <div className="ml-6 flex items-center gap-2 bg-white/20 rounded-xl px-3 py-2">
+                <span className="text-sm font-medium">Multiplicateur ×</span>
+                {editMult === activeTab ? (
+                  <>
+                    <input type="number" step="any" min="0" value={multDraft} onChange={e => setMultDraft(e.target.value)} className="w-20 px-2 py-1 rounded-lg text-gray-900 text-center font-bold" />
+                    <button type="button" onClick={saveMult} className="px-3 py-1 rounded-lg bg-white text-gray-800 text-sm font-semibold">OK</button>
+                    <button type="button" onClick={() => setEditMult(null)} className="px-2 py-1 text-sm underline">Annuler</button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-2xl font-bold">{activeTab === 'coque' ? multiplier : ganacheMultiplier}</span>
+                    <button type="button" onClick={() => { setMultDraft(String(activeTab === 'coque' ? multiplier : ganacheMultiplier)); setEditMult(activeTab); }} className="px-3 py-1 rounded-lg bg-white/90 text-gray-800 text-sm font-semibold hover:bg-white">Modifier</button>
+                  </>
+                )}
               </div>
               <div className="ml-auto text-right">
                 <p className="text-xl font-bold">{totalWeight.toLocaleString()}g</p>
@@ -459,48 +509,38 @@ export default function RecipePage() {
           {/* Résumé combiné */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-amber-50 rounded-xl p-4"><p className="text-sm text-amber-600 font-medium">Coût Coque</p><p className="text-2xl font-bold text-amber-700">{coqueTotalCost.toFixed(0)} DA</p><p className="text-xs text-amber-500">pour x{multiplier}</p></div>
-            <div className="bg-rose-50 rounded-xl p-4"><p className="text-sm text-rose-600 font-medium">Coût Ganache</p><p className="text-2xl font-bold text-rose-700">{ganacheTotalCost.toFixed(0)} DA</p><p className="text-xs text-rose-500">pour x{multiplier}</p></div>
+            <div className="bg-rose-50 rounded-xl p-4"><p className="text-sm text-rose-600 font-medium">Coût Ganache</p><p className="text-2xl font-bold text-rose-700">{ganacheTotalCost.toFixed(0)} DA</p><p className="text-xs text-rose-500">pour x{ganacheMultiplier}</p></div>
             <div className="bg-emerald-50 rounded-xl p-4"><p className="text-sm text-emerald-600 font-medium">Coût Total</p><p className="text-2xl font-bold text-emerald-700">{(coqueTotalCost + ganacheTotalCost).toFixed(0)} DA</p><p className="text-xs text-emerald-500">coque + ganache</p></div>
             <div className="bg-blue-50 rounded-xl p-4"><p className="text-sm text-blue-600 font-medium">Nb. Macarons</p><p className="text-2xl font-bold text-blue-700">{macaronsCount}</p><p className="text-xs text-blue-500">55 pcs/kg</p></div>
           </div>
 
-          {/* Calcul du jour */}
+                    {/* Production du jour */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="bg-gradient-to-r from-violet-500 to-purple-600 p-5 flex items-center gap-3 text-white">
               <FlaskConical size={22} />
-              <div><p className="font-bold text-base">Calcul du Prix de Revient du Jour</p><p className="text-xs text-white/80">Coques calculées par le multiplicateur · Saisir la quantité de ganache utilisée</p></div>
+              <div>
+                <p className="font-bold text-base">Production du jour</p>
+                <p className="text-xs text-white/80">Coques ×{multiplier} · Ganache ×{ganacheMultiplier} : ces données partent dans la page Production</p>
+              </div>
             </div>
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div className="bg-amber-50 rounded-xl p-5 border border-amber-100">
-                  <div className="flex items-center gap-2 mb-3"><ChefHat size={16} className="text-amber-600" /><span className="text-sm font-semibold text-amber-800">Coût des Coques (×{multiplier})</span></div>
-                  <p className="text-3xl font-bold text-amber-700">{coqueTotalCost.toFixed(0)} <span className="text-base font-medium">DA</span></p>
-                  <p className="text-xs text-amber-500 mt-2">Ajustez le multiplicateur ci-dessus</p>
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-rose-700 flex items-center gap-2"><Layers size={15} /> Ganache utilisée aujourd'hui (grammes)</label>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setGanacheDailyQty(q => Math.max(0, q - 50))} className="w-10 h-10 rounded-xl bg-rose-50 hover:bg-rose-100 flex items-center justify-center text-xl font-bold text-rose-600 transition-colors flex-shrink-0 border border-rose-200">-</button>
-                    <div className="relative flex-1">
-                      <input type="number" min="0" step="50" value={ganacheDailyQty || ''} placeholder="0" onChange={e => setGanacheDailyQty(Math.max(0, parseFloat(e.target.value) || 0))} className="w-full text-center text-2xl font-bold text-rose-700 px-4 py-3 border-2 border-rose-200 rounded-xl focus:outline-none focus:border-rose-500 bg-rose-50" />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">g</span>
-                    </div>
-                    <button onClick={() => setGanacheDailyQty(q => q + 50)} className="w-10 h-10 rounded-xl bg-rose-100 hover:bg-rose-200 flex items-center justify-center text-xl font-bold text-rose-600 transition-colors flex-shrink-0 border border-rose-200">+</button>
-                  </div>
-                  <div className="flex justify-between text-xs text-gray-400 px-1"><span>{ganacheCostPerGram > 0 ? `${(ganacheCostPerGram * 1000).toFixed(1)} DA/kg` : 'Prix non configuré'}</span><span className="font-semibold text-rose-600">{todayGanacheCost.toFixed(0)} DA</span></div>
-                </div>
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-amber-50 rounded-xl p-4"><p className="text-sm text-amber-600 font-medium">Coques</p><p className="text-xl font-bold text-amber-700">{Math.round(dayCoqueG).toLocaleString()} g</p><p className="text-xs text-amber-500">recette ×{multiplier}</p></div>
+                <div className="bg-rose-50 rounded-xl p-4"><p className="text-sm text-rose-600 font-medium">Ganache</p><p className="text-xl font-bold text-rose-700">{Math.round(dayGanacheG).toLocaleString()} g</p><p className="text-xs text-rose-500">recette ×{ganacheMultiplier}</p></div>
+                <div className="bg-blue-50 rounded-xl p-4"><p className="text-sm text-blue-600 font-medium">Quantité produite</p><p className="text-xl font-bold text-blue-700">{totalKgDay.toLocaleString()} kg</p><p className="text-xs text-blue-500">coques + ganache</p></div>
+                <div className="bg-emerald-50 rounded-xl p-4"><p className="text-sm text-emerald-600 font-medium">Coût matières</p><p className="text-xl font-bold text-emerald-700">{costDay.toFixed(0)} DA</p><p className="text-xs text-emerald-500">{totalKgDay > 0 ? (costDay / totalKgDay).toFixed(0) : 0} DA/kg</p></div>
               </div>
-              <div className="rounded-xl border-2 border-dashed border-emerald-200 bg-emerald-50 p-5">
-                <div className="flex items-center gap-2 mb-4"><Calculator size={18} className="text-emerald-600" /><h3 className="font-semibold text-emerald-800">Prix de Revient Total du Jour</h3></div>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center py-2 border-b border-emerald-200"><span className="text-sm text-gray-600 flex items-center gap-2"><ChefHat size={14} className="text-amber-500" /> Coût des Coques (×{multiplier})</span><span className="font-semibold text-amber-700">{coqueTotalCost.toFixed(0)} DA</span></div>
-                  <div className="flex justify-between items-center py-2 border-b border-emerald-200"><span className="text-sm text-gray-600 flex items-center gap-2"><Layers size={14} className="text-rose-500" /> Coût de la Ganache ({ganacheDailyQty}g)</span><span className="font-semibold text-rose-700">{todayGanacheCost.toFixed(0)} DA</span></div>
-                  <div className="flex justify-between items-center pt-2"><span className="font-bold text-gray-800 text-base">TOTAL Prix de Revient</span><span className="text-2xl font-bold text-emerald-700">{todayTotalCost.toFixed(0)} DA</span></div>
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date de production</label>
+                  <input type="date" value={prodDate} onChange={e => setProdDate(e.target.value)} className="px-3 py-2 border rounded-lg" />
                 </div>
-                {macaronsCount > 0 && todayTotalCost > 0 && (
-                  <div className="mt-4 pt-4 border-t border-emerald-200 flex justify-between items-center"><span className="text-sm text-gray-600">Coût par macaron (~{macaronsCount} pièces)</span><span className="font-bold text-emerald-700">{(todayTotalCost / macaronsCount).toFixed(1)} DA</span></div>
-                )}
+                <button type="button" onClick={sendToProduction} disabled={prodBusy || totalKgDay <= 0}
+                  className="px-5 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 font-medium">
+                  {prodBusy ? 'Envoi...' : 'Envoyer à la production'}
+                </button>
               </div>
+              <p className="text-xs text-gray-500">Si un lot « Recettes » existe déjà à cette date, il est mis à jour (les pertes déjà saisies sont conservées). Sinon, un lot est créé.</p>
             </div>
           </div>
         </>
