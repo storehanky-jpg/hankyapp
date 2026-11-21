@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as api from '../services/api';
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingCart, Package,
@@ -8,7 +8,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { format, subDays, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
+import { format, subDays, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, startOfYear, endOfYear, addDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useApp } from '../context/AppContext';
 import { formatKg, formatLoss } from '../lib/formatters';
@@ -19,6 +19,9 @@ export default function Dashboard() {
   const { sales, bulkSales, shopSales, productionBatches, materialPurchases, fixedCharges, variableExpenses, utilities, laborCosts, isLoading } = useApp();
   const { setLaborCosts: setLaborCostsAuto } = useApp();
   const laborAutoBusy = useRef(false);
+  const [dashFrom, setDashFrom] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
+  const [dashTo, setDashTo] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
+
   useEffect(() => {
     if (laborAutoBusy.current) return;
     if (!laborCosts || laborCosts.length === 0) return;
@@ -77,6 +80,32 @@ export default function Dashboard() {
   const todayStr = format(today, 'yyyy-MM-dd');
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
+  // Periode choisie (agenda Du ... au)
+  const rangeFromD = new Date(dashFrom + 'T00:00:00');
+  const rangeToD = new Date(dashTo + 'T00:00:00');
+  const rangeValid = !isNaN(rangeFromD.getTime()) && !isNaN(rangeToD.getTime()) && rangeFromD <= rangeToD;
+  const isMonthRange = dashFrom === format(startOfMonth(today), 'yyyy-MM-dd') && dashTo === format(endOfMonth(today), 'yyyy-MM-dd');
+  const dateInRange = (d: Date) => {
+    if (!rangeValid || isNaN(d.getTime())) return false;
+    const s = format(d, 'yyyy-MM-dd');
+    return s >= dashFrom && s <= dashTo;
+  };
+  let dashFactor = 0;
+  if (rangeValid) {
+    const cur = new Date(rangeFromD.getFullYear(), rangeFromD.getMonth(), 1);
+    while (cur <= rangeToD) {
+      const ms = new Date(cur.getFullYear(), cur.getMonth(), 1);
+      const me = new Date(cur.getFullYear(), cur.getMonth() + 1, 0);
+      const a = rangeFromD > ms ? rangeFromD : ms;
+      const b = rangeToD < me ? rangeToD : me;
+      dashFactor += (Math.round((b.getTime() - a.getTime()) / 86400000) + 1) / me.getDate();
+      cur.setMonth(cur.getMonth() + 1);
+    }
+  }
+  const rangeDays = rangeValid ? Math.round((rangeToD.getTime() - rangeFromD.getTime()) / 86400000) + 1 : 1;
+  void currentMonth;
+  void currentYear;
+
 
   // Today's stats
   const salesToday = sales.filter(s => s.sale_date === todayStr);
@@ -90,23 +119,23 @@ export default function Dashboard() {
   // Monthly stats
   const salesThisMonth = sales.filter(s => {
     const date = new Date(s.sale_date);
-    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+    return dateInRange(date);
   });
   const bulkSalesThisMonth = bulkSales.filter(s => {
     const date = new Date(s.sale_date);
-    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+    return dateInRange(date);
   });
   const boxAmountMonth = salesThisMonth.reduce((sum, s) => sum + s.total_amount, 0);
   const bulkAmountMonth = bulkSalesThisMonth.reduce((sum, s) => sum + s.total_amount, 0);
   const shopAmountMonth = shopSales.filter(s => {
     const date = new Date(s.sale_date);
-    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+    return dateInRange(date);
   }).reduce((sum, s) => sum + s.total_amount, 0);
   const totalSalesMonth = boxAmountMonth + bulkAmountMonth + shopAmountMonth;
 
   const purchasesThisMonth = materialPurchases.filter(p => {
     const date = new Date(p.purchase_date);
-    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+    return dateInRange(date);
   });
   const totalPurchasesMonth = purchasesThisMonth.reduce((sum, p) => sum + p.total_cost, 0);
 
@@ -126,29 +155,37 @@ export default function Dashboard() {
   const variableExpensesMonth = variableExpenses
     .filter(e => {
       const date = new Date(e.date);
-      return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+      return dateInRange(date);
     })
     .reduce((sum, e) => sum + e.amount, 0);
 
   const utilitiesMonth = utilities
     .filter(u => {
       const start = new Date(u.period_start);
-      return start.getMonth() === currentMonth && start.getFullYear() === currentYear;
+      return dateInRange(start);
     })
     .reduce((sum, u) => sum + u.amount, 0);
 
-  const laborMonth = laborCosts
-    .filter(l => l.period_month === currentMonth + 1 && l.period_year === currentYear)
-    .reduce((sum, l) => sum + l.total_cost - variableExpenses.filter(e => e.notes === 'labor:' + l.id).reduce((s2, e) => s2 + e.amount, 0), 0);
+  const laborMonth = laborCosts.reduce((sum, l) => {
+    if (!rangeValid) return sum;
+    const ms = new Date(l.period_year, l.period_month - 1, 1);
+    const me = new Date(l.period_year, l.period_month, 0);
+    const a = rangeFromD > ms ? rangeFromD : ms;
+    const b = rangeToD < me ? rangeToD : me;
+    if (b < a) return sum;
+    const frac = (Math.round((b.getTime() - a.getTime()) / 86400000) + 1) / me.getDate();
+    const adv = variableExpenses.filter(e => e.notes === 'labor:' + l.id).reduce((s2, e) => s2 + e.amount, 0);
+    return sum + (l.total_cost - adv) * frac;
+  }, 0);
 
-  const totalExpensesMonth = fixedChargesMonthly + variableExpensesMonth + utilitiesMonth + laborMonth;
+  const totalExpensesMonth = fixedChargesMonthly * dashFactor + variableExpensesMonth + utilitiesMonth + laborMonth;
   const profitMonth = totalSalesMonth - (totalExpensesMonth + totalPurchasesMonth);
-  const profitToday = totalSalesToday - ((totalExpensesMonth + totalPurchasesMonth) / 30);
+  const profitToday = totalSalesToday - ((totalExpensesMonth + totalPurchasesMonth) / (isMonthRange ? 30 : Math.max(1, rangeDays)));
 
   // Production stats
   const productionThisMonth = productionBatches.filter(b => {
     const date = new Date(b.batch_date);
-    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+    return dateInRange(date);
   });
   const totalProduced = productionThisMonth.reduce((sum, b) => sum + b.produced_quantity, 0);
   const totalLost = productionThisMonth.reduce((sum, b) => sum + b.lost_quantity, 0);
@@ -211,7 +248,7 @@ export default function Dashboard() {
       bgColor: 'bg-emerald-50'
     },
     {
-      title: "Chiffre d'Affaires Mensuel",
+      title: isMonthRange ? "Chiffre d'Affaires Mensuel" : "Chiffre d'Affaires de la Période",
       value: `${totalSalesMonth.toLocaleString()} DZD`,
       subtitle: `Boîtes: ${boxAmountMonth.toLocaleString()} · Vrac: ${bulkAmountMonth.toLocaleString()} · Magasin: ${shopAmountMonth.toLocaleString()} DZD`,
       icon: <DollarSign size={24} />,
@@ -221,7 +258,7 @@ export default function Dashboard() {
       bgColor: 'bg-blue-50'
     },
     {
-      title: 'Production ce Mois',
+      title: isMonthRange ? 'Production ce Mois' : 'Production de la Période',
       value: formatKg(totalProduced),
       subtitle: `Pertes: ${formatLoss(totalLost)}`,
       icon: <ChefHat size={24} />,
@@ -231,7 +268,7 @@ export default function Dashboard() {
       bgColor: 'bg-amber-50'
     },
     {
-      title: 'Dépenses ce Mois',
+      title: isMonthRange ? 'Dépenses ce Mois' : 'Dépenses de la Période',
       value: `${(totalExpensesMonth + totalPurchasesMonth).toLocaleString()} DZD`,
       subtitle: `Achats: ${totalPurchasesMonth.toLocaleString()} DZD`,
       icon: <Package size={24} />,
@@ -257,10 +294,29 @@ export default function Dashboard() {
           <div className="flex items-center gap-2">
             {profitMonth >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
             <span className="font-medium">
-              {profitMonth >= 0 ? 'Bénéfice' : 'Perte'} mensuel: {Math.abs(profitMonth).toLocaleString()} DZD
+              {profitMonth >= 0 ? 'Bénéfice' : 'Perte'} {isMonthRange ? 'mensuel' : 'de la période'} : {Math.abs(profitMonth).toLocaleString()} DZD
             </span>
           </div>
         </div>
+      </div>
+
+      {/* Periode */}
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex flex-wrap items-center gap-3">
+        <Calendar size={18} className="text-amber-600" />
+        <span className="text-sm font-medium text-gray-700">Période :</span>
+        <button type="button" onClick={() => { const s = startOfWeek(today, { weekStartsOn: 6 }); setDashFrom(format(s, 'yyyy-MM-dd')); setDashTo(format(addDays(s, 5), 'yyyy-MM-dd')); }}
+          className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-amber-100">Semaine</button>
+        <button type="button" onClick={() => { setDashFrom(format(startOfMonth(today), 'yyyy-MM-dd')); setDashTo(format(endOfMonth(today), 'yyyy-MM-dd')); }}
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium ${isMonthRange ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-amber-100'}`}>Mois</button>
+        <button type="button" onClick={() => { setDashFrom(format(startOfYear(today), 'yyyy-MM-dd')); setDashTo(format(endOfYear(today), 'yyyy-MM-dd')); }}
+          className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 text-gray-700 hover:bg-amber-100">Année</button>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-600">Du</span>
+          <input type="date" value={dashFrom} onChange={e => setDashFrom(e.target.value)} className="px-2 py-1.5 border rounded-lg text-sm" />
+          <span className="text-sm text-gray-600">au</span>
+          <input type="date" value={dashTo} onChange={e => setDashTo(e.target.value)} className="px-2 py-1.5 border rounded-lg text-sm" />
+        </div>
+        {!rangeValid && <span className="text-xs text-red-600">Dates invalides</span>}
       </div>
 
       {/* Stats Cards */}
