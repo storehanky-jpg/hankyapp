@@ -369,7 +369,7 @@ export default function RecipePage() {
       return;
     }
     const r = Math.round(v * 1000) / 1000;
-    if (editMult === 'ganache') setGanacheMultiplier(r); else setMultiplier(r);
+    setMultiplier(r); setGanacheMultiplier(r);
     setEditMult(null);
   };
 
