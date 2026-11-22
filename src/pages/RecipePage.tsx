@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import * as api from '../services/api';
-import { s upabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import type { RecipeItem, ProductionBatch } from '../types';
 
 // ── Macaron recipe defaults ──
