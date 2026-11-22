@@ -4,16 +4,14 @@ const stop = (m) => { console.log('ARRET : ' + m); process.exit(1); };
 const FP = 'src/pages/RecipePage.tsx';
 if (!fs.existsSync(FP)) stop('RecipePage.tsx introuvable');
 let t = fs.readFileSync(FP, 'utf8');
-if (t.indexOf('choc-mat-list') >= 0) stop('deja applique');
-const a = 'value={newChocIng.name} onChange={e => setNewChocIng({ ...newChocIng, name: e.target.value })}';
-const n = t.split(a).length - 1;
-if (n !== 1) stop('champ nom trouve ' + n + ' fois');
-const b = 'list="choc-mat-list" value={newChocIng.name} onChange={e => { const v = e.target.value; const m = rawMaterials.find(x => x.name.trim().toLowerCase() === v.trim().toLowerCase()); setNewChocIng(m ? { ...newChocIng, name: m.name, unit_cost_per_kg: Math.round((m.unit === \'g\' ? m.unit_cost * 1000 : m.unit_cost) * 100) / 100 } : { ...newChocIng, name: v }); }}';
-const c = '<form onSubmit={handleAddChocIngredient} className="p-4 space-y-4">';
-const m = t.split(c).length - 1;
-if (m !== 1) stop('formulaire trouve ' + m + ' fois');
-fs.writeFileSync('backup32-RecipePage.tsx.txt', t);
-t = t.replace(a, b);
-t = t.replace(c, c + '\n              <datalist id="choc-mat-list">{rawMaterials.map(x => (<option key={x.id} value={x.name} />))}</datalist>');
+if (t.indexOf('effYieldG') >= 0) stop('deja applique');
+function count(s) { return t.split(s).length - 1; }
+function swap(a, b, nom) { const n = count(a); if (n !== 1) stop(nom + ' : ' + n + ' occurrence(s) au lieu de 1'); const i = t.indexOf(a); t = t.slice(0, i) + b + t.slice(i + a.length); }
+const orig = t;
+swap('const yieldKg = (chocConfig?.yield_g || 1000) / 1000;',
+ 'const baseIngG = chocIngredients.reduce((s, i) => s + (i.quantity_g || 0), 0);\n  const effYieldG = chocConfig && chocConfig.yield_g && chocConfig.yield_g !== 1000 ? chocConfig.yield_g : (baseIngG > 0 ? baseIngG : 1000);\n  const yieldKg = effYieldG / 1000;', 'rendement');
+swap('const scaledYieldG = (chocConfig?.yield_g || 1000) * chocMultiplier;', 'const scaledYieldG = effYieldG * chocMultiplier;', 'rendement multiplie');
+swap('{(chocConfig?.yield_g || 1000).toLocaleString()} g</span>', '{Math.round(effYieldG).toLocaleString()} g</span>', 'affichage');
+fs.writeFileSync('backup33-RecipePage.tsx.txt', orig);
 fs.writeFileSync(FP, t);
-console.log('OK : liste des matieres premieres et prix automatique ajoutes');
+console.log('OK : rendement du chocolat calcule automatiquement');
