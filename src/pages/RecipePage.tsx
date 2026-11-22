@@ -9,7 +9,7 @@ import { supabase } from '../lib/supabase';
 import type { RecipeItem, ProductionBatch } from '../types';
 
 // ── Macaron recipe defaults ──
-const DEFAULT_COQUE = { amandes: 100, sucre_glace: 100, blancs_oeufs: 100, sucre: 100, eau: 35 };
+const DEFAULT _COQUE = { amandes: 100, sucre_glace: 100, blancs_oeufs: 100, sucre: 100, eau: 35 };
 const DEFAULT_GANACHE = { chocolat: 200, lait: 100, pate_fruits: 150 };
 const DEFAULT_COQUE_PRICES: Record<string, number> = {
   'Amandes en poudre': 1650, 'Sucre glace': 100, "Blancs d'oeufs": 390, 'Sucre en poudre': 75, 'Eau': 0,
