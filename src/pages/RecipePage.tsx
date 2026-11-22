@@ -274,6 +274,32 @@ export default function RecipePage() {
   const yieldKg = effYieldG / 1000;
   const costPerKg = yieldKg > 0 && totalIngCost > 0 ? totalIngCost / yieldKg : 0;
 
+  // Le prix de revient du chocolat maison alimente la matiere "Chocolat maison" (utilisable dans la recette de ganache)
+  const syncChocBusy = React.useRef(false);
+  useEffect(() => {
+    const cost = Math.round(costPerKg * 100) / 100;
+    if (!(cost > 0) || syncChocBusy.current || !navigator.onLine) return;
+    const syncChocMat = async () => {
+      syncChocBusy.current = true;
+      try {
+        const mat = rawMaterials.find(m => m.name.trim().toLowerCase() === 'chocolat maison');
+        if (mat) {
+          if (Math.abs(mat.unit_cost - cost) > 0.5) {
+            const upd = await api.rawMaterialsService.update(mat.id, { unit_cost: cost });
+            setRawMaterials(rawMaterials.map(m => (m.id === mat.id ? { ...m, ...upd } : m)));
+          }
+        } else {
+          const created = await api.rawMaterialsService.create({ name: 'Chocolat maison', unit: 'kg', unit_cost: cost, supplier: '' } as Parameters<typeof api.rawMaterialsService.create>[0]);
+          setRawMaterials([...rawMaterials, created]);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    syncChocMat().finally(() => { syncChocBusy.current = false; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [costPerKg, rawMaterials.length]);
+
   // Scaled by chocolat multiplier
   const scaledChocIngredients = useMemo(() => chocIngredients.map(i => ({
     ...i,
