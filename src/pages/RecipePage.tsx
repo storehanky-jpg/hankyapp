@@ -269,7 +269,9 @@ export default function RecipePage() {
 
   // ── Chocolat computations ──
   const totalIngCost = useMemo(() => chocIngredients.reduce((s, i) => s + (i.quantity_g / 1000) * i.unit_cost_per_kg, 0), [chocIngredients]);
-  const yieldKg = (chocConfig?.yield_g || 1000) / 1000;
+  const baseIngG = chocIngredients.reduce((s, i) => s + (i.quantity_g || 0), 0);
+  const effYieldG = chocConfig && chocConfig.yield_g && chocConfig.yield_g !== 1000 ? chocConfig.yield_g : (baseIngG > 0 ? baseIngG : 1000);
+  const yieldKg = effYieldG / 1000;
   const costPerKg = yieldKg > 0 && totalIngCost > 0 ? totalIngCost / yieldKg : 0;
 
   // Scaled by chocolat multiplier
@@ -279,7 +281,7 @@ export default function RecipePage() {
     scaledCost: (i.quantity_g * chocMultiplier / 1000) * i.unit_cost_per_kg,
   })), [chocIngredients, chocMultiplier]);
   const scaledTotalIngCost = scaledChocIngredients.reduce((s, i) => s + i.scaledCost, 0);
-  const scaledYieldG = (chocConfig?.yield_g || 1000) * chocMultiplier;
+  const scaledYieldG = effYieldG * chocMultiplier;
   const scaledYieldKg = scaledYieldG / 1000;
   const scaledCostPerKg = scaledYieldKg > 0 && scaledTotalIngCost > 0 ? scaledTotalIngCost / scaledYieldKg : costPerKg;
 
@@ -686,7 +688,7 @@ export default function RecipePage() {
                   {editYield ? (
                     <div className="flex items-center gap-2"><input type="number" min="1" step="50" value={yieldValue} onChange={e => setYieldValue(parseFloat(e.target.value) || 1000)} className="w-32 px-3 py-1.5 border rounded-lg text-center font-bold focus:ring-2 focus:ring-amber-500" /><span className="text-sm text-gray-500">g</span><button onClick={handleSaveYield} className="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded-lg"><Save size={16} /></button><button onClick={() => { setEditYield(false); setYieldValue(chocConfig?.yield_g || 1000); }} className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg"><X size={16} /></button></div>
                   ) : (
-                    <div className="flex items-center gap-2"><span className="text-2xl font-bold text-amber-700">{(chocConfig?.yield_g || 1000).toLocaleString()} g</span><button onClick={() => setEditYield(true)} className="p-1.5 text-amber-500 hover:bg-amber-100 rounded-lg"><Edit2 size={15} /></button></div>
+                    <div className="flex items-center gap-2"><span className="text-2xl font-bold text-amber-700">{Math.round(effYieldG).toLocaleString()} g</span><button onClick={() => setEditYield(true)} className="p-1.5 text-amber-500 hover:bg-amber-100 rounded-lg"><Edit2 size={15} /></button></div>
                   )}
                 </div>
                 {/* Rendement multiplié */}
