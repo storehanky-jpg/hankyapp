@@ -44,7 +44,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const SESSION_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes
 const LAST_ACTIVITY_KEY = 'admin_last_activity';
 
 const DEFAULT_PERMISSIONS: UserPermissions = {
